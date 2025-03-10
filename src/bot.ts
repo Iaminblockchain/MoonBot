@@ -10,6 +10,7 @@ import * as settingController from './controllers/settingController';
 import * as positionController from './controllers/positionController';
 import * as autoBuyController from './controllers/autoBuyController';
 import * as helpController from './controllers/helpController';
+import cron from "node-cron";
 
 export const botInstance = new TelegramBot(config.TELEGRAM_BOT_TOKEN, { polling: true });
 
@@ -19,9 +20,15 @@ export const enum STATE {
     INPUT_PRIVATE_KEY
 };
 
+export type TRADE = {
+    contractAddress : string,
+    targetPrice : number,
+    lowPrice: number,
+}
+
 export const state = new Map();
 export const deleteMessageId = new Map();
-export const trade = new Map();
+export const trade = new Map<string, TRADE[]>();
 
 export const setDeleteMessageId = (chatId: TelegramBot.ChatId, messageId: number) => {
     deleteMessageId.set(chatId.toString(), messageId);
@@ -33,6 +40,7 @@ export const getDeleteMessageId = (chatId: TelegramBot.ChatId) => {
 
 export const setState = (chatid: TelegramBot.ChatId, newState: number, data = {}) => {
     state.set(chatid.toString(), { state: newState, data });
+    console.log("state", state);
 };
 export const getState = (chatid: TelegramBot.ChatId) => {
     return state.get(chatid.toString());
@@ -44,6 +52,19 @@ export const removeState = (chatid: TelegramBot.ChatId) => {
 export const clearState = () => {
     state.clear();
 };
+
+export const setTradeState = (chatid: TelegramBot.ChatId, contractAddress: string, targetPrice: number, lowPrice: number) => {
+    const prev = trade.get(chatid.toString())
+    if(prev) trade.set(chatid.toString(), [...prev, {contractAddress, targetPrice, lowPrice}]);
+    else trade.set(chatid.toString(), [{contractAddress, targetPrice, lowPrice}]);
+}; 
+
+export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: string) => {
+    const prev = trade.get(chatid.toString())
+    if(!prev) return;
+    const next = prev.filter((value: TRADE) => value.contractAddress !== contractAddress)
+    trade.set(chatid.toString(), [...next]);
+}; 
 
 export const init = () => {
     botInstance.setMyCommands(
@@ -60,14 +81,14 @@ export const init = () => {
     botInstance.onText(/\/help/, onHelpCommand);
     botInstance.onText(/\/autobuy/, autoBuyController.onAutoBuyCommand);
 
+    runAutoSellSchedule();
+
     botInstance.on('message', async (msg: TelegramBot.Message) => {
-        console.log('received message: ', msg);
         const chatId = msg.chat.id;
         const messageId = msg.message_id;
         const messageText = msg.text;
         if (!msg.text!.startsWith('/')) {
             const currentState = getState(chatId.toString());
-            console.log("state", currentState);
             if (currentState) {
                 if (currentState.state == STATE.INPUT_TOKEN) {
                     removeState(chatId);
@@ -83,11 +104,13 @@ export const init = () => {
                 autoBuyController.checkAutoBuy(msg);
             }
         }
+        //  else if () {
+
+        // }
     });
 
     botInstance.on('callback_query', (query) => {
         try {
-            console.log("callback received");
             const chatId = query.message!.chat.id;
             const data = query.data;
             console.log(`callback, chatId = ${chatId}, data = ${data}`);
@@ -115,6 +138,19 @@ export const init = () => {
         }
     });
 };
+
+export const runAutoSellSchedule = () => {
+    const scheduler = "*/20 * * * * *"; // every 20 mins
+    try {
+      cron
+        .schedule(scheduler, () => {
+          sellController.autoSellHandler()
+        })
+        .start();
+    } catch (error) {
+      console.error(`Error running the Schedule Job for Auto Sell: ${error}`);
+    }
+  };
 
 const closeMessage = (query: TelegramBot.CallbackQuery) => {
     const { chatId, messageId } = getChatIdandMessageId(query);
@@ -207,4 +243,3 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
     };
 };
 
-export { };

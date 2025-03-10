@@ -420,7 +420,6 @@ export const getTokenMetaData = async (CONNECTION: Connection, address: string) 
         totalSupply = Number(mintInfo.supply / BigInt(10 ** decimals));
       }
       const metaData = { name, symbol, logo, decimals, address, totalSupply, description, extensions, renounced, type: token_type };
-      console.log('metaData = ', metaData);
       return metaData;
     } else {
       console.log("utils.getTokenMetadata tokenInfo", token);

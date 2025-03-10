@@ -15,7 +15,7 @@ const swap: any = async (swapConfig: any, privateKey: any) => {
    */
   try {
 
-    const raydiumSwap = new RaydiumSwap(config.RPC_ENDPOINT, privateKey);
+    const raydiumSwap = new RaydiumSwap(config.SOLANA_RPC_ENDPOINT, privateKey);
 
     console.log(`Raydium swap initialized`);
     console.log(`Swapping ${swapConfig.tokenAAmount} of ${swapConfig.tokenAAddress} for ${swapConfig.tokenBAddress}...`)

@@ -3,10 +3,14 @@ const {
     LIQUIDITY_STATE_LAYOUT_V4,  // Layout for the liquidity state
     MAINNET_PROGRAM_ID          // Mainnet program IDs for different Raydium components
 } = require('@raydium-io/raydium-sdk');
-
+//const { PublicKey } = require('@solana/web3.js'); // Import PublicKey
 // Creating an asynchronous function to fetch market accounts based on the provided base and quote tokens
 const fetchMarketAccounts = async (connection, base, quote, commitment) => {
     try {
+          console.log("~~basee", base);
+          console.log("quote", quote);
+ //const baseMint = new PublicKey(base);
+     // const quoteMint = new PublicKey(quote);
         // Fetching program accounts from the blockchain using the connection object and the provided parameters
         const accounts = await connection.getProgramAccounts(
             MAINNET_PROGRAM_ID.AmmV4,  // Program ID for the Raydium AMM V4

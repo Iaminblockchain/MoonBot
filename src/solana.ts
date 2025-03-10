@@ -1,12 +1,12 @@
 import bs58 from 'bs58';
-import { Keypair, Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction, ParsedInstruction, ParsedAccountData, VersionedTransaction, TransactionMessage, BlockhashWithExpiryBlockHeight } from "@solana/web3.js";
+import { Keypair, Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction, ParsedInstruction, ParsedAccountData, VersionedTransaction, TransactionMessage, BlockhashWithExpiryBlockHeight, SignatureStatus, TransactionSignature, TransactionConfirmationStatus } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, AccountLayout, TOKEN_2022_PROGRAM_ID, getMint, getAccount } from "@solana/spl-token";
 import { Metaplex } from "@metaplex-foundation/js";
 import * as config from './config';
 import axios from 'axios';
 const { fetchMarketAccounts } = require("./scripts/fetchMarketAccounts");
 const { getPoolKeysByPoolId } = require("./scripts/getPoolKeysByPoolId");
-import  swap   from "./swap";
+import swap from "./swap";
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
@@ -203,96 +203,174 @@ export const getTokenSwapInfo = async (connection: Connection, signature: string
   }
 }
 
-export async function swapToken(CONNECTION: Connection, PRIVATE_KEY: string, publicKey: string, inputMint: string, outputMint: string, amount: number, swapMode: "ExactIn" | "ExactOut"){
+export async function swapToken(CONNECTION: Connection, PRIVATE_KEY: string, publicKey: string, inputMint: string, outputMint: string, amount: number, swapMode: "ExactIn" | "ExactOut") {
   // Fetching market data for the tokens to retrieve the pool ID
-  console.log("Fetching Pool details...", `  - Date:${new Date()}`)
-
-  const marketData = await fetchMarketAccounts(CONNECTION, inputMint, outputMint, "confirmed");
-  // Fetching pool keys using the retrieved pool ID (marketData.id)
-  var pool = await getPoolKeysByPoolId(marketData.id, CONNECTION);
-  pool = convertPoolFormat(pool);
-  console.log("Pools fetched", pool, `  - Date:${new Date()}`)
-  var swapConfig = {
-    executeSwap: true, // Send tx when true, simulate tx when false
-    useVersionedTransaction: true,
-    tokenAAmount: amount,
-    tokenAAddress: inputMint,
-    tokenBAddress: outputMint,
-    maxLamports: 1500000, // Micro lamports for priority fee
-    direction: "in",
-    pool: pool,
-    maxRetries: 20,
-  }
-  let swapResp = await swap(swapConfig, PRIVATE_KEY);
-
-  let confirmed: boolean = false;
-  let signature = null;
-  if(swapResp){
-    confirmed = swapResp.confirmed;
-    signature = swapResp.signature;
-  }
-  if (confirmed) {
-    console.log("http://solscan.io/tx/" + signature);
-    return { confirmed: true, signature: signature };
-  } else {
-    console.log("Transaction failed");
-    return { confirmed: false, signature: null };
-  }  
-}
-
-export const jupiter_swap = async (CONNECTION: Connection, PRIVATE_KEY: string, publicKey: string, inputMint: string, outputMint: string, amount: number, swapMode: "ExactIn" | "ExactOut") => {
   try {
-    console.log("~~final amount", amount)    
-    const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
-    console.log("~~urlll", `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=50&swapMode=${swapMode}`)
-    const quoteResponse = await (
-      await fetch(`https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${Math.floor(amount)}&slippageBps=50&swapMode=${swapMode}`
-      )
-    ).json();
-    console.log('quoteResponse = ', quoteResponse);
 
-    // get serialized transactions for the swap
-    const { swapTransaction } = await (
-      await fetch('https://quote-api.jup.ag/v6/swap', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          quoteResponse,
-          userPublicKey: keypair.publicKey.toString(),
-          wrapAndUnwrapSol: true,
-          // prioritizationFeeLamports: 10000000
-        })
-      })
-    ).json();
-    console.log("~~~swapTransaction", swapTransaction)
-    // deserialize the transaction
-    const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-    console.log("~~swapTransactionBuf", swapTransactionBuf)
-    var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
-    console.log("~~~transaction",transaction);
+    console.log("Fetching Pool details...", `  - Date:${new Date()}`)
 
-    // sign the transaction
-    transaction.sign([keypair]);
-    const txSignature = bs58.encode(transaction.signatures[0]);
-    console.log("~txSignature", txSignature)
-    const latestBlockHash = await CONNECTION.getLatestBlockhash('processed');
+    const marketData = await fetchMarketAccounts(CONNECTION, inputMint, outputMint, "confirmed");
+    // Fetching pool keys using the retrieved pool ID (marketData.id)
+    var pool = await getPoolKeysByPoolId(marketData.id, CONNECTION);
+    pool = convertPoolFormat(pool);
+    console.log("Pools fetched", pool, `  - Date:${new Date()}`)
+    var swapConfig = {
+      executeSwap: true, // Send tx when true, simulate tx when false
+      useVersionedTransaction: true,
+      tokenAAmount: amount,
+      tokenAAddress: inputMint,
+      tokenBAddress: outputMint,
+      maxLamports: 1500000, // Micro lamports for priority fee
+      direction: "in",
+      pool: pool,
+      maxRetries: 20,
+    }
+    let swapResp = await swap(swapConfig, PRIVATE_KEY);
 
-    const res = await jito_executeAndConfirm(CONNECTION, transaction, keypair, latestBlockHash, config.JITO_TIP);
-    const confirmed = res.confirmed;
-    const signature = res.signature;
+    let confirmed: boolean = false;
+    let signature = null;
+    if (swapResp) {
+      confirmed = swapResp.confirmed;
+      signature = swapResp.signature;
+    }
     if (confirmed) {
-      console.log("http://solscan.io/tx/" + txSignature);
+      console.log("http://solscan.io/tx/" + signature);
+      return { confirmed: true, signature: signature };
     } else {
       console.log("Transaction failed");
+      return { confirmed: false, signature: null };
     }
-    return { confirmed, txSignature };
-  } catch (error) {
-    console.log('jupiter swap failed');
+  } catch (e) {
+    console.log("Transaction Failed");
     return { confirmed: false, signature: null };
   }
 }
+
+// export const jupiter_swap = async (CONNECTION: Connection, PRIVATE_KEY: string, publicKey: string, inputMint: string, outputMint: string, amount: number, swapMode: "ExactIn" | "ExactOut") => {
+//   try {
+//     console.log("~~final amount", amount)    
+//     const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
+//     console.log("~~urlll", `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=50&swapMode=${swapMode}`)
+//     const quoteResponse = await (
+//       await fetch(`https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${Math.floor(amount)}&slippageBps=50&swapMode=${swapMode}`
+//       )
+//     ).json();
+//     console.log('quoteResponse = ', quoteResponse);
+
+//     // get serialized transactions for the swap
+//     const { swapTransaction } = await (
+//       await fetch('https://quote-api.jup.ag/v6/swap', {
+//         method: 'POST',
+//         headers: {
+//           'Content-Type': 'application/json'
+//         },
+//         body: JSON.stringify({
+//           quoteResponse,
+//           userPublicKey: keypair.publicKey.toString(),
+//           wrapAndUnwrapSol: true,
+//           // prioritizationFeeLamports: 10000000
+//         })
+//       })
+//     ).json();
+//     console.log("~~~swapTransaction", swapTransaction)
+//     // deserialize the transaction
+//     const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
+//     console.log("~~swapTransactionBuf", swapTransactionBuf)
+//     var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+//     console.log("~~~transaction",transaction);
+
+//     // sign the transaction
+//     transaction.sign([keypair]);
+//     const txSignature = bs58.encode(transaction.signatures[0]);
+//     console.log("~txSignature", txSignature)
+//     const latestBlockHash = await CONNECTION.getLatestBlockhash('processed');
+
+//     const res = await jito_executeAndConfirm(CONNECTION, transaction, keypair, latestBlockHash, config.JITO_TIP);
+//     const confirmed = res.confirmed;
+//     const signature = res.signature;
+//     if (confirmed) {
+//       console.log("http://solscan.io/tx/" + txSignature);
+//     } else {
+//       console.log("Transaction failed");
+//     }
+//     return { confirmed, txSignature };
+//   } catch (error) {
+//     console.log('jupiter swap failed');
+//     return { confirmed: false, signature: null };
+//   }
+// }
+
+export const jupiter_swap = async (
+  CONNECTION: Connection,
+  PRIVATE_KEY: string,
+  inputMint: string,
+  outputMint: string,
+  amount: number,
+  swapMode: "ExactIn" | "ExactOut",
+  isJito: boolean = true,
+  slippage: number = 500
+) => {
+  try {
+    const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
+    const quoteUrl = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${Math.floor(amount)}&slippageBps=${slippage}&swapMode=${swapMode}`;
+    const quoteResponse = await fetch(quoteUrl).then((res) => res.json());
+    if (quoteResponse.error) throw new Error("Failed to fetch quote response");
+
+    const swapResponse = await fetch("https://quote-api.jup.ag/v6/swap", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        quoteResponse,
+        userPublicKey: keypair.publicKey.toString(),
+        wrapAndUnwrapSol: true,
+        dynamicComputeUnitLimit: true, 
+        prioritizationFeeLamports: {
+        priorityLevelWithMaxLamports: {
+          maxLamports: 50000000,
+          priorityLevel: "veryHigh" // If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
+        }
+      }
+      }),
+    }).then((res) => res.json());
+    if (!swapResponse.swapTransaction) throw new Error("Failed to get swap transaction");
+
+    const swapTransaction = swapResponse.swapTransaction;
+    const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
+    let transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+    let latestBlockhash = await CONNECTION.getLatestBlockhash();
+    transaction.message.recentBlockhash = latestBlockhash.blockhash; // Ensure fresh blockhash
+    transaction.sign([keypair]);
+    const txSignature = bs58.encode(transaction.signatures[0]);
+    let res;
+    if (isJito) {
+      res = await jito_executeAndConfirm(CONNECTION, transaction, keypair, latestBlockhash, config.JITO_TIP);
+    } else {
+      res = await submitAndConfirm(transaction);
+    }
+
+    if (res.confirmed) {
+      return { confirmed: true, txSignature: res.signature };
+    } else {
+      console.log("Transaction failed, retrying with new blockhash...");
+
+      latestBlockhash = await CONNECTION.getLatestBlockhash("processed");
+      transaction.message.recentBlockhash = latestBlockhash.blockhash;
+      transaction.sign([keypair]);
+
+      const retryRes = await jito_executeAndConfirm(CONNECTION, transaction, keypair, latestBlockhash, config.JITO_TIP);
+
+      if (retryRes.confirmed) {
+        return { confirmed: true, txSignature: retryRes.signature };
+      }
+    }
+    return { confirmed: false, txSignature: null };
+  } catch (error) {
+    console.log("jupiter swap:", error)
+    return { confirmed: false, txSignature: null };
+  }
+};
 
 async function getRandomValidator() {
   const res =
@@ -314,12 +392,8 @@ export async function jito_executeAndConfirm(
   lastestBlockhash: BlockhashWithExpiryBlockHeight,
   jitofee: number
 ) {
-  console.log("Executing transaction (jito)...");
   const jito_validator_wallet = await getRandomValidator();
-  console.log("Selected Jito Validator: ", jito_validator_wallet.toBase58());
   try {
-    // const fee = new CurrencyAmount(Currency.SOL, jitofee, false).raw.toNumber();
-    // console.log(`Jito Fee: ${fee / 10 ** 9} sol`);
     const jitoFee_message = new TransactionMessage({
       payerKey: payer.publicKey,
       recentBlockhash: lastestBlockhash.blockhash,
@@ -351,8 +425,6 @@ export async function jito_executeAndConfirm(
         params: [final_transaction],
       })
     );
-    console.log("~~requests", requests)
-    console.log("Sending tx to Jito validators...");
     const res = await Promise.all(requests.map((p) => p.catch((e) => e)));
     const success_res = res.filter((r) => !(r instanceof Error));
     if (success_res.length > 0) {
@@ -380,16 +452,8 @@ export async function jito_executeAndConfirm(
  */
 async function jito_confirm(CONNECTION: Connection, signature: string, latestBlockhash: BlockhashWithExpiryBlockHeight) {
   console.log("Confirming the jito transaction...");
-  const confirmation = await CONNECTION.confirmTransaction(
-    {
-      signature,
-      lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-      blockhash: latestBlockhash.blockhash,
-    },
-    "confirmed"
-  );
-  console.log("~~~confirmation", confirmation)
-  return { confirmed: !confirmation.value.err, signature };
+  await confirmTransaction(connection, signature);
+  return { confirmed: true, signature };
 }
 
 export async function getDecimals(connection: Connection, mintAddress: PublicKey) {
@@ -431,7 +495,6 @@ export const getTokenMetaData = async (CONNECTION: Connection, address: string) 
         totalSupply = Number(mintInfo.supply / BigInt(10 ** decimals))
       }
       const metaData = { name, symbol, logo, decimals, address, totalSupply, description, extensions, renounced, type: token_type };
-      console.log('metaData = ', metaData);
       return metaData;
     } else {
       console.log("utils.getTokenMetadata tokenInfo", token);
@@ -467,30 +530,31 @@ export const getTokenBalance = async (CONNECTION: Connection, walletAddress: str
 
 export const getAllTokensWithBalance = async (connection: Connection, owner: PublicKey) => {
   try {
-      const tokenAccounts = await connection.getParsedTokenAccountsByOwner(owner, { programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") });
+    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(owner, { programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") });
+    // const token22Accounts = await connection.getParsedTokenAccountsByOwner(owner, { programId: new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb") });
 
-      const tokenBalances = [];
+    const tokenBalances = [];
 
-      for (const account of tokenAccounts.value) {
-          const tokenAddress = account.account.data.parsed.info.mint;
-          const balance = account.account.data.parsed.info.tokenAmount.uiAmount;
+    for (const account of tokenAccounts.value) {
+      const tokenAddress = account.account.data.parsed.info.mint;
+      const balance = account.account.data.parsed.info.tokenAmount.uiAmount;
+      if(balance === 0) continue;
+      // Fetch metadata
+      const metaData = await getTokenMetaData(connection, tokenAddress);
 
-          // Fetch metadata
-          const metaData = await getTokenMetaData(connection, tokenAddress);
+      tokenBalances.push({
+        address: tokenAddress,
+        symbol: metaData?.symbol || "Unknown",
+        name: metaData?.name || "Unknown Token",
+        balance: balance || 0,
+        decimals: metaData?.decimals || 0
+      });
+    }
 
-          tokenBalances.push({
-              address: tokenAddress,
-              symbol: metaData?.symbol || "Unknown",
-              name: metaData?.name || "Unknown Token",
-              balance: balance || 0,
-              decimals: metaData?.decimals || 0
-          });
-      }
-
-      return tokenBalances;
+    return tokenBalances;
   } catch (error) {
-      console.error("Error fetching wallet tokens:", error);
-      return [];
+    console.error("Error fetching wallet tokens:", error);
+    return [];
   }
 };
 
@@ -520,4 +584,73 @@ function convertPoolFormat(pool: any) {
     targetOrders: pool.targetOrders.toString(),
     lpMint: pool.lpMint.toString(),
   };
+}
+
+export const submitAndConfirm = async (transaction: VersionedTransaction) => {
+  try {
+    const signature = await config.SOLANA_CONNECTION.sendRawTransaction(transaction.serialize(), {
+      skipPreflight: true,
+      maxRetries: 3,
+    });
+    await confirmTransaction(config.SOLANA_CONNECTION, signature)
+
+    return {
+      confirmed: true,
+      signature
+    }
+  } catch (e) {
+    console.log("Error om simit:", e);
+    return {
+      confirmed: false,
+    }
+  }
+
+}
+
+const confirmTransaction = async (
+  connection: Connection,
+  signature: TransactionSignature,
+  desiredConfirmationStatus: TransactionConfirmationStatus = "confirmed",
+  timeout: number = 30000,
+  pollInterval: number = 1000,
+  searchTransactionHistory: boolean = false
+): Promise<SignatureStatus> => {
+  const start = Date.now();
+
+  while (Date.now() - start < timeout) {
+    const { value: statuses } = await connection.getSignatureStatuses(
+      [signature],
+      { searchTransactionHistory }
+    );
+
+    if (!statuses || statuses.length === 0) {
+      throw new Error("Failed to get signature status");
+    }
+
+    const status = statuses[0];
+
+    if (status === null) {
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      continue;
+    }
+
+    if (status.err) {
+      throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
+    }
+
+    if (
+      status.confirmationStatus &&
+      status.confirmationStatus === desiredConfirmationStatus
+    ) {
+      return status;
+    }
+
+    if (status.confirmationStatus === "finalized") {
+      return status;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+  }
+
+  throw new Error(`Transaction confirmation timeout after ${timeout}ms`);
 }
