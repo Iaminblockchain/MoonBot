@@ -80,6 +80,7 @@ export const init = () => {
     botInstance.onText(/\/wallet/, onWalletCommand);
     botInstance.onText(/\/help/, onHelpCommand);
     botInstance.onText(/\/autobuy/, autoBuyController.onAutoBuyCommand);
+    botInstance.onText(/\/getsignal/, autoBuyController.onGetSignal);
 
     runAutoSellSchedule();
 
@@ -140,7 +141,7 @@ export const init = () => {
 };
 
 export const runAutoSellSchedule = () => {
-    const scheduler = "*/20 * * * * *"; // every 20 mins
+    const scheduler = "*/5 * * * * *"; // every 5 seconds
     try {
       cron
         .schedule(scheduler, () => {

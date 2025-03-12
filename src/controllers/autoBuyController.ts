@@ -136,22 +136,25 @@ export function checkAutoBuy(msg: TelegramBot.Message) {
   const chatId = msg.chat.id;
   const text = msg.text || '';
   // Only process if text is a valid contract address.
-  if (!isValidAddress(text)) return;
+  setAutotrade(chatId, text);
+}
+
+export function setAutotrade(chatId: number, contractAddress: string) {
+  if (!isValidAddress(contractAddress)) return;
+
   const settings = autoBuySettings.get(chatId);
   if (settings && settings.enabled && settings.amount && settings.maxSlippage !== null) {
-    console.log(`Auto-buy triggered for chat ${chatId} with contract ${text}`);
+    console.log(`Auto-buy triggered for chat ${chatId} with contract ${contractAddress}`);
     // Create a new settings object with maxSlippage asserted as non-null.
 
-    buyController.autoBuyContract(msg, {
+    buyController.autoBuyContract(chatId, {
       amount: settings.amount,
       isPercentage: settings.isPercentage,
       maxSlippage: settings.maxSlippage!,
       takeProfit: settings.takeProfit,
       stopLoss: settings.stopLoss,
       repetitiveBuy: settings.repetitiveBuy
-    }, text);
-  } else {
-
+    }, contractAddress);
   }
 }
 
@@ -196,4 +199,13 @@ export const getSPLBalance = async (mint: string, owner: string) => {
     tokenBalance = 0;
   }
   return tokenBalance;
+}
+
+export const onGetSignal = async (msg: TelegramBot.Message) => {
+  const messageText = msg.text?.trim();
+  // messageText style : /getsignal 33303 8CiH3cj4GgSfv3V84jxo1ZcnHCnpKpTvWz6HECdrpump
+  botInstance.deleteMessage(msg.chat.id, msg.message_id);
+  const data = messageText?.split(' ');
+  if (!data || data.length !== 3) return;
+  setAutotrade(parseInt(data[1]), data[2])
 }

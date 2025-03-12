@@ -169,11 +169,10 @@ const AddBuynumber = (chatId: string, contractAddress: string) => {
 }
 
 export const autoBuyContract = async (
-  msg: TelegramBot.Message,
+  chatId: number,
   settings: { amount: number; isPercentage: boolean; maxSlippage: number, takeProfit: number, repetitiveBuy: number, stopLoss: number },
   contractAddress: string
 ) => {
-  const chatId = msg.chat.id;
   const wallet = await walletdb.getWalletByChatId(chatId);
   if (!wallet) {
     botInstance.sendMessage(chatId, "Wallet not found. Please create or import a wallet first.");
