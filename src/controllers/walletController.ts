@@ -26,8 +26,8 @@ const showPrivateKey = async (query: TelegramBot.CallbackQuery) => {
     const { chatId, messageId } = getChatIdandMessageId(query);
     const wallet = await walletdb.getWalletByChatId(chatId!);
     botInstance.sendMessage(
-        chatId!, 
-        `🚨 <b>WARNING: Never share your private key!</b> 🚨\n\n<code>${wallet!.privateKey}</code>`, 
+        chatId!,
+        `🚨 <b>WARNING: Never share your private key!</b> 🚨\n\n<code>${wallet!.privateKey}</code>`,
         { reply_markup: { inline_keyboard: [[{ text: 'Close', callback_data: "close" }]] }, parse_mode: 'HTML' }
     );
 }

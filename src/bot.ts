@@ -10,6 +10,8 @@ import * as settingController from './controllers/settingController';
 import * as positionController from './controllers/positionController';
 import * as autoBuyController from './controllers/autoBuyController';
 import * as helpController from './controllers/helpController';
+import * as copytradeController from './controllers/copytradeController';
+
 import cron from "node-cron";
 
 export const botInstance = new TelegramBot(config.TELEGRAM_BOT_TOKEN, { polling: true });
@@ -80,6 +82,7 @@ export const init = () => {
     botInstance.onText(/\/wallet/, onWalletCommand);
     botInstance.onText(/\/help/, onHelpCommand);
     botInstance.onText(/\/autobuy/, autoBuyController.onAutoBuyCommand);
+    botInstance.onText(/\/copytrade/, autoBuyController.onAutoBuyCommand);
     botInstance.onText(/\/getsignal/, autoBuyController.onGetSignal);
 
     runAutoSellSchedule();
@@ -117,6 +120,8 @@ export const init = () => {
             console.log(`callback, chatId = ${chatId}, data = ${data}`);
             if (data?.startsWith("buyController_")) {
                 buyController.handleCallBackQuery(query);
+            } else if(data?.startsWith("ct_")){
+                copytradeController.handleCallBackQuery(query);
             } else if (data?.startsWith("sc_")) {
                 sellController.handleCallBackQuery(query);
             } else if (data?.startsWith("walletController_")) {
@@ -226,7 +231,7 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
                 { text: 'Limit Orders', callback_data: "limitOrderController_start" }
             ],
             [
-                { text: 'Copy Trade', callback_data: "copyTradeController_start" },
+                { text: 'Copy Trade', callback_data: "ct_start" },
                 { text: 'Autobuy', callback_data: "autoBuyController_start" }
             ],
             [
