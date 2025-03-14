@@ -1,21 +1,25 @@
 from telethon import TelegramClient, events
 from telethon.tl.functions.channels import JoinChannelRequest
 from pymongo import MongoClient
+from flask import Flask, request, jsonify
 
 from dotenv import load_dotenv
 import re
 import os
 
 load_dotenv()
-# Replace these with your API credentials
+
+app = Flask(__name__)
 API_ID = os.getenv('API_ID')
 API_HASH = os.getenv('API_HASH')
 PHONE_NUMBER = os.getenv('PHONE_NUMBER')
+SERVER_PORT = os.getenv('SERVER_PORT')
+
   # Include country code, e.g., +1234567890
 
 DBserver = MongoClient("mongodb://localhost:27017/")
 db = DBserver["Moonbot"]
-collection = db["signals"]
+collection = db["copytrades"]
 
 # Regex to detect pump.fun contract addresses (44 characters + "pump")
 PUMP_FUN_CA_REGEX = r"\b[1-9A-HJ-NP-Za-km-z]{44}pump\b"
@@ -68,6 +72,26 @@ async def main():
     except Exception as e:
         print(f"Error starting client: {e}")
 
+@app.route('/refresh', methods=['POST'])
+def receive_data():
+    try:
+        print("refresh run")
+        #TODO: Update channel schedule
+        return jsonify({"status": "success"}), 200
+
+    except Exception as e:
+        # Handle any errors that occur
+        print(f"Error processing data: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# Function to run the Flask app
+def run_flask():
+    app.run(port=SERVER_PORT)  # Run Flask app on port
+
 if __name__ == "__main__":
+    from threading import Thread
+    flask_thread = Thread(target=run_flask)
+    flask_thread.start()
+    
     with client:
         client.loop.run_until_complete(main())

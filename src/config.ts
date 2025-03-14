@@ -11,3 +11,4 @@ export const SLIPPAGE = 5;
 export const JITO_TIP =1000000  // not using right now
 export const TX_FEE = 1000000;   // not using right now
 export const ACCOUNT_FEE = 2000000;   // not using right now
+export const SERVER_PORT = 3000;
