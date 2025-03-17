@@ -200,12 +200,3 @@ export const getSPLBalance = async (mint: string, owner: string) => {
   }
   return tokenBalance;
 }
-
-export const onGetSignal = async (msg: TelegramBot.Message) => {
-  const messageText = msg.text?.trim();
-  // messageText style : /getsignal 33303 8CiH3cj4GgSfv3V84jxo1ZcnHCnpKpTvWz6HECdrpump
-  botInstance.deleteMessage(msg.chat.id, msg.message_id);
-  const data = messageText?.split(' ');
-  if (!data || data.length !== 3) return;
-  setAutotrade(parseInt(data[1]), data[2])
-}
