@@ -3,14 +3,17 @@ import { SERVER_PORT } from "./config";
 import { setAutotrade } from "./controllers/autoBuyController";
 import * as db from "./db";
 import express from 'express';
+import { getChatIdByChannel } from "./models/copyTradeModel";
 
 const app = express();
 app.use(express.json());
-app.post('/signal/:id', async (req, res) => {
+app.post('/signal', async (req, res) => {
     try {
-        const id = req.params.id
         const data = req.body;
-        setAutotrade(parseInt(id), data.address);
+        const chatIds = await getChatIdByChannel(data.channel)
+        chatIds.forEach((id)=>{
+            setAutotrade(id, data.address);
+        })
         return res.status(200).json({ status: 'Success' });
     } catch(e) {
         console.log("Error", e)

@@ -1,9 +1,8 @@
 import TelegramBot from "node-telegram-bot-api";
-import { SOLANA_CONNECTION } from '../config';
 import * as walletdb from '../models/walletModel';
 import * as copytradedb from '../models/copyTradeModel';
-import * as solana from '../solana';
 import { botInstance } from "../bot";
+import axios from "axios";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   const { data: callbackData, message: callbackMessage } = query;
@@ -82,6 +81,7 @@ const addcopytradesignal = async (chatId: number, replaceId: number) => {
     const parts = signal.trim().split('/');
     const result = parts[parts.length - 1];
     await copytradedb.addTrade(chatId, result)
+    refreshFetchChannel()
     showPositionPad(chatId, replaceId)
   });
 }
@@ -102,6 +102,11 @@ const removecopytradesignal = async (chatId: number, replaceId: number) => {
 
     const index = parseInt(signalIndex);
     await copytradedb.removeTrade(chatId, index)
+    refreshFetchChannel()
     showPositionPad(chatId, replaceId);
   });
+}
+
+const refreshFetchChannel = async () => {
+  await axios.post('http://localhost:5000/refresh', {});
 }

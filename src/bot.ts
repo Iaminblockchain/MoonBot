@@ -82,7 +82,6 @@ export const init = () => {
     botInstance.onText(/\/wallet/, onWalletCommand);
     botInstance.onText(/\/help/, onHelpCommand);
     botInstance.onText(/\/autobuy/, autoBuyController.onAutoBuyCommand);
-    botInstance.onText(/\/copytrade/, autoBuyController.onAutoBuyCommand);
 
     runAutoSellSchedule();
 

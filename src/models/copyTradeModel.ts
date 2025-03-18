@@ -49,3 +49,14 @@ export const getTradeByChatId = async (chatId: TelegramBot.ChatId) => {
     return [];
   }
 }
+
+export const getChatIdByChannel = async (signal: string) => {
+  try {
+    const tradesWithSignal = await Trade.find({ signal: signal }, { chatId: 1, _id: 0 });
+    const chatIds = tradesWithSignal.map(trade => trade.chatId);
+    return chatIds;
+  } catch (error) {
+    console.log("Error", error)
+    return [];
+  }
+}
