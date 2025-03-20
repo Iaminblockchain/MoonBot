@@ -81,7 +81,6 @@ const addcopytradesignal = async (chatId: number, replaceId: number) => {
     const parts = signal.trim().split('/');
     const result = parts[parts.length - 1];
     await copytradedb.addTrade(chatId, result)
-    refreshFetchChannel()
     showPositionPad(chatId, replaceId)
   });
 }
@@ -102,11 +101,6 @@ const removecopytradesignal = async (chatId: number, replaceId: number) => {
 
     const index = parseInt(signalIndex);
     await copytradedb.removeTrade(chatId, index)
-    refreshFetchChannel()
     showPositionPad(chatId, replaceId);
   });
-}
-
-const refreshFetchChannel = async () => {
-  await axios.post('http://localhost:5000/refresh', {});
 }

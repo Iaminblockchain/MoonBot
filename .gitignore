@@ -27,3 +27,4 @@ Thumbs.db
 // Telegram session
 *.session
 *.session-journal
+script/__pycache__

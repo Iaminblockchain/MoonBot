@@ -12,6 +12,7 @@ app.post('/signal', async (req, res) => {
         const data = req.body;
         const chatIds = await getChatIdByChannel(data.channel)
         chatIds.forEach((id)=>{
+            console.log("run auto signal:", id, data.address)
             setAutotrade(id, data.address);
         })
         return res.status(200).json({ status: 'Success' });
