@@ -42,7 +42,6 @@ export const getDeleteMessageId = (chatId: TelegramBot.ChatId) => {
 
 export const setState = (chatid: TelegramBot.ChatId, newState: number, data = {}) => {
     state.set(chatid.toString(), { state: newState, data });
-    console.log("state", state);
 };
 export const getState = (chatid: TelegramBot.ChatId) => {
     return state.get(chatid.toString());
