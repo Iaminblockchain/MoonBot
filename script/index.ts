@@ -6,8 +6,6 @@ import * as dotenv from 'dotenv';
 import { scheduleJob } from 'node-schedule';
 import promptSync from 'prompt-sync';
 
-import {} from 'telegram/tl/api';
-
 // Load environment variables from .env file
 dotenv.config();
 const prompt = promptSync({ sigint: true });
@@ -38,31 +36,32 @@ let ALL_CHATS: { username: string | null; id: number }[] = [];
 async function processMessages(event: NewMessageEvent): Promise<void> {
   try {
     console.log("evnt", event)
-    const messageText = event.message.message || '';
-    // const channelId = event.message.peerId?.channelId?.toJSNumber();
-    // if (!channelId) return;
+    const messageText = event.message.text || '';
+    const channelId = event.message.senderId;
+    if (!channelId) return;
+    const id = -(channelId.toJSNumber() % 10000000000);
 
-    // // console.log(`New message: ${messageText} - ${channelId}`); // Debug
-    // const contractAddresses = messageText.match(PUMP_FUN_CA_REGEX) || [];
-    // // console.log(`Detected addresses: ${contractAddresses}`); // Debug
+    console.log(`New message: ${messageText} - ${channelId}`); // Debug
+    const contractAddresses = messageText.match(PUMP_FUN_CA_REGEX) || [];
+    console.log(`Detected addresses: ${contractAddresses}`); // Debug
 
-    // if (contractAddresses.length > 0) {
-    //   let channelUsername: string | null = '';
-    //   for (const chat of ALL_CHATS) {
-    //     if (chat.id === -1000000000000 - channelId) { // Adjust for Telegram's -100 prefix
-    //       channelUsername = chat.username;
-    //       break;
-    //     }
-    //   }
-    //   // console.log(`Send 3000/signal - address: ${contractAddresses[0]}, channel: ${channelUsername}`);
-    //   if (channelUsername) {
-    //     await fetch(`http://localhost:${SERVER_PORT}/signal`, {
-    //       method: 'POST',
-    //       headers: { 'Content-Type': 'application/json' },
-    //       body: JSON.stringify({ address: contractAddresses[0], channel: channelUsername }),
-    //     });
-    //   }
-    // }
+    if (contractAddresses.length > 0) {
+      let channelUsername: string | null = '';
+      for (const chat of ALL_CHATS) {
+        if (chat.id == id) { // Adjust for Telegram's -100 prefix
+          channelUsername = chat.username;
+          break;
+        }
+      }
+      // console.log(`Send 3000/signal - address: ${contractAddresses[0]}, channel: ${channelUsername}`);
+      if (channelUsername) {
+        await fetch(`http://localhost:${SERVER_PORT}/signal`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address: contractAddresses[0], channel: channelUsername }),
+        });
+      }
+    }
   } catch (e) {
     console.error(`Error processing message: ${e}`);
   }
@@ -79,19 +78,16 @@ async function monitorMessages(): Promise<void> {
 async function joinChannel(channelName: string): Promise<void> {
   try {
 
-    const result = await client.invoke(
+    const result: any = await client.invoke(
       new Api.channels.JoinChannel({
-        channel: "PiAnnouncements",
+        channel: channelName,
       })
     );
-    console.log("result", result); // prints the result
+    const channelId = result?.chats[0].id.toJSNumber()
     
-    // const channel = await client.getEntity(channelName);
-    // await client.invoke(new ChannelParticipants(channel));
-    // const channelId = (channel as any).id.toJSNumber();
-    // NEW_MONITORED_CHAT_IDS.push(-1000000000000 - channelId); // Adjust for Telegram's -100 prefix
-    // ALL_CHATS.push({ username: (channel as any).username || null, id: -1000000000000 - channelId });
-    // console.log(`Detecting Channel list: ${NEW_MONITORED_CHAT_IDS}`);
+    NEW_MONITORED_CHAT_IDS.push(channelId); // Adjust for Telegram's -100 prefix
+    ALL_CHATS.push({ username: channelName, id: channelId });
+    console.log(`Detecting Channel list: ${NEW_MONITORED_CHAT_IDS}`);
   } catch (e) {
     console.error(`joinChannel Error: ${e}`);
   }
@@ -104,16 +100,17 @@ async function findMonitorChats(): Promise<void> {
     for await (const dialog of client.iterDialogs()) {
       try {
         const entity = dialog.entity as any;
-        console.log(`Chat Name: ${entity.username},,${entity.id}`);
-        ALL_CHATS.push({ username: entity.username || null, id: -1000000000000 - entity.id.toJSNumber() });
+        if (entity.username){
+          ALL_CHATS.push({ username: entity.username , id: entity.id });
+        }
       } catch (e) {
         console.error(`Error: ${e} - ${dialog.title}`);
         continue;
       }
     }
 
-    const documents = await collection.find({}, { projection: { signal: 1, _id: 0 } }).toArray();
-    const allSignals: string[] = documents.flatMap((doc) => doc.signal || []);
+    const documents = await collection.find({}).toArray();
+    const allSignals: string[] = documents.map((doc) => doc.signal);
     console.log(`all signal: ${allSignals}`);
 
     NEW_MONITORED_CHAT_IDS = [];
@@ -171,7 +168,7 @@ async function main(): Promise<void> {
 
     // Schedule chat monitoring every minute
     scheduleJob('*/1 * * * *', findMonitorChats);
-    await joinChannel("dd");
+    // await joinChannel("PiAnnouncements");
 
     // Keep the client running
     await new Promise(() => {}); // Prevents immediate exit
