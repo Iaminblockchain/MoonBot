@@ -13,14 +13,15 @@ const API_ID = 24263131;
 const API_HASH = 'c237590a557ca6dace22fb2f116ec904';
 const PHONE_NUMBER = "971582150614" ; // Include country code, e.g., +1234567890
 const SERVER_PORT = process.env.SERVER_PORT || '3000';
+const MongoDB_URL = process.env.mongo_url || 'mongodb://mongo:27017/';
 
-console.log("apaia", API_HASH, API_ID)
+console.log("apMongoDB_URLMongoDB_URLMongoDB_URLMongoDB_URLaia", MongoDB_URL)
 
 const session = new StringSession('1BAAOMTQ5LjE1NC4xNjcuOTEAUH/fFv+yJqurda8JCgyaFaf3egj2+/7Eo1GHZ0evAgRkOIxuJk7sa/puvGFPItPpvD8piaiNeZnXoJGVvAjk5oYyrcUG0zm0WaR23C3ODgCv8N6VCgWfybJbwmSMPVj+b0SbKwZ9RTSrrYhDDOgoQfscEr0MB2qYRnwta1UIjS61BnxSLKohF/aI83o/l1t/CHGxtvJqFRhulAbNs1RDFkzH+OgRVcYdHSXRMp0YlaCiUIee8NMSRuL+aYfmSj9hX8rSI+pEYXx49ya5DWLi6SX8BFy1H2oRxzJJKzKcpqsCFe0oAeztQLoWK9xxgIQfCLtt9mFkAxsBfT1WiWXlYMg='); // Persistent session; save this after first login
 const client = new TelegramClient(session, API_ID, API_HASH, { connectionRetries: 5 });
 
 // MongoDB setup
-const mongoClient = new MongoClient('mongodb://mongo:27017/');
+const mongoClient = new MongoClient(MongoDB_URL);
 let db: Db;
 let collection: Collection;
 
