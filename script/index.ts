@@ -20,7 +20,7 @@ const session = new StringSession('1BAAOMTQ5LjE1NC4xNjcuOTEAUH/fFv+yJqurda8JCgya
 const client = new TelegramClient(session, API_ID, API_HASH, { connectionRetries: 5 });
 
 // MongoDB setup
-const mongoClient = new MongoClient('mongodb://localhost:27017/');
+const mongoClient = new MongoClient('mongodb://mongo:27017/');
 let db: Db;
 let collection: Collection;
 
