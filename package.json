@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start:bot": "ts-node-dev src/index.ts",
-    "start:script": "ts-node-dev script/index.ts",
-    "start": "concurrently \"npm run start:bot\" \"npm run start:script\""
+    "start": "ts-node-dev src/index.ts",
+    "init": "ts-node-dev src/init.ts"
   },
   "keywords": [],
   "author": "",
@@ -47,7 +46,6 @@
     "prompt-sync": "^4.2.0",
     "telegram": "^2.26.22",
     "ts-node-dev": "^2.0.0",
-    "ws": "^8.18.0",
-    "concurrently": "9.1.2"
+    "ws": "^8.18.0"
   }
 }

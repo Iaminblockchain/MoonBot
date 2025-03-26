@@ -4,7 +4,7 @@ import { isValidAddress } from '../solana';
 import * as buyController from './buyController';
 import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { PublicKey } from '@solana/web3.js';
-import { SOLANA_CONNECTION } from '../config';
+import { SOLANA_CONNECTION } from '..';
 
 // In-memory storage for auto-buy settings per chat.
 export interface AutoBuySettings {
@@ -100,10 +100,10 @@ function promptBuyAmount(chatId: number) {
               }
             });
           })
-          .catch(err => console.error('Error sending slippage prompt:', err));
+          .catch((err: any )=> console.error('Error sending slippage prompt:', err));
       });
     })
-    .catch(err => console.error('Error sending buy amount prompt:', err));
+    .catch((err: any) => console.error('Error sending buy amount prompt:', err));
 }
 
 /**
@@ -200,3 +200,4 @@ export const getSPLBalance = async (mint: string, owner: string) => {
   }
   return tokenBalance;
 }
+

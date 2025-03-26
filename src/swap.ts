@@ -1,6 +1,6 @@
 import RaydiumSwap from './raydiumSwap';
 import { Transaction, VersionedTransaction } from '@solana/web3.js';
-import * as config from './config';
+import { SOLANA_RPC_ENDPOINT } from '.';
 
 // import 'dotenv/config';
 // import { swapConfig } from './swapConfig'; // Import the configuration
@@ -15,7 +15,7 @@ const swap: any = async (swapConfig: any, privateKey: any) => {
    */
   try {
 
-    const raydiumSwap = new RaydiumSwap(config.SOLANA_RPC_ENDPOINT, privateKey);
+    const raydiumSwap = new RaydiumSwap(SOLANA_RPC_ENDPOINT, privateKey);
 
     console.log(`Raydium swap initialized`);
     console.log(`Swapping ${swapConfig.tokenAAmount} of ${swapConfig.tokenAAddress} for ${swapConfig.tokenBAddress}...`)

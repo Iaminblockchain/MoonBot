@@ -176,7 +176,7 @@ async calcAmountOut(poolKeys:any, rawAmountIn:any, swapInDirection:any) {
     const currencyIn = new Token(TOKEN_PROGRAM_ID, currencyInMint, currencyInDecimals);
     const amountIn = new TokenAmount(currencyIn, rawAmountIn, false);
     const currencyOut = new Token(TOKEN_PROGRAM_ID, currencyOutMint, currencyOutDecimals);
-    const slippage = new Percent(config.SLIPPAGE, 100);
+    const slippage = new Percent(5, 100);
 
     const { amountOut, minAmountOut, currentPrice, executionPrice, priceImpact, fee } = Liquidity.computeAmountOut({
         poolKeys,

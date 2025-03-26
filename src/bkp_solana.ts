@@ -21,6 +21,7 @@ import axios from 'axios';
 const { fetchMarketAccounts } = require("./scripts/fetchMarketAccounts");
 const { getPoolKeysByPoolId } = require("./scripts/getPoolKeysByPoolId");
 import swap from "./swap";
+import { JITO_TIP, SOLANA_CONNECTION } from '.';
 
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -45,10 +46,7 @@ const endpoints = [
   "https://tokyo.mainnet.block-engine.jito.wtf/api/v1/bundles",
 ];
 
-const connection = new Connection(config.SOLANA_RPC_ENDPOINT, { 
-  wsEndpoint: config.SOLANA_WSS_ENDPOINT, 
-  commitment: "confirmed" 
-});
+const connection = SOLANA_CONNECTION
 
 export const getSolBalance = async (privateKey: string) => {
   try {
@@ -285,7 +283,7 @@ export const jupiter_swap = async (
     const txSignature = bs58.encode(transaction.signatures[0]);
     console.log("~txSignature", txSignature)
     const latestBlockHash = await CONNECTION.getLatestBlockhash('processed');
-    const res = await jito_executeAndConfirm(CONNECTION, transaction, keypair, latestBlockHash, config.JITO_TIP);
+    const res = await jito_executeAndConfirm(CONNECTION, transaction, keypair, latestBlockHash, JITO_TIP);
     const confirmed = res.confirmed;
     const signature = res.signature;
     if (confirmed) {

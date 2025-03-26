@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { botInstance, switchMenu, getChatIdandMessageId, setState, STATE, setDeleteMessageId, getDeleteMessageId, trade, setTradeState } from "../bot";
-import { SOLANA_CONNECTION } from '../config';
+import { SOLANA_CONNECTION } from "..";
 import * as walletdb from '../models/walletModel';
 import * as tradedb from '../models/tradeModel';
 import * as solana from '../solana';
@@ -130,7 +130,7 @@ const onBuyControlStart = async (query: TelegramBot.CallbackQuery) => {
   try {
     const { chatId, messageId } = getChatIdandMessageId(query);
     setState(chatId!, STATE.INPUT_TOKEN);
-    botInstance.sendMessage(chatId!, 'Enter token address to buy.', { parse_mode: 'HTML' }).then((message) => {
+    botInstance.sendMessage(chatId!, 'Enter token address to buy.', { parse_mode: 'HTML' }).then((message: any) => {
       const messageId = message.message_id;
       setDeleteMessageId(chatId!, messageId!);
       console.log(chatId, message)

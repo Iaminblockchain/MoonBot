@@ -1,9 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { botInstance, switchMenu, getChatIdandMessageId, setState, STATE, setDeleteMessageId, getDeleteMessageId } from "../bot";
-import { SOLANA_CONNECTION } from '../config';
-import * as walletdb from '../models/walletModel';
-import * as tradedb from '../models/tradeModel';
-import * as solana from '../solana';
+
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     try {

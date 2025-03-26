@@ -1,12 +1,35 @@
-import bs58 from 'bs58';
-import { Keypair, Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction, ParsedInstruction, ParsedAccountData, VersionedTransaction, TransactionMessage, BlockhashWithExpiryBlockHeight, SignatureStatus, TransactionSignature, TransactionConfirmationStatus } from "@solana/web3.js";
-import { TOKEN_PROGRAM_ID, AccountLayout, TOKEN_2022_PROGRAM_ID, getMint, getAccount } from "@solana/spl-token";
+import bs58 from "bs58";
+import {
+  Keypair,
+  Connection,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  sendAndConfirmTransaction,
+  ParsedInstruction,
+  ParsedAccountData,
+  VersionedTransaction,
+  TransactionMessage,
+  BlockhashWithExpiryBlockHeight,
+  SignatureStatus,
+  TransactionSignature,
+  TransactionConfirmationStatus,
+} from "@solana/web3.js";
+import {
+  TOKEN_PROGRAM_ID,
+  AccountLayout,
+  TOKEN_2022_PROGRAM_ID,
+  getMint,
+  getAccount,
+} from "@solana/spl-token";
 import { Metaplex } from "@metaplex-foundation/js";
-import * as config from './config';
-import axios from 'axios';
+import * as config from "./config";
+import axios from "axios";
 const { fetchMarketAccounts } = require("./scripts/fetchMarketAccounts");
 const { getPoolKeysByPoolId } = require("./scripts/getPoolKeysByPoolId");
 import swap from "./swap";
+import { JITO_TIP, SOLANA_CONNECTION } from ".";
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
@@ -29,7 +52,7 @@ const endpoints = [
   "https://tokyo.mainnet.block-engine.jito.wtf/api/v1/bundles",
 ];
 
-const connection = new Connection(config.SOLANA_RPC_ENDPOINT, { wsEndpoint: config.SOLANA_WSS_ENDPOINT, commitment: "confirmed" });
+const connection = SOLANA_CONNECTION;
 
 export const getSolBalance = async (privateKey: string) => {
   try {
@@ -39,14 +62,13 @@ export const getSolBalance = async (privateKey: string) => {
     const accountInfo = await connection.getAccountInfo(keypair.publicKey);
 
     if (accountInfo && accountInfo.lamports)
-      return Number(accountInfo.lamports) / (10 ** 9);
-    else
-      return 0;
+      return Number(accountInfo.lamports) / 10 ** 9;
+    else return 0;
   } catch (error) {
     console.log(error);
     return 0;
   }
-}
+};
 
 export const isValidAddress = (publicKey: string) => {
   try {
@@ -55,26 +77,30 @@ export const isValidAddress = (publicKey: string) => {
   } catch (error) {
     return false;
   }
-}
+};
 
 export const createWallet = () => {
   let keypair = Keypair.generate();
   let publicKey = keypair.publicKey.toBase58();
   let privateKey = bs58.encode(keypair.secretKey);
   return { publicKey, privateKey };
-}
+};
 
 export const getPublicKey = (privateKey: string) => {
   let keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
   let publicKey = keypair.publicKey.toBase58();
   return publicKey;
-}
+};
 
 export function getKeyPairFromPrivateKey(privateKey: string): Keypair {
   return Keypair.fromSecretKey(bs58.decode(privateKey));
 }
 
-const sendSOL = async (senderPrivateKey: string, receiverAddress: string, amount: number) => {
+const sendSOL = async (
+  senderPrivateKey: string,
+  receiverAddress: string,
+  amount: number
+) => {
   try {
     let privateKey_nums = bs58.decode(senderPrivateKey);
     let senderKeypair = Keypair.fromSecretKey(privateKey_nums);
@@ -83,18 +109,20 @@ const sendSOL = async (senderPrivateKey: string, receiverAddress: string, amount
       SystemProgram.transfer({
         fromPubkey: senderKeypair.publicKey,
         toPubkey: new PublicKey(receiverAddress),
-        lamports: Math.round(LAMPORTS_PER_SOL * amount)
+        lamports: Math.round(LAMPORTS_PER_SOL * amount),
       })
-    )
+    );
     transaction.feePayer = senderKeypair.publicKey;
-    const signature = await sendAndConfirmTransaction(connection, transaction, [senderKeypair]);
+    const signature = await sendAndConfirmTransaction(connection, transaction, [
+      senderKeypair,
+    ]);
     console.log(`Send SOL TX: ${signature}`);
     return signature;
   } catch (error) {
-    console.log("Send SOL Erro: ", error)
+    console.log("Send SOL Erro: ", error);
     return null;
   }
-}
+};
 
 async function getTokenAddressFromTokenAccount(tokenAccountAddress: string) {
   try {
@@ -102,7 +130,7 @@ async function getTokenAddressFromTokenAccount(tokenAccountAddress: string) {
     const accountInfo = await connection.getAccountInfo(tokenAccountPubkey);
 
     if (accountInfo === null) {
-      throw new Error('Token account not found');
+      throw new Error("Token account not found");
     }
 
     const accountData = AccountLayout.decode(accountInfo.data);
@@ -111,14 +139,19 @@ async function getTokenAddressFromTokenAccount(tokenAccountAddress: string) {
     // console.log(`Token address (mint address) for token account ${tokenAccountAddress}: ${mintAddress.toBase58()}`);
     return mintAddress.toBase58();
   } catch (error) {
-    console.error('Error fetching token address:', error);
+    console.error("Error fetching token address:", error);
   }
 }
 
-export const getTokenSwapInfo = async (connection: Connection, signature: string) => {
+export const getTokenSwapInfo = async (
+  connection: Connection,
+  signature: string
+) => {
   console.log("getTokenSwapInfo, start");
   try {
-    const tx = await connection.getParsedTransaction(signature, { maxSupportedTransactionVersion: 0 });
+    const tx = await connection.getParsedTransaction(signature, {
+      maxSupportedTransactionVersion: 0,
+    });
     // console.log('tx = ', tx);
 
     const instructions = tx!.transaction.message.instructions;
@@ -138,17 +171,34 @@ export const getTokenSwapInfo = async (connection: Connection, signature: string
           if (innerinstructions![j].index === i) {
             // console.log("swap inner instructions, send = ", innerinstructions[j].instructions[0].parsed.info);
             // console.log("swap inner instructions, receive = ", innerinstructions[j].instructions[1].parsed.info);
-            const sendToken = await getTokenAddressFromTokenAccount((innerinstructions![j].instructions[0] as ParsedInstruction).parsed.info.destination);
-            const sendAmount = (innerinstructions![j].instructions[0] as ParsedInstruction).parsed.info.amount;
-            const receiveToken = await getTokenAddressFromTokenAccount((innerinstructions![j].instructions[1] as ParsedInstruction).parsed.info.source);
-            const receiveAmount = (innerinstructions![j].instructions[1] as ParsedInstruction).parsed.info.amount;
-            const result = { isSwap: true, type: "raydium swap", sendToken: sendToken, sendAmount: sendAmount, receiveToken: receiveToken, receiveAmount: receiveAmount };
+            const sendToken = await getTokenAddressFromTokenAccount(
+              (innerinstructions![j].instructions[0] as ParsedInstruction)
+                .parsed.info.destination
+            );
+            const sendAmount = (
+              innerinstructions![j].instructions[0] as ParsedInstruction
+            ).parsed.info.amount;
+            const receiveToken = await getTokenAddressFromTokenAccount(
+              (innerinstructions![j].instructions[1] as ParsedInstruction)
+                .parsed.info.source
+            );
+            const receiveAmount = (
+              innerinstructions![j].instructions[1] as ParsedInstruction
+            ).parsed.info.amount;
+            const result = {
+              isSwap: true,
+              type: "raydium swap",
+              sendToken: sendToken,
+              sendAmount: sendAmount,
+              receiveToken: receiveToken,
+              receiveAmount: receiveAmount,
+            };
             // console.log('swap info = ', result);
             return result;
           }
         }
       } else if (instructions[i].programId.toBase58() === jupiterAggregatorV6) {
-        console.log('index = ', i);
+        console.log("index = ", i);
         for (let j = 0; j < innerinstructions!.length; j++) {
           if (innerinstructions![j].index === i) {
             const length = innerinstructions![j].instructions.length;
@@ -157,63 +207,141 @@ export const getTokenSwapInfo = async (connection: Connection, signature: string
             let receiveToken;
             let receiveAmount;
             for (let i = 0; i < length; i++) {
-              if ((innerinstructions![j].instructions[i] as ParsedInstruction).programId.toBase58() == 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
-                if ((innerinstructions![j].instructions[i] as ParsedInstruction).parsed.type == "transferChecked") {
-                  sendToken = await getTokenAddressFromTokenAccount((innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.destination);
-                  sendAmount = (innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.tokenAmount.amount;
+              if (
+                (
+                  innerinstructions![j].instructions[i] as ParsedInstruction
+                ).programId.toBase58() ==
+                "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              ) {
+                if (
+                  (innerinstructions![j].instructions[i] as ParsedInstruction)
+                    .parsed.type == "transferChecked"
+                ) {
+                  sendToken = await getTokenAddressFromTokenAccount(
+                    (innerinstructions![j].instructions[i] as ParsedInstruction)
+                      .parsed.info.destination
+                  );
+                  sendAmount = (
+                    innerinstructions![j].instructions[i] as ParsedInstruction
+                  ).parsed.info.tokenAmount.amount;
                   break;
                 }
 
-                if ((innerinstructions![j].instructions[i] as ParsedInstruction).parsed.type == "transfer") {
-                  sendToken = await getTokenAddressFromTokenAccount((innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.destination);
-                  sendAmount = (innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.amount;
+                if (
+                  (innerinstructions![j].instructions[i] as ParsedInstruction)
+                    .parsed.type == "transfer"
+                ) {
+                  sendToken = await getTokenAddressFromTokenAccount(
+                    (innerinstructions![j].instructions[i] as ParsedInstruction)
+                      .parsed.info.destination
+                  );
+                  sendAmount = (
+                    innerinstructions![j].instructions[i] as ParsedInstruction
+                  ).parsed.info.amount;
                   break;
                 }
               }
             }
 
             for (let i = length - 1; i >= 0; i--) {
-              if ((innerinstructions![j].instructions[i] as ParsedInstruction).programId.toBase58() == 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA') {
-                if ((innerinstructions![j].instructions[i] as ParsedInstruction).parsed.type == "transferChecked") {
-                  receiveToken = await getTokenAddressFromTokenAccount((innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.source);
-                  receiveAmount = (innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.tokenAmount.amount;
+              if (
+                (
+                  innerinstructions![j].instructions[i] as ParsedInstruction
+                ).programId.toBase58() ==
+                "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+              ) {
+                if (
+                  (innerinstructions![j].instructions[i] as ParsedInstruction)
+                    .parsed.type == "transferChecked"
+                ) {
+                  receiveToken = await getTokenAddressFromTokenAccount(
+                    (innerinstructions![j].instructions[i] as ParsedInstruction)
+                      .parsed.info.source
+                  );
+                  receiveAmount = (
+                    innerinstructions![j].instructions[i] as ParsedInstruction
+                  ).parsed.info.tokenAmount.amount;
                   break;
                 }
 
-                if ((innerinstructions![j].instructions[i] as ParsedInstruction).parsed.type == "transfer") {
-                  receiveToken = await getTokenAddressFromTokenAccount((innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.source);
-                  receiveAmount = (innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.amount;
+                if (
+                  (innerinstructions![j].instructions[i] as ParsedInstruction)
+                    .parsed.type == "transfer"
+                ) {
+                  receiveToken = await getTokenAddressFromTokenAccount(
+                    (innerinstructions![j].instructions[i] as ParsedInstruction)
+                      .parsed.info.source
+                  );
+                  receiveAmount = (
+                    innerinstructions![j].instructions[i] as ParsedInstruction
+                  ).parsed.info.amount;
                   break;
                 }
               }
             }
 
-            const result = { isSwap: true, type: "jupiter swap", sendToken: sendToken, sendAmount: sendAmount, receiveToken: receiveToken, receiveAmount: receiveAmount, blockTime: tx?.blockTime };
-            console.log('swap info = ', result);
+            const result = {
+              isSwap: true,
+              type: "jupiter swap",
+              sendToken: sendToken,
+              sendAmount: sendAmount,
+              receiveToken: receiveToken,
+              receiveAmount: receiveAmount,
+              blockTime: tx?.blockTime,
+            };
+            console.log("swap info = ", result);
             return result;
           }
         }
       }
     }
 
-    return { isSwap: false, type: null, sendToken: null, sendAmount: null, receiveToken: null, receiveAmount: null, blockTime: null };;
+    return {
+      isSwap: false,
+      type: null,
+      sendToken: null,
+      sendAmount: null,
+      receiveToken: null,
+      receiveAmount: null,
+      blockTime: null,
+    };
   } catch (error) {
-    console.log('getTokenSwapInfo, Error');
-    return { isSwap: false, type: null, sendToken: null, sendAmount: null, receiveToken: null, receiveAmount: null, blockTime: null };;
+    console.log("getTokenSwapInfo, Error");
+    return {
+      isSwap: false,
+      type: null,
+      sendToken: null,
+      sendAmount: null,
+      receiveToken: null,
+      receiveAmount: null,
+      blockTime: null,
+    };
   }
-}
+};
 
-export async function swapToken(CONNECTION: Connection, PRIVATE_KEY: string, publicKey: string, inputMint: string, outputMint: string, amount: number, swapMode: "ExactIn" | "ExactOut") {
+export async function swapToken(
+  CONNECTION: Connection,
+  PRIVATE_KEY: string,
+  publicKey: string,
+  inputMint: string,
+  outputMint: string,
+  amount: number,
+  swapMode: "ExactIn" | "ExactOut"
+) {
   // Fetching market data for the tokens to retrieve the pool ID
   try {
+    console.log("Fetching Pool details...", `  - Date:${new Date()}`);
 
-    console.log("Fetching Pool details...", `  - Date:${new Date()}`)
-
-    const marketData = await fetchMarketAccounts(CONNECTION, inputMint, outputMint, "confirmed");
+    const marketData = await fetchMarketAccounts(
+      CONNECTION,
+      inputMint,
+      outputMint,
+      "confirmed"
+    );
     // Fetching pool keys using the retrieved pool ID (marketData.id)
     var pool = await getPoolKeysByPoolId(marketData.id, CONNECTION);
     pool = convertPoolFormat(pool);
-    console.log("Pools fetched", pool, `  - Date:${new Date()}`)
+    console.log("Pools fetched", pool, `  - Date:${new Date()}`);
     var swapConfig = {
       executeSwap: true, // Send tx when true, simulate tx when false
       useVersionedTransaction: true,
@@ -224,7 +352,7 @@ export async function swapToken(CONNECTION: Connection, PRIVATE_KEY: string, pub
       direction: "in",
       pool: pool,
       maxRetries: 20,
-    }
+    };
     let swapResp = await swap(swapConfig, PRIVATE_KEY);
 
     let confirmed: boolean = false;
@@ -248,7 +376,7 @@ export async function swapToken(CONNECTION: Connection, PRIVATE_KEY: string, pub
 
 // export const jupiter_swap = async (CONNECTION: Connection, PRIVATE_KEY: string, publicKey: string, inputMint: string, outputMint: string, amount: number, swapMode: "ExactIn" | "ExactOut") => {
 //   try {
-//     console.log("~~final amount", amount)    
+//     console.log("~~final amount", amount)
 //     const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
 //     console.log("~~urlll", `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=50&swapMode=${swapMode}`)
 //     const quoteResponse = await (
@@ -312,7 +440,9 @@ export const jupiter_swap = async (
 ) => {
   try {
     const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
-    const quoteUrl = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${Math.floor(amount)}&slippageBps=${slippage}&swapMode=${swapMode}`;
+    const quoteUrl = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${Math.floor(
+      amount
+    )}&slippageBps=${slippage}&swapMode=${swapMode}`;
     const quoteResponse = await fetch(quoteUrl).then((res) => res.json());
     if (quoteResponse.error) throw new Error("Failed to fetch quote response");
 
@@ -325,16 +455,17 @@ export const jupiter_swap = async (
         quoteResponse,
         userPublicKey: keypair.publicKey.toString(),
         wrapAndUnwrapSol: true,
-        dynamicComputeUnitLimit: true, 
+        dynamicComputeUnitLimit: true,
         prioritizationFeeLamports: {
-        priorityLevelWithMaxLamports: {
-          maxLamports: 50000000,
-          priorityLevel: "veryHigh" // If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
-        }
-      }
+          priorityLevelWithMaxLamports: {
+            maxLamports: 50000000,
+            priorityLevel: "veryHigh", // If you want to land transaction fast, set this to use `veryHigh`. You will pay on average higher priority fee.
+          },
+        },
       }),
     }).then((res) => res.json());
-    if (!swapResponse.swapTransaction) throw new Error("Failed to get swap transaction");
+    if (!swapResponse.swapTransaction)
+      throw new Error("Failed to get swap transaction");
 
     const swapTransaction = swapResponse.swapTransaction;
     const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
@@ -345,7 +476,13 @@ export const jupiter_swap = async (
     const txSignature = bs58.encode(transaction.signatures[0]);
     let res;
     if (isJito) {
-      res = await jito_executeAndConfirm(CONNECTION, transaction, keypair, latestBlockhash, config.JITO_TIP);
+      res = await jito_executeAndConfirm(
+        CONNECTION,
+        transaction,
+        keypair,
+        latestBlockhash,
+        JITO_TIP
+      );
     } else {
       res = await submitAndConfirm(transaction);
     }
@@ -359,7 +496,13 @@ export const jupiter_swap = async (
       transaction.message.recentBlockhash = latestBlockhash.blockhash;
       transaction.sign([keypair]);
 
-      const retryRes = await jito_executeAndConfirm(CONNECTION, transaction, keypair, latestBlockhash, config.JITO_TIP);
+      const retryRes = await jito_executeAndConfirm(
+        CONNECTION,
+        transaction,
+        keypair,
+        latestBlockhash,
+        JITO_TIP
+      );
 
       if (retryRes.confirmed) {
         return { confirmed: true, txSignature: retryRes.signature };
@@ -367,7 +510,7 @@ export const jupiter_swap = async (
     }
     return { confirmed: false, txSignature: null };
   } catch (error) {
-    console.log("jupiter swap:", error)
+    console.log("jupiter swap:", error);
     return { confirmed: false, txSignature: null };
   }
 };
@@ -450,31 +593,44 @@ export async function jito_executeAndConfirm(
  * @param {object} latestBlockhash - The latest blockhash information.
  * @returns {object} - An object containing the confirmation status and the transaction signature.
  */
-async function jito_confirm(CONNECTION: Connection, signature: string, latestBlockhash: BlockhashWithExpiryBlockHeight) {
+async function jito_confirm(
+  CONNECTION: Connection,
+  signature: string,
+  latestBlockhash: BlockhashWithExpiryBlockHeight
+) {
   console.log("Confirming the jito transaction...");
   await confirmTransaction(connection, signature);
   return { confirmed: true, signature };
 }
 
-export async function getDecimals(connection: Connection, mintAddress: PublicKey) {
+export async function getDecimals(
+  connection: Connection,
+  mintAddress: PublicKey
+) {
   try {
     const info = await connection.getParsedAccountInfo(mintAddress);
-    const result = ((info.value?.data) as ParsedAccountData).parsed.info.decimals || 0;
+    const result =
+      (info.value?.data as ParsedAccountData).parsed.info.decimals || 0;
     return result;
   } catch (error) {
-    console.log('getDecimals error');
+    console.log("getDecimals error");
     return null;
   }
 }
 
-export const getTokenMetaData = async (CONNECTION: Connection, address: string) => {
+export const getTokenMetaData = async (
+  CONNECTION: Connection,
+  address: string
+) => {
   try {
     const metaplex = Metaplex.make(CONNECTION);
     const mintAddress = new PublicKey(address);
-    const token = await metaplex.nfts().findByMint({ mintAddress: mintAddress });
-    let mintInfo = null
-    let totalSupply = 0
-    let token_type = "spl-token"
+    const token = await metaplex
+      .nfts()
+      .findByMint({ mintAddress: mintAddress });
+    let mintInfo = null;
+    let totalSupply = 0;
+    let token_type = "spl-token";
     if (token) {
       const name = token.name;
       const symbol = token.symbol;
@@ -485,28 +641,52 @@ export const getTokenMetaData = async (CONNECTION: Connection, address: string) 
       const renounced = token.mint.mintAuthorityAddress ? false : true;
 
       if (token.mint.currency.namespace === "spl-token") {
-        mintInfo = await getMint(CONNECTION, mintAddress, "confirmed", TOKEN_PROGRAM_ID)
-        token_type = "spl-token"
+        mintInfo = await getMint(
+          CONNECTION,
+          mintAddress,
+          "confirmed",
+          TOKEN_PROGRAM_ID
+        );
+        token_type = "spl-token";
       } else {
-        mintInfo = await getMint(CONNECTION, mintAddress, "confirmed", TOKEN_2022_PROGRAM_ID)
-        token_type = "spl-token-2022"
+        mintInfo = await getMint(
+          CONNECTION,
+          mintAddress,
+          "confirmed",
+          TOKEN_2022_PROGRAM_ID
+        );
+        token_type = "spl-token-2022";
       }
       if (mintInfo) {
-        totalSupply = Number(mintInfo.supply / BigInt(10 ** decimals))
+        totalSupply = Number(mintInfo.supply / BigInt(10 ** decimals));
       }
-      const metaData = { name, symbol, logo, decimals, address, totalSupply, description, extensions, renounced, type: token_type };
+      const metaData = {
+        name,
+        symbol,
+        logo,
+        decimals,
+        address,
+        totalSupply,
+        description,
+        extensions,
+        renounced,
+        type: token_type,
+      };
       return metaData;
     } else {
       console.log("utils.getTokenMetadata tokenInfo", token);
     }
-
   } catch (error) {
     console.log("getTokenMetadata", error);
   }
-  return null
-}
+  return null;
+};
 
-export const getTokenBalance = async (CONNECTION: Connection, walletAddress: string, tokenAddress: string) => {
+export const getTokenBalance = async (
+  CONNECTION: Connection,
+  walletAddress: string,
+  tokenAddress: string
+) => {
   const walletPublicKey = new PublicKey(walletAddress);
   const tokenPublicKey = new PublicKey(tokenAddress);
   const associatedTokenAddress = await PublicKey.findProgramAddress(
@@ -515,22 +695,33 @@ export const getTokenBalance = async (CONNECTION: Connection, walletAddress: str
       TOKEN_PROGRAM_ID.toBuffer(),
       tokenPublicKey.toBuffer(),
     ],
-    new PublicKey('ATokenGPvnNbtrh4MGx8o8wK7bPt6MrdAz7hKkG6QRJA')
+    new PublicKey("ATokenGPvnNbtrh4MGx8o8wK7bPt6MrdAz7hKkG6QRJA")
   );
 
   try {
-    const tokenAccount = await getAccount(CONNECTION, associatedTokenAddress[0]);
+    const tokenAccount = await getAccount(
+      CONNECTION,
+      associatedTokenAddress[0]
+    );
     const balance = tokenAccount.amount;
     return balance;
   } catch (error) {
-    console.error('Error fetching token balance:', error);
+    console.error("Error fetching token balance:", error);
     return null;
   }
 };
 
-export const getAllTokensWithBalance = async (connection: Connection, owner: PublicKey) => {
+export const getAllTokensWithBalance = async (
+  connection: Connection,
+  owner: PublicKey
+) => {
   try {
-    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(owner, { programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA") });
+    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+      owner,
+      {
+        programId: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+      }
+    );
     // const token22Accounts = await connection.getParsedTokenAccountsByOwner(owner, { programId: new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb") });
 
     const tokenBalances = [];
@@ -538,7 +729,7 @@ export const getAllTokensWithBalance = async (connection: Connection, owner: Pub
     for (const account of tokenAccounts.value) {
       const tokenAddress = account.account.data.parsed.info.mint;
       const balance = account.account.data.parsed.info.tokenAmount.uiAmount;
-      if(balance === 0) continue;
+      if (balance === 0) continue;
       // Fetch metadata
       const metaData = await getTokenMetaData(connection, tokenAddress);
 
@@ -547,7 +738,7 @@ export const getAllTokensWithBalance = async (connection: Connection, owner: Pub
         symbol: metaData?.symbol || "Unknown",
         name: metaData?.name || "Unknown Token",
         balance: balance || 0,
-        decimals: metaData?.decimals || 0
+        decimals: metaData?.decimals || 0,
       });
     }
 
@@ -588,24 +779,26 @@ function convertPoolFormat(pool: any) {
 
 export const submitAndConfirm = async (transaction: VersionedTransaction) => {
   try {
-    const signature = await config.SOLANA_CONNECTION.sendRawTransaction(transaction.serialize(), {
-      skipPreflight: true,
-      maxRetries: 3,
-    });
-    await confirmTransaction(config.SOLANA_CONNECTION, signature)
+    const signature = await connection.sendRawTransaction(
+      transaction.serialize(),
+      {
+        skipPreflight: true,
+        maxRetries: 3,
+      }
+    );
+    await confirmTransaction(connection, signature);
 
     return {
       confirmed: true,
-      signature
-    }
+      signature,
+    };
   } catch (e) {
     console.log("Error om simit:", e);
     return {
       confirmed: false,
-    }
+    };
   }
-
-}
+};
 
 const confirmTransaction = async (
   connection: Connection,
@@ -653,4 +846,4 @@ const confirmTransaction = async (
   }
 
   throw new Error(`Transaction confirmation timeout after ${timeout}ms`);
-}
+};

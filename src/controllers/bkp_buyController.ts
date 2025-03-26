@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { botInstance, switchMenu, getChatIdandMessageId, setState, STATE, setDeleteMessageId, getDeleteMessageId } from "../bot";
-import { SOLANA_CONNECTION } from '../config';
+import { SOLANA_CONNECTION } from '..';
 import * as walletdb from '../models/walletModel';
 import * as tradedb from '../models/tradeModel';
 import * as solana from '../solana';
@@ -31,7 +31,7 @@ const onClickHalfBuy = async (query: TelegramBot.CallbackQuery) => {
     if (wallet && trade) {
         const privateKey = wallet.privateKey;
         const publicKey = solana.getPublicKey(privateKey);
-        solana.jupiter_swap(SOLANA_CONNECTION, privateKey, publicKey, solana.WSOL_ADDRESS, trade.tokenAddress, 0.5 * solana.LAMPORTS, "ExactIn").then((result) => {
+        solana.jupiter_swap(SOLANA_CONNECTION, privateKey,  solana.WSOL_ADDRESS, trade.tokenAddress, 0.5 * solana.LAMPORTS, "ExactIn").then((result) => {
             if (result.confirmed) {
                 botInstance.sendMessage(chatId!, 'Buy successfully');
             } else {
@@ -49,7 +49,7 @@ const onClickOneBuy = async (query: TelegramBot.CallbackQuery) => {
     if (wallet && trade) {
         const privateKey = wallet.privateKey;
         const publicKey = solana.getPublicKey(privateKey);        
-        solana.jupiter_swap(SOLANA_CONNECTION, privateKey, publicKey, solana.WSOL_ADDRESS, trade.tokenAddress, 1 * solana.LAMPORTS, "ExactIn").then((result) => {
+        solana.jupiter_swap(SOLANA_CONNECTION, privateKey,  solana.WSOL_ADDRESS, trade.tokenAddress, 1 * solana.LAMPORTS, "ExactIn").then((result) => {
             if (result.confirmed) {
                 botInstance.sendMessage(chatId!, 'Buy successfully');
             } else {
@@ -75,7 +75,7 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
     if (wallet && trade) {
         const privateKey = wallet.privateKey;
         const publicKey = solana.getPublicKey(privateKey);        
-        solana.jupiter_swap(SOLANA_CONNECTION, privateKey, publicKey, solana.WSOL_ADDRESS, trade.tokenAddress, amount * solana.LAMPORTS, "ExactIn").then((result) => {
+        solana.jupiter_swap(SOLANA_CONNECTION, privateKey,  solana.WSOL_ADDRESS, trade.tokenAddress, amount * solana.LAMPORTS, "ExactIn").then((result) => {
             if (result.confirmed) {
                 botInstance.sendMessage(chatId!, 'Buy successfully');
             } else {

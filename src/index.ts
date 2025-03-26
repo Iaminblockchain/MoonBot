@@ -1,34 +1,29 @@
-import * as bot from "./bot";
-import { SERVER_PORT } from "./config";
-import { setAutotrade } from "./controllers/autoBuyController";
+import { retrieveEnvVariable } from "./config";
 import * as db from "./db";
-import express from 'express';
-import { getChatIdByChannel } from "./models/copyTradeModel";
+import * as dotenv from "dotenv";
+import { Connection } from "@solana/web3.js";
+import * as script from "./script";
+dotenv.config();
 
-const app = express();
-app.use(express.json());
-app.post('/signal', async (req, res) => {
-    try {
-        const data = req.body;
-        const chatIds = await getChatIdByChannel(data.channel)
-        chatIds.forEach((id)=>{
-            console.log("run auto signal:", id, data.address)
-            setAutotrade(id, data.address);
-        })
-        return res.status(200).json({ status: 'Success' });
-    } catch(e) {
-        console.log("Error", e)
-        return res.status(400).json({ status: 'Error' });
-    }
+export const TELEGRAM_BOT_TOKEN = retrieveEnvVariable("telegram_bot_token");
+export const MONGO_URI = retrieveEnvVariable("mongo_url");
+export const SOLANA_RPC_ENDPOINT = retrieveEnvVariable("solana_rpc_endpoint");
+export const SOLANA_WSS_ENDPOINT = retrieveEnvVariable("solana_wss_endpoint");
+export const JITO_TIP = Number(retrieveEnvVariable("jito_tip"));
+export const TELEGRAM_API_ID = Number(retrieveEnvVariable("telegram_api_id"));
+export const TELEGRAM_API_HASH = retrieveEnvVariable("telegram_api_hash");
+export const TELEGRAM_PHONE_NUMBER = retrieveEnvVariable("telegram_phone_number");
+export const TELEGRAM_STRING_SESSION = retrieveEnvVariable("tellegram_string_session");
+export const SOLANA_CONNECTION = new Connection(SOLANA_RPC_ENDPOINT, {
+  wsEndpoint: SOLANA_WSS_ENDPOINT,
+  commitment: "confirmed",
 });
 
-const main = () => {
-    db.connect();
-    bot.init();
-    
-    app.listen(SERVER_PORT, () => {
-        console.log(`Bot Server running at http://localhost:${SERVER_PORT}`);
-    });
+import * as bot from "./bot";
+const main = async () => {
+  await db.connect();
+  await script.script();
+  bot.init();
 };
 
 main();

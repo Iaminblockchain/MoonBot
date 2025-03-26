@@ -1,6 +1,5 @@
+import { TELEGRAM_BOT_TOKEN } from '.';
 import TelegramBot from 'node-telegram-bot-api';
-import * as config from './config';
-import * as db from './db';
 import * as solana from './solana';
 import * as walletDb from './models/walletModel';
 import * as buyController from './controllers/buyController';
@@ -13,8 +12,7 @@ import * as helpController from './controllers/helpController';
 import * as copytradeController from './controllers/copytradeController';
 
 import cron from "node-cron";
-
-export const botInstance = new TelegramBot(config.TELEGRAM_BOT_TOKEN, { polling: true });
+export let botInstance: any;
 
 export const enum STATE {
     INPUT_TOKEN,
@@ -68,6 +66,7 @@ export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: st
 }; 
 
 export const init = () => {
+    botInstance  = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
     botInstance.setMyCommands(
         [
             { command: 'start', description: 'Start bot' },
@@ -110,7 +109,7 @@ export const init = () => {
         // }
     });
 
-    botInstance.on('callback_query', (query) => {
+    botInstance.on('callback_query', (query: any) => {
         try {
             const chatId = query.message!.chat.id;
             const data = query.data;

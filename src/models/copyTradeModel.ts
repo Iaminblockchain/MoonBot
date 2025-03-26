@@ -91,6 +91,17 @@ export const getChatIdByChannel = async (sig: string) => {
   }
 };
 
+export const getAllChannel = async () => {
+  try {
+    const tradesWithSignal = await Trade.find({});
+    const signals = tradesWithSignal.map((trade) => trade.signal);
+    return signals;
+  } catch (error) {
+    console.log("Error", error);
+    return [];
+  }
+};
+
 const extractAddress = (input: string) => {
   if (input.startsWith("https://t.me/")) {
     return input.substring(input.lastIndexOf("/") + 1);

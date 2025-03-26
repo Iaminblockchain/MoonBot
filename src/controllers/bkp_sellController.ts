@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { botInstance, switchMenu, getChatIdandMessageId, setState, STATE, setDeleteMessageId, getDeleteMessageId } from "../bot";
-import { SOLANA_CONNECTION } from '../config';
+import { SOLANA_CONNECTION } from '..';
 import * as walletdb from '../models/walletModel';
 import * as tradedb from '../models/tradeModel';
 import * as solana from '../solana';
@@ -34,7 +34,7 @@ const onClick25Sell = async (query: TelegramBot.CallbackQuery) => {
         const privateKey = wallet.privateKey;
         const publicKey = solana.getPublicKey(privateKey);
         const tokenBalance = await solana.getTokenBalance(SOLANA_CONNECTION, publicKey, trade.tokenAddress);
-        solana.jupiter_swap(SOLANA_CONNECTION, privateKey, publicKey, trade.tokenAddress, solana.WSOL_ADDRESS, 0.25 * Number(tokenBalance), "ExactIn").then((result) => {
+        solana.jupiter_swap(SOLANA_CONNECTION, privateKey, trade.tokenAddress, solana.WSOL_ADDRESS, 0.25 * Number(tokenBalance), "ExactIn").then((result) => {
             if (result.confirmed) {
                 botInstance.sendMessage(chatId!, 'Sell successfully');
             } else {
@@ -53,7 +53,7 @@ const onClick50Sell = async (query: TelegramBot.CallbackQuery) => {
         const privateKey = wallet.privateKey;
         const publicKey = solana.getPublicKey(privateKey);
         const tokenBalance = await solana.getTokenBalance(SOLANA_CONNECTION, publicKey, trade.tokenAddress);
-        solana.jupiter_swap(SOLANA_CONNECTION, privateKey, publicKey, trade.tokenAddress, solana.WSOL_ADDRESS, 0.5 * Number(tokenBalance), "ExactIn").then((result) => {
+        solana.jupiter_swap(SOLANA_CONNECTION, privateKey,  trade.tokenAddress, solana.WSOL_ADDRESS, 0.5 * Number(tokenBalance), "ExactIn").then((result) => {
             if (result.confirmed) {
                 botInstance.sendMessage(chatId!, 'Sell successfully');
             } else {
@@ -72,7 +72,7 @@ const onClick75Sell = async (query: TelegramBot.CallbackQuery) => {
         const privateKey = wallet.privateKey;
         const publicKey = solana.getPublicKey(privateKey);
         const tokenBalance = await solana.getTokenBalance(SOLANA_CONNECTION, publicKey, trade.tokenAddress);
-        solana.jupiter_swap(SOLANA_CONNECTION, privateKey, publicKey, trade.tokenAddress, solana.WSOL_ADDRESS, 0.75 * Number(tokenBalance), "ExactIn").then((result) => {
+        solana.jupiter_swap(SOLANA_CONNECTION, privateKey, trade.tokenAddress, solana.WSOL_ADDRESS, 0.75 * Number(tokenBalance), "ExactIn").then((result) => {
             if (result.confirmed) {
                 botInstance.sendMessage(chatId!, 'Sell successfully');
             } else {
@@ -91,7 +91,7 @@ const onClick100Sell = async (query: TelegramBot.CallbackQuery) => {
         const privateKey = wallet.privateKey;
         const publicKey = solana.getPublicKey(privateKey);
         const tokenBalance = await solana.getTokenBalance(SOLANA_CONNECTION, publicKey, trade.tokenAddress);
-        solana.jupiter_swap(SOLANA_CONNECTION, privateKey, publicKey, trade.tokenAddress, solana.WSOL_ADDRESS, 1 * Number(tokenBalance), "ExactIn").then((result) => {
+        solana.jupiter_swap(SOLANA_CONNECTION, privateKey,  trade.tokenAddress, solana.WSOL_ADDRESS, 1 * Number(tokenBalance), "ExactIn").then((result) => {
             if (result.confirmed) {
                 botInstance.sendMessage(chatId!, 'Sell successfully');
             } else {

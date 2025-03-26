@@ -3,6 +3,7 @@ import * as walletdb from "../models/walletModel";
 import * as copytradedb from "../models/copyTradeModel";
 import { botInstance } from "../bot";
 import axios from "axios";
+import { setAutotrade } from "./autoBuyController";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   const { data: callbackData, message: callbackMessage } = query;
@@ -116,7 +117,7 @@ To manage your Copy Trade:
   botInstance.onReplyToMessage(
     new_msg.chat.id,
     new_msg.message_id,
-    async (n_msg) => {
+    async (n_msg: any) => {
       const signal = n_msg.text ?? "";
       botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
       botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
@@ -141,7 +142,7 @@ const removecopytradesignal = async (chatId: number, replaceId: number) => {
   botInstance.onReplyToMessage(
     new_msg.chat.id,
     new_msg.message_id,
-    async (n_msg) => {
+    async (n_msg: any) => {
       const signalIndex = n_msg.text ?? "";
       botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
       botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
@@ -191,4 +192,12 @@ const editCopyTradeKeyboard = (params: copytradedb.ITrade) => {
       },
     ],
   ];
+};
+
+export const onSignal = async (channel: string, address: string) => {
+  const chatIds = await copytradedb.getChatIdByChannel(channel);
+  chatIds.forEach((id) => {
+    console.log("run auto signal:", id, address);
+    setAutotrade(id, address);
+  });
 };

@@ -1,10 +1,9 @@
-import mongoose, { Schema, model, Document } from 'mongoose';
-import * as config from './config';
-import TelegramBot from 'node-telegram-bot-api';
+import mongoose from 'mongoose';
+import { MONGO_URI } from '.';
 
 export const connect = async () => {
     try {
-        await mongoose.connect(config.MONGO_URI);
+        await mongoose.connect(MONGO_URI);
         console.log('MongoDB connected');
     } catch (error) {
         console.error('MongoDB connection error:', error);
