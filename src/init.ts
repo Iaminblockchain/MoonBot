@@ -19,7 +19,6 @@ async function script(): Promise<void> {
     await client.connect();
 
     if (!(await client.checkAuthorization())) {
-      const phoneNumber = "+123456789";
       await client.signInUser(
         {
           apiId: API_ID,
@@ -32,7 +31,6 @@ async function script(): Promise<void> {
           onError: (err) => console.log(err),
         }
       );
-      client.session.save();
       console.log("Session string:", client.session.save());
     }
   } catch (e) {

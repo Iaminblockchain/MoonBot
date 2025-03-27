@@ -146,21 +146,8 @@ export async function script(): Promise<void> {
     await client.connect();
 
     if (!(await client.checkAuthorization())) {
-      const phoneNumber = "+123456789";
-      await client.signInUser(
-        {
-          apiId: API_ID,
-          apiHash: API_HASH,
-        },
-        {
-          phoneNumber: PHONE_NUMBER,
-          password: async () => prompt("password?"),
-          phoneCode: async () => prompt("Code ?"),
-          onError: (err) => console.log(err),
-        }
-      );
-      client.session.save();
-      console.log("Session string:", client.session.save());
+      console.error("We can't login Telegram account. Please check config again.");
+      process.exit(1);
     }
     console.log("Monitoring chats for pump.fun CAs...");
     // Save session string for future runs
