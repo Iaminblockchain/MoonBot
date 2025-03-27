@@ -2,15 +2,13 @@ import { Api, TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { NewMessage, NewMessageEvent } from "telegram/events";
 import { scheduleJob } from "node-schedule";
-import promptSync from "prompt-sync";
 import { getAllChannel } from "./models/copyTradeModel";
 import { onSignal } from "./controllers/copytradeController";
-import { TELEGRAM_API_HASH, TELEGRAM_API_ID, TELEGRAM_PHONE_NUMBER, TELEGRAM_STRING_SESSION } from ".";
+import { retrieveEnvVariable } from "./config";
 
-const prompt = promptSync({ sigint: true });
-const API_ID = TELEGRAM_API_ID;
-const API_HASH = TELEGRAM_API_HASH;
-const PHONE_NUMBER = TELEGRAM_PHONE_NUMBER;
+const API_ID = Number(retrieveEnvVariable("telegram_api_id"));
+const API_HASH = retrieveEnvVariable("telegram_api_hash");
+const TELEGRAM_STRING_SESSION = retrieveEnvVariable("tellegram_string_session");
 const session = new StringSession(
   TELEGRAM_STRING_SESSION
 ); // Persistent session; save this after first login

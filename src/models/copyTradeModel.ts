@@ -40,8 +40,7 @@ export const addTrade = async (chatId: TelegramBot.ChatId) => {
 
 export const removeTrade = async (props: any) => {
   try {
-    const { id } = props;
-    await Trade.findByIdAndDelete(id);
+    await Trade.findOneAndDelete(props);
     return true;
   } catch (error) {
     console.log("Add Copy Trade Error", error);
@@ -59,10 +58,18 @@ export const updateTrade = async (props: any) => {
   }
 };
 
+export const findAndUpdateOne = async (filter: any, props: any) => {
+  try {
+    const result = await Trade.findOneAndUpdate(filter, props, { new: true, upsert: false });
+    return result;
+  } catch (err: any) {
+    throw new Error(err.message);
+  }
+}
+
 export const findTrade = async (props: any) => {
   try {
-    const { id } = props;
-    let copytrade = await Trade.findOne(id);
+    let copytrade = await Trade.findOne(props);
     return copytrade;
   } catch (error) {
     console.log("Add Copy Trade Error", error);
@@ -102,11 +109,13 @@ export const getAllChannel = async () => {
   }
 };
 
-const extractAddress = (input: string) => {
+export const extractAddress = (input: string) => {
   if (input.startsWith("https://t.me/")) {
     return input.substring(input.lastIndexOf("/") + 1);
   } else if (input.startsWith("@")) {
     return input.substring(1);
+  } else if (input.endsWith("%")){
+    return input.slice(0, -1);
   }
   return input;
 };
