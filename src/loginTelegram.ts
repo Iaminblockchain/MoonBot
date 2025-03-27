@@ -3,17 +3,15 @@ import { StringSession } from "telegram/sessions";
 import promptSync from "prompt-sync";
 import { retrieveEnvVariable } from "./config";
 
-
 const prompt = promptSync({ sigint: true });
 
 const API_ID = Number(retrieveEnvVariable("telegram_api_id"));
 const API_HASH = retrieveEnvVariable("telegram_api_hash");
 const PHONE_NUMBER = retrieveEnvVariable("telegram_phone_number");
-const session = new StringSession(""); // Persistent session; save this after first login
-const client = new TelegramClient(session, API_ID, API_HASH, {
+const client = new TelegramClient(new StringSession(""), API_ID, API_HASH, {
   connectionRetries: 5,
 });
-async function script(): Promise<void> {
+async function loginTelegram(): Promise<void> {
   try {
     // Start the Telegram client
     await client.connect();
@@ -38,4 +36,4 @@ async function script(): Promise<void> {
   }
 }
 
-script();
+loginTelegram();
