@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package.json .
 
 # Install dependencies
-RUN yarn install
+RUN npm install
 # For yarn: RUN yarn install
 
 # Copy application code
