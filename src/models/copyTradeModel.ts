@@ -98,9 +98,9 @@ export const getChatIdByChannel = async (sig: string) => {
   }
 };
 
-export const getAllChannel = async () => {
+export const getAllActiveChannels = async () => {
   try {
-    const tradesWithSignal = await Trade.find({});
+    const tradesWithSignal = await Trade.find({active: true});
     const signals = tradesWithSignal.map((trade) => trade.signal);
     return signals;
   } catch (error) {

@@ -2,7 +2,7 @@ import { Api, TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { NewMessage, NewMessageEvent } from "telegram/events";
 import { scheduleJob } from "node-schedule";
-import { getAllChannel } from "./models/copyTradeModel";
+import { getAllActiveChannels } from "./models/copyTradeModel";
 import { onSignal } from "./controllers/copytradeController";
 import { retrieveEnvVariable } from "./config";
 
@@ -107,7 +107,7 @@ async function findMonitorChats(): Promise<void> {
       }
     }
 
-    const allSignals: string[] = await getAllChannel();
+    const allSignals: string[] = await getAllActiveChannels();
     console.log(`all signal: ${allSignals}`);
 
     NEW_MONITORED_CHAT_IDS = [];

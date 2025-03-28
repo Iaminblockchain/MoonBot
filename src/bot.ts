@@ -21,8 +21,8 @@ export const enum STATE {
 };
 
 export type TRADE = {
-    contractAddress : string,
-    targetPrice : number,
+    contractAddress: string,
+    targetPrice: number,
     lowPrice: number,
 }
 
@@ -54,19 +54,19 @@ export const clearState = () => {
 
 export const setTradeState = (chatid: TelegramBot.ChatId, contractAddress: string, targetPrice: number, lowPrice: number) => {
     const prev = trade.get(chatid.toString())
-    if(prev) trade.set(chatid.toString(), [...prev, {contractAddress, targetPrice, lowPrice}]);
-    else trade.set(chatid.toString(), [{contractAddress, targetPrice, lowPrice}]);
-}; 
+    if (prev) trade.set(chatid.toString(), [...prev, { contractAddress, targetPrice, lowPrice }]);
+    else trade.set(chatid.toString(), [{ contractAddress, targetPrice, lowPrice }]);
+};
 
 export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: string) => {
     const prev = trade.get(chatid.toString())
-    if(!prev) return;
+    if (!prev) return;
     const next = prev.filter((value: TRADE) => value.contractAddress !== contractAddress)
     trade.set(chatid.toString(), [...next]);
-}; 
+};
 
 export const init = () => {
-    botInstance  = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
+    botInstance = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
     botInstance.setMyCommands(
         [
             { command: 'start', description: 'Start bot' },
@@ -116,7 +116,7 @@ export const init = () => {
             console.log(`callback, chatId = ${chatId}, data = ${data}`);
             if (data?.startsWith("buyController_")) {
                 buyController.handleCallBackQuery(query);
-            } else if(data?.startsWith("ct_")){
+            } else if (data?.startsWith("ct_")) {
                 copytradeController.handleCallBackQuery(query);
             } else if (data?.startsWith("sc_")) {
                 sellController.handleCallBackQuery(query);
@@ -134,6 +134,8 @@ export const init = () => {
                 backToStart(query);
             } else if (data?.startsWith("close")) {
                 closeMessage(query);
+            } else if (data?.startsWith("dismiss")) {
+                return;
             }
         } catch (error) {
             console.log(error);
@@ -144,15 +146,15 @@ export const init = () => {
 export const runAutoSellSchedule = () => {
     const scheduler = "*/5 * * * * *"; // every 5 seconds
     try {
-      cron
-        .schedule(scheduler, () => {
-          sellController.autoSellHandler()
-        })
-        .start();
+        cron
+            .schedule(scheduler, () => {
+                sellController.autoSellHandler()
+            })
+            .start();
     } catch (error) {
-      console.error(`Error running the Schedule Job for Auto Sell: ${error}`);
+        console.error(`Error running the Schedule Job for Auto Sell: ${error}`);
     }
-  };
+};
 
 const closeMessage = (query: TelegramBot.CallbackQuery) => {
     const { chatId, messageId } = getChatIdandMessageId(query);

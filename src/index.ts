@@ -22,7 +22,7 @@ export const SOLANA_CONNECTION = new Connection(SOLANA_RPC_ENDPOINT, {
 import * as bot from "./bot";
 const main = async () => {
   await db.connect();
-  await script.script();
+  // await script.script();
   bot.init();
 };
 
