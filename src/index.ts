@@ -13,7 +13,7 @@ export const JITO_TIP = Number(retrieveEnvVariable("jito_tip"));
 export const TELEGRAM_API_ID = Number(retrieveEnvVariable("telegram_api_id"));
 export const TELEGRAM_API_HASH = retrieveEnvVariable("telegram_api_hash");
 export const TELEGRAM_PHONE_NUMBER = retrieveEnvVariable("telegram_phone_number");
-export const TELEGRAM_STRING_SESSION = retrieveEnvVariable("tellegram_string_session");
+export const TELEGRAM_STRING_SESSION = retrieveEnvVariable("telegram_string_session");
 export const SOLANA_CONNECTION = new Connection(SOLANA_RPC_ENDPOINT, {
   wsEndpoint: SOLANA_WSS_ENDPOINT,
   commitment: "confirmed",

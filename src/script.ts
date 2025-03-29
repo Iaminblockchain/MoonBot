@@ -8,7 +8,7 @@ import { retrieveEnvVariable } from "./config";
 
 const API_ID = Number(retrieveEnvVariable("telegram_api_id"));
 const API_HASH = retrieveEnvVariable("telegram_api_hash");
-const TELEGRAM_STRING_SESSION = retrieveEnvVariable("tellegram_string_session");
+const TELEGRAM_STRING_SESSION = retrieveEnvVariable("telegram_string_session");
 const session = new StringSession(
   TELEGRAM_STRING_SESSION
 ); // Persistent session; save this after first login
