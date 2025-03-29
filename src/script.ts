@@ -5,14 +5,12 @@ import { scheduleJob } from "node-schedule";
 import { getAllActiveChannels } from "./models/copyTradeModel";
 import { onSignal } from "./controllers/copytradeController";
 import { retrieveEnvVariable } from "./config";
+import { TELEGRAM_STRING_SESSION, TELEGRAM_API_ID, TELEGRAM_API_HASH } from "./index";
 
-const API_ID = Number(retrieveEnvVariable("telegram_api_id"));
-const API_HASH = retrieveEnvVariable("telegram_api_hash");
-const TELEGRAM_STRING_SESSION = retrieveEnvVariable("telegram_string_session");
 const session = new StringSession(
   TELEGRAM_STRING_SESSION
 ); // Persistent session; save this after first login
-const client = new TelegramClient(session, API_ID, API_HASH, {
+const client = new TelegramClient(session, TELEGRAM_API_ID, TELEGRAM_API_HASH, {
   connectionRetries: 5,
 });
 const PUMP_FUN_CA_REGEX = /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g;

@@ -5,10 +5,9 @@ import { retrieveEnvVariable } from "./config";
 
 const prompt = promptSync({ sigint: true });
 
-const API_ID = Number(retrieveEnvVariable("telegram_api_id"));
-const API_HASH = retrieveEnvVariable("telegram_api_hash");
-const PHONE_NUMBER = retrieveEnvVariable("telegram_phone_number");
-const client = new TelegramClient(new StringSession(""), API_ID, API_HASH, {
+const TELEGRAM_APP_ID = Number(retrieveEnvVariable("telegram_api_id"));
+const TELEGRAM_API_HASH = retrieveEnvVariable("telegram_api_hash");
+const client = new TelegramClient(new StringSession(""), TELEGRAM_APP_ID, TELEGRAM_API_HASH, {
   connectionRetries: 5,
 });
 async function loginTelegram(): Promise<void> {
@@ -19,13 +18,13 @@ async function loginTelegram(): Promise<void> {
     if (!(await client.checkAuthorization())) {
       await client.signInUser(
         {
-          apiId: API_ID,
-          apiHash: API_HASH,
+          apiId: TELEGRAM_APP_ID,
+          apiHash: TELEGRAM_API_HASH,
         },
         {
-          phoneNumber: PHONE_NUMBER,
-          password: async () => prompt("password?"),
-          phoneCode: async () => prompt("Code ?"),
+          phoneNumber: async () => prompt("Phone number? "),
+          password: async () => prompt("Password? "),
+          phoneCode: async () => prompt("Code? "),
           onError: (err) => console.log(err),
         }
       );
