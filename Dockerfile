@@ -4,11 +4,10 @@ FROM node:20-alpine
 # Set working directory
 WORKDIR /app
 
-COPY package.json .
+COPY package*.json ./
 
 # Install dependencies
 RUN npm install
-# For yarn: RUN yarn install
 
 # Copy application code
 COPY . .
@@ -18,4 +17,3 @@ EXPOSE 8080
 
 # Start the application
 CMD ["npm", "start"]
-# For yarn: CMD ["yarn", "start"]

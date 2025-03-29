@@ -4,21 +4,16 @@ import { NewMessage, NewMessageEvent } from "telegram/events";
 import { scheduleJob } from "node-schedule";
 import { getAllActiveChannels } from "./models/copyTradeModel";
 import { onSignal } from "./controllers/copytradeController";
-import { retrieveEnvVariable } from "./config";
 import { TELEGRAM_STRING_SESSION, TELEGRAM_API_ID, TELEGRAM_API_HASH } from "./index";
 
-const session = new StringSession(
-  TELEGRAM_STRING_SESSION
-); // Persistent session; save this after first login
-const client = new TelegramClient(session, TELEGRAM_API_ID, TELEGRAM_API_HASH, {
-  connectionRetries: 5,
-});
 const PUMP_FUN_CA_REGEX = /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g;
 
 // List of chat IDs to monitor
 let MONITORED_CHAT_IDS: number[] = [];
 let NEW_MONITORED_CHAT_IDS: number[] = [];
 let ALL_CHATS: { username: string | null; id: number }[] = [];
+
+let client: TelegramClient;
 
 // Process incoming messages
 async function processMessages(event: NewMessageEvent): Promise<void> {
@@ -138,6 +133,11 @@ async function findMonitorChats(): Promise<void> {
 // Main function to start the client
 export async function script(): Promise<void> {
   try {
+    const session = new StringSession(TELEGRAM_STRING_SESSION);
+    client = new TelegramClient(session, TELEGRAM_API_ID, TELEGRAM_API_HASH, {
+      connectionRetries: 5,
+    });
+    
     // Start the Telegram client
     await client.connect();
 
