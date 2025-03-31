@@ -41,8 +41,8 @@ const initializeServices = async () => {
     console.log('Connecting to database...');
     await db.connect();
 
-    // console.log('Initializing script...');
-    // await script.script();
+    console.log('Initializing script...');
+    await script.script();
 
     console.log('Starting bot...');
     bot.init();
