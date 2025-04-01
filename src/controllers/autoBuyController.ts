@@ -226,18 +226,20 @@ export function checkAutoBuy(msg: TelegramBot.Message) {
   setAutotrade(chatId, text);
 }
 
-export function setAutotrade(
+export const setAutotrade = async (
   chatId: number,
   contractAddress: string,
   channel?: string
-) {
+) => {
+
   if (!isValidAddress(contractAddress)) return;
   let settings: any;
   if (channel) {
-    settings = findTrade({ chatId, signal: channel });
+    settings = await findTrade({ chatId, signal: channel });
   } else {
     settings = autoBuySettings.get(chatId);
   }
+  console.log("settings", settings, chatId, channel)
   if (
     settings &&
     settings.active &&

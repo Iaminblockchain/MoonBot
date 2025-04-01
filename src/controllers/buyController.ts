@@ -178,6 +178,7 @@ export const autoBuyContract = async (
     botInstance.sendMessage(chatId, "Wallet not found. Please create or import a wallet first.");
     return;
   }
+  console.log("run auto buy", settings, contractAddress, chatId);
   let solAmount = settings.amount;
   if (settings.isPercentage) {
     const balance = await solana.getSolBalance(wallet.privateKey);
