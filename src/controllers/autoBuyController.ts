@@ -248,19 +248,33 @@ export function setAutotrade(
       `Auto-buy triggered for chat ${chatId} with contract ${contractAddress}`
     );
     // Create a new settings object with maxSlippage asserted as non-null.
-
-    buyController.autoBuyContract(
-      chatId,
-      {
-        amount: settings.amount,
-        isPercentage: false,
-        maxSlippage: settings.maxSlippage!,
-        takeProfit: settings.tp,
-        stopLoss: settings.sl,
-        repetitiveBuy: settings.repetitiveBuy,
-      },
-      contractAddress
-    );
+    if (channel) {
+      buyController.autoBuyContract(
+        chatId,
+        {
+          amount: settings.amount,
+          isPercentage: false,
+          maxSlippage: settings.maxSlippage!,
+          takeProfit: settings.tp,
+          stopLoss: settings.sl,
+          repetitiveBuy: settings.repetitiveBuy,
+        },
+        contractAddress
+      );
+    } else {
+      buyController.autoBuyContract(
+        chatId,
+        {
+          amount: settings.amount,
+          isPercentage: false,
+          maxSlippage: settings.maxSlippage!,
+          takeProfit: settings.takeProfit,
+          stopLoss: settings.stopLoss,
+          repetitiveBuy: settings.repetitiveBuy,
+        },
+        contractAddress
+      );
+    }
   }
 }
 

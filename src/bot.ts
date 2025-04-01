@@ -5,6 +5,7 @@ import * as walletDb from './models/walletModel';
 import * as buyController from './controllers/buyController';
 import * as sellController from './controllers/sellController';
 import * as walletController from './controllers/walletController';
+import * as withdrawController from './controllers/withdrawController';
 import * as settingController from './controllers/settingController';
 import * as positionController from './controllers/positionController';
 import * as autoBuyController from './controllers/autoBuyController';
@@ -122,6 +123,8 @@ export const init = () => {
                 sellController.handleCallBackQuery(query);
             } else if (data?.startsWith("walletController_")) {
                 walletController.handleCallBackQuery(query);
+            } else if (data?.startsWith("withdrawC_")) {
+                withdrawController.handleCallBackQuery(query);
             } else if (data?.startsWith("settingController_")) {
                 settingController.handleCallBackQuery(query);
             } else if (data?.startsWith("positionController_")) {
@@ -237,7 +240,8 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
                 { text: 'Settings', callback_data: "settingController_start" }
             ],
             [
-                { text: 'Wallet', callback_data: "walletController_start" }
+                { text: 'Wallet', callback_data: "walletController_start" },
+                { text: 'Withdraw', callback_data: "withdrawC_start" }
             ],
             [
                 { text: 'Help', callback_data: "helpController_start" },

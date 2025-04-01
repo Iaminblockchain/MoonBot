@@ -22,6 +22,7 @@ import {
   TOKEN_2022_PROGRAM_ID,
   getMint,
   getAccount,
+  getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import { Metaplex } from "@metaplex-foundation/js";
 import * as config from "./config";
@@ -30,6 +31,7 @@ const { fetchMarketAccounts } = require("./scripts/fetchMarketAccounts");
 const { getPoolKeysByPoolId } = require("./scripts/getPoolKeysByPoolId");
 import swap from "./swap";
 import { JITO_TIP, SOLANA_CONNECTION } from ".";
+import { connection } from "mongoose";
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
@@ -52,14 +54,12 @@ const endpoints = [
   "https://tokyo.mainnet.block-engine.jito.wtf/api/v1/bundles",
 ];
 
-const connection = SOLANA_CONNECTION;
-
 export const getSolBalance = async (privateKey: string) => {
   try {
     let privateKey_nums = bs58.decode(privateKey);
     let keypair = Keypair.fromSecretKey(privateKey_nums);
 
-    const accountInfo = await connection.getAccountInfo(keypair.publicKey);
+    const accountInfo = await SOLANA_CONNECTION.getAccountInfo(keypair.publicKey);
 
     if (accountInfo && accountInfo.lamports)
       return Number(accountInfo.lamports) / 10 ** 9;
@@ -113,7 +113,7 @@ const sendSOL = async (
       })
     );
     transaction.feePayer = senderKeypair.publicKey;
-    const signature = await sendAndConfirmTransaction(connection, transaction, [
+    const signature = await sendAndConfirmTransaction(SOLANA_CONNECTION, transaction, [
       senderKeypair,
     ]);
     console.log(`Send SOL TX: ${signature}`);
@@ -127,7 +127,7 @@ const sendSOL = async (
 async function getTokenAddressFromTokenAccount(tokenAccountAddress: string) {
   try {
     const tokenAccountPubkey = new PublicKey(tokenAccountAddress);
-    const accountInfo = await connection.getAccountInfo(tokenAccountPubkey);
+    const accountInfo = await SOLANA_CONNECTION.getAccountInfo(tokenAccountPubkey);
 
     if (accountInfo === null) {
       throw new Error("Token account not found");
@@ -599,7 +599,7 @@ async function jito_confirm(
   latestBlockhash: BlockhashWithExpiryBlockHeight
 ) {
   console.log("Confirming the jito transaction...");
-  await confirmTransaction(connection, signature);
+  await confirmTransaction(SOLANA_CONNECTION, signature);
   return { confirmed: true, signature };
 }
 
@@ -703,13 +703,26 @@ export const getTokenBalance = async (
       CONNECTION,
       associatedTokenAddress[0]
     );
-    const balance = tokenAccount.amount;
+    const balance = tokenAccount;
     return balance;
   } catch (error) {
     console.error("Error fetching token balance:", error);
     return null;
   }
 };
+
+export const getTokenInfofromMint = async (wallet: PublicKey, tokenAddress: string) => {
+  const tokenPublicKey = new PublicKey(tokenAddress);
+  const tokenAccount = getAssociatedTokenAddressSync(tokenPublicKey, wallet);
+  try {
+    const info = await SOLANA_CONNECTION.getTokenAccountBalance(tokenAccount);
+    console.log("info", info)
+    return info.value;
+  } catch (error) {
+    console.error("Error fetching token balance:", error);
+    return null;
+  }
+}
 
 export const getAllTokensWithBalance = async (
   connection: Connection,
@@ -779,14 +792,14 @@ function convertPoolFormat(pool: any) {
 
 export const submitAndConfirm = async (transaction: VersionedTransaction) => {
   try {
-    const signature = await connection.sendRawTransaction(
+    const signature = await SOLANA_CONNECTION.sendRawTransaction(
       transaction.serialize(),
       {
         skipPreflight: true,
         maxRetries: 3,
       }
     );
-    await confirmTransaction(connection, signature);
+    await confirmTransaction(SOLANA_CONNECTION, signature);
 
     return {
       confirmed: true,

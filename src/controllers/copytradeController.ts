@@ -348,7 +348,7 @@ const editCopyTradeKeyboard = (params: copytradedb.ITrade) => {
 export const onSignal = async (channel: string, address: string) => {
   const chatIds = await copytradedb.getChatIdByChannel(channel);
   chatIds.forEach((id) => {
-    console.log("run auto signal:", id, address);
+    console.log("run auto signal:", id, address, channel);
     setAutotrade(id, address, channel);
   });
 };
