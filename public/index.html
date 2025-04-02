@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Telegram Chats</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background: #f9f9f9;
+            color: #333;
+        }
+
+        h1 {
+            text-align: center;
+            color: #444;
+        }
+
+        table {
+            width: 80%;
+            margin: 20px auto;
+            border-collapse: collapse;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            background: #fff;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f4f4f4;
+            font-weight: bold;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Chats</h1>
+    <table border="1" id="chatsTable">
+        <thead>
+            <tr>
+                <th>Name</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        fetch('/api/chats')
+            .then(response => response.json())
+            .then(chats => {
+                const tbody = document.querySelector('#chatsTable tbody');
+                chats.forEach(chat => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                           <td>${chat.chat_id || ''}</td>`;
+                    tbody.appendChild(row);
+                });
+            })
+            .catch(err => console.error('Error:', err));
+    </script>
+</body>
+
+</html>

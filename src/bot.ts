@@ -11,6 +11,7 @@ import * as positionController from './controllers/positionController';
 import * as autoBuyController from './controllers/autoBuyController';
 import * as helpController from './controllers/helpController';
 import * as copytradeController from './controllers/copytradeController';
+import { logger } from './util';
 
 import cron from "node-cron";
 export let botInstance: any;
@@ -67,7 +68,13 @@ export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: st
 };
 
 export const init = () => {
+    logger.info("init TG bot with token");
     botInstance = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
+    botInstance.getMe().then((botInfo: any) => {
+        logger.info(`Bot name: ${botInfo.username}`);
+    }).catch((error: any) => {
+        logger.error("Error getting bot info:", error);
+    });
     botInstance.setMyCommands(
         [
             { command: 'start', description: 'Start bot' },
@@ -88,6 +95,8 @@ export const init = () => {
         const chatId = msg.chat.id;
         const messageId = msg.message_id;
         const messageText = msg.text;
+        logger.info(`message: ${messageText} ${chatId}`);
+
         if (!msg.text!.startsWith('/')) {
             const currentState = getState(chatId.toString());
             if (currentState) {
@@ -114,7 +123,7 @@ export const init = () => {
         try {
             const chatId = query.message!.chat.id;
             const data = query.data;
-            console.log(`callback, chatId = ${chatId}, data = ${data}`);
+            logger.info(`callback, chatId = ${chatId}, data = ${data}`);
             if (data?.startsWith("buyController_")) {
                 buyController.handleCallBackQuery(query);
             } else if (data?.startsWith("ct_")) {
@@ -141,7 +150,7 @@ export const init = () => {
                 return;
             }
         } catch (error) {
-            console.log(error);
+            logger.info(error);
         }
     });
 };
@@ -155,7 +164,7 @@ export const runAutoSellSchedule = () => {
             })
             .start();
     } catch (error) {
-        console.error(`Error running the Schedule Job for Auto Sell: ${error}`);
+        logger.error(`Error running the Schedule Job for Auto Sell: ${error}`);
     }
 };
 
@@ -181,12 +190,12 @@ export async function switchMenu(chatId: TelegramBot.ChatId, messageId: number |
     try {
         await botInstance.editMessageText(title, { chat_id: chatId, message_id: messageId, reply_markup: keyboard, disable_web_page_preview: true, parse_mode: 'HTML' });
     } catch (error) {
-        console.log(error);
+        logger.info(error);
     }
 }
 
 const onStartCommand = async (msg: TelegramBot.Message) => {
-    console.log('user:', msg.chat.username);
+    logger.info('user:', msg.chat.username);
     const { title, buttons } = await getTitleAndButtons(msg.chat.id);
     botInstance.sendMessage(msg.chat.id, title, {
         reply_markup: {

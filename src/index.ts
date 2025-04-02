@@ -2,9 +2,10 @@ import { retrieveEnvVariable } from "./config";
 import * as db from "./db";
 import * as dotenv from "dotenv";
 import { Connection } from "@solana/web3.js";
-import * as script from "./script";
-import express from 'express';
+import { scrape } from "./scraper/scrapescript";
 import * as bot from "./bot";
+import { logger } from "./util";
+import { setupServer } from "./server";
 
 dotenv.config();
 
@@ -21,30 +22,15 @@ export const SOLANA_CONNECTION = new Connection(SOLANA_RPC_ENDPOINT, {
   commitment: "confirmed",
 });
 
-const setupServer = (port: number) => {
-  const app = express();
-  
-  app.get('/health', (_, res) => {
-    res.status(200).send('OK');
-  });
-  
-  return new Promise<void>((resolve) => {
-    app.listen(port, () => {
-      console.log(`Health check server listening on port ${port}`);
-      resolve();
-    });
-  });
-};
-
 const initializeServices = async () => {
   try {
-    console.log('Connecting to database...');
+    logger.info('Connecting to mongo database...');
     await db.connect();
 
-    console.log('Initializing script...');
-    await script.script();
+    logger.info('Initializing scrape script...');
+    await scrape();
 
-    console.log('Starting bot...');
+    logger.info('Starting TG bot...');
     bot.init();
 
     return true;
@@ -56,7 +42,7 @@ const initializeServices = async () => {
 
 const main = async () => {
   const port = Number(process.env.PORT) || 8080;
-  
+
   const servicesInitialized = await initializeServices();
   if (!servicesInitialized) {
     console.error('Failed to initialize required services. Exiting...');
@@ -65,7 +51,7 @@ const main = async () => {
 
   try {
     await setupServer(port);
-    console.log('Application successfully started!');
+    logger.info('Application successfully started!');
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
