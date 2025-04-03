@@ -24,8 +24,12 @@ export const setupServer = (port: number): Promise<void> => {
     app.get('/api/stats', async (_, res) => {
         try {
             const stats = await ScrapeStats.findOne({});
+            const totalChannels = await Chat.countDocuments();
             if (stats) {
-                res.json(stats);
+                res.json({
+                    ...stats.toObject(),
+                    total_channels: totalChannels
+                });
             } else {
                 res.status(500).send('Error fetching stats');
             }

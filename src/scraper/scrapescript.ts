@@ -25,6 +25,49 @@ let totalMessagesRead = 0;
 const uniqueIncomingChannelIds: Set<number> = new Set();
 let totalContractAddressesFound = 0;
 
+async function contractFound(
+  channelUsername: string | null,
+  contractAddresses: string[],
+  channelId: number
+): Promise<void> {
+  if (!channelUsername || contractAddresses.length === 0) return;
+
+  // Increment global counter
+  totalContractAddressesFound += contractAddresses.length;
+
+  // Update chat's token count
+  await Chat.findOneAndUpdate(
+    { chat_id: channelUsername },
+    {
+      $setOnInsert: {
+        chat_id: channelUsername,
+        creation_date: new Date()
+      },
+      $inc: {
+        token_count: contractAddresses.length
+      }
+    },
+    { upsert: true, new: true }
+  );
+
+  // Process the first contract address
+  onSignal(channelUsername, contractAddresses[0]!);
+
+  // Create call record
+  try {
+    const callRecord = new Call({
+      chat_id: channelUsername,
+      token_id: contractAddresses[0],
+      message_date: new Date(),
+    });
+    await callRecord.save();
+    logger.info(`Saved call record for ${channelUsername} with token ${contractAddresses[0]}`);
+  } catch (err) {
+    logger.error(`Error saving call record: ${err}`);
+  }
+}
+
+
 // Process incoming messages
 async function processMessages(event: NewMessageEvent): Promise<void> {
   try {
@@ -41,44 +84,34 @@ async function processMessages(event: NewMessageEvent): Promise<void> {
     logger.info(`New message: ${messageText} - ${channelId}`);
     const chatRecord = ALL_CHATS.find(chat => chat.id === id);
     const channelUsername = chatRecord ? chatRecord.username : null;
+    //note: matching several CAs not just one
+    const contractAddresses = messageText.match(PUMP_FUN_CA_REGEX) || [];
+    logger.info(`Detected addresses: ${contractAddresses}`);
+
     if (channelUsername) {
-      // Update the Chat record: increment message_count
+      await reportStats();
+
       await Chat.findOneAndUpdate(
         { chat_id: channelUsername },
-        { $inc: { message_count: 1 } },
+        {
+          $setOnInsert: {
+            chat_id: channelUsername,
+            creation_date: new Date()
+          },
+          $inc: {
+            message_count: 1,
+            //token_count: contractAddresses.length
+          }
+        },
         { upsert: true, new: true }
       );
     }
 
-    const contractAddresses = messageText.match(PUMP_FUN_CA_REGEX) || [];
-    logger.info(`Detected addresses: ${contractAddresses}`);
 
     if (contractAddresses.length > 0) {
-      // Increment the contract addresses counter by the number found in this message
-      totalContractAddressesFound += contractAddresses.length;
-      let channelUsername: string | null = "";
-      for (const chat of ALL_CHATS) {
-        if (chat.id === id) {
-          channelUsername = chat.username;
-          break;
-        }
-      }
-      if (channelUsername) {
-        onSignal(channelUsername, contractAddresses[0]!);
-        // Create a call record using the Call model
-        try {
-          const callRecord = new Call({
-            chat_id: channelUsername,          // using channel username as chat id
-            token_id: contractAddresses[0],      // first contract address found
-            message_date: new Date(),            // current date/time as message date
-            // creationdate will default to now
-          });
-          await callRecord.save();
-          logger.info(`Saved call record for channel ${channelUsername} with token ${contractAddresses[0]}`);
-        } catch (err) {
-          logger.error(`Error saving call record: ${err}`);
-        }
-      }
+      await reportStats();
+
+      await contractFound(channelUsername, contractAddresses, id);
     }
   } catch (e) {
     console.error(`Error processing message: ${e}`);
@@ -95,22 +128,32 @@ async function monitorMessages(): Promise<void> {
   );
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // Join a Telegram channel
 async function joinChannel(channelName: string): Promise<void> {
-  logger.info('joinChannel');
+  logger.info('joinChannel ' + channelName);
   try {
     const result: any = await client.invoke(
-      new Api.channels.JoinChannel({
-        channel: channelName,
-      })
+      new Api.channels.JoinChannel({ channel: channelName })
     );
     const channelId = result?.chats[0].id.toJSNumber();
-
     NEW_MONITORED_CHAT_IDS.push(channelId);
     ALL_CHATS.push({ username: channelName, id: channelId });
-    logger.info(`Detecting Channel list: ${NEW_MONITORED_CHAT_IDS}`);
-  } catch (e) {
-    console.error(`joinChannel Error: ${e}`);
+    //logger.info(`Detecting Channel list: ${NEW_MONITORED_CHAT_IDS}`);
+  } catch (e: any) {
+    // Check for FloodWaitError and extract the wait time in seconds.
+    const floodMatch = e.message && e.message.match(/wait of (\d+) seconds/);
+    if (floodMatch) {
+      const waitSeconds = parseInt(floodMatch[1], 10);
+      logger.info(`Flood wait detected. Waiting for ${waitSeconds} seconds before retrying join for ${channelName}.`);
+      await delay(waitSeconds * 1000);
+      return joinChannel(channelName);
+    } else {
+      console.error(`joinChannel Error: ${e}`);
+    }
   }
 }
 
@@ -198,9 +241,9 @@ async function reportStats(): Promise<void> {
     await ScrapeStats.findOneAndUpdate(
       {},
       {
-        totalMessagesRead,
-        uniqueIncomingChannelCount: uniqueIncomingChannelIds.size,
-        contractsFound: totalContractAddressesFound,
+        total_messages_read: totalMessagesRead,
+        unique_channel_count: uniqueIncomingChannelIds.size,
+        contracts_found: totalContractAddressesFound,
       },
       { upsert: true, new: true }
     );
@@ -222,10 +265,18 @@ export async function scrape(): Promise<void> {
     // Start the Telegram client
     await client.connect();
 
+    const previousStats = await ScrapeStats.findOne({});
+    if (previousStats) {
+      totalMessagesRead = previousStats.total_messages_read || totalMessagesRead;
+      totalContractAddressesFound = previousStats.contracts_found || totalContractAddressesFound;
+      logger.info(`Loaded previous stats: ${totalMessagesRead} messages read, ${totalContractAddressesFound} contracts found`);
+    }
+
     if (!(await client.checkAuthorization())) {
       logger.error("We can't login Telegram account. Please check config again.");
       process.exit(1);
     }
+
     logger.info("Monitoring chats for pump.fun CAs...");
 
     // Start immediate chat monitoring for dynamic channels
@@ -235,8 +286,7 @@ export async function scrape(): Promise<void> {
     // Listen to predefined channels
     await listentopredefined();
 
-    // Schedule stats report every minute
-    scheduleJob("*/1 * * * *", reportStats);
+
 
   } catch (e) {
     console.error(`Error starting client: ${e}`);

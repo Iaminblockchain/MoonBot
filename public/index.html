@@ -2,62 +2,141 @@
 <html>
 
 <head>
-    <title>Telegram Chats</title>
+    <title>Moonbot</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 40px;
-            background: #f9f9f9;
-            color: #333;
+            margin: 0;
+            padding: 0;
+            background: #0c0f1b;
+            color: #ffffff;
+        }
+
+        .top-bar {
+            background: #101325;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
         h1 {
+            color: #ffffff;
+            margin: 20px 0 10px 0;
             text-align: center;
-            color: #444;
+        }
+
+        .stats-container {
+            width: 80%;
+            margin: 20px auto;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .stat-card {
+            background: #151929;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            min-width: 200px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #4fc3f7;
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            color: #a7aecd;
+            font-size: 1rem;
         }
 
         table {
             width: 80%;
-            margin: 20px auto;
+            margin: 40px auto;
             border-collapse: collapse;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            background: #fff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            background: #151929;
+            border-radius: 10px;
+            overflow: hidden;
         }
 
         th,
         td {
             padding: 12px 15px;
-            border: 1px solid #ddd;
+            border-bottom: 1px solid #1f2437;
             text-align: left;
         }
 
         th {
-            background-color: #f4f4f4;
-            font-weight: bold;
+            background-color: #101325;
+            color: #a7aecd;
+            font-weight: normal;
         }
 
         tr:nth-child(even) {
-            background-color: #f9f9f9;
+            background-color: #171b2e;
         }
 
         tr:hover {
-            background-color: #f1f1f1;
+            background-color: #1f2437;
         }
     </style>
 </head>
 
 <body>
-    <h1>Chats</h1>
+    <div class="top-bar">
+        <img src="mlogo.png" width="160" height="50">
+    </div>
+
+    <h1>Group Statistics</h1>
+    <div class="stats-container" id="statsContainer">
+        <!-- Stats will be inserted here by JavaScript -->
+    </div>
+
+    <h1>Group List</h1>
     <table border="1" id="chatsTable">
         <thead>
             <tr>
                 <th>Name</th>
+                <th>Messages</th>
+                <th>Tokens Found</th>
             </tr>
         </thead>
         <tbody></tbody>
     </table>
 
     <script>
+        // Fetch and display stats
+        fetch('/api/stats')
+            .then(response => response.json())
+            .then(stats => {
+                const statsContainer = document.getElementById('statsContainer');
+
+                const statsData = [
+                    { label: 'Total Channels', value: stats.total_channels || 0, icon: '📢' },
+                    { label: 'Total Messages', value: stats.total_messages_read || 0, icon: '✉️' },
+                    { label: 'Unique Channels', value: stats.unique_channel_count || 0, icon: '📊' },
+                    { label: 'Contracts Found', value: stats.contracts_found || 0, icon: '🔍' }
+                ];
+
+                statsData.forEach(stat => {
+                    const statCard = document.createElement('div');
+                    statCard.className = 'stat-card';
+                    statCard.innerHTML = `
+                        <div class="stat-label">${stat.icon} ${stat.label}</div>
+                        <div class="stat-value">${stat.value}</div>
+                    `;
+                    statsContainer.appendChild(statCard);
+                });
+            })
+            .catch(err => console.error('Error fetching stats:', err));
+
+        // Fetch and display chats
         fetch('/api/chats')
             .then(response => response.json())
             .then(chats => {
@@ -65,11 +144,14 @@
                 chats.forEach(chat => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                           <td>${chat.chat_id || ''}</td>`;
+                        <td>${chat.chat_id || ''}</td>
+                        <td>${chat.message_count || 0}</td>
+                        <td>${chat.token_count || 0}</td>
+                    `;
                     tbody.appendChild(row);
                 });
             })
-            .catch(err => console.error('Error:', err));
+            .catch(err => console.error('Error fetching chats:', err));
     </script>
 </body>
 
