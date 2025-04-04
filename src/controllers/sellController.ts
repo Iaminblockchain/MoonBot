@@ -163,6 +163,17 @@ export const getPublicKeyinFormat = (privateKey: string) => {
   return keypair.publicKey;
 };
 
+export const getKeypair = (privateKey: string) => {
+  // Decode the base58 private key into Uint8Array
+  const secretKeyUint8Array = new Uint8Array(bs58.decode(privateKey));
+
+  // Create a Keypair from the secret key
+  const keypair = Keypair.fromSecretKey(secretKeyUint8Array);
+
+  // Return the public key as a string
+  return keypair;
+};
+
 export const showSellPad = async (query: TelegramBot.CallbackQuery) => {
   try {
     const { chatId } = getChatIdandMessageId(query);

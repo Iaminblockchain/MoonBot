@@ -23,6 +23,9 @@ import {
   getMint,
   getAccount,
   getAssociatedTokenAddressSync,
+  getOrCreateAssociatedTokenAccount,
+  createTransferInstruction,
+  getAssociatedTokenAddress,
 } from "@solana/spl-token";
 import { Metaplex } from "@metaplex-foundation/js";
 import * as config from "./config";
@@ -32,6 +35,8 @@ const { getPoolKeysByPoolId } = require("./scripts/getPoolKeysByPoolId");
 import swap from "./swap";
 import { JITO_TIP, SOLANA_CONNECTION } from ".";
 import { connection } from "mongoose";
+import { getWalletByChatId } from "./models/walletModel";
+import { getKeypair, getPublicKeyinFormat } from "./controllers/sellController";
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
@@ -860,3 +865,58 @@ const confirmTransaction = async (
 
   throw new Error(`Transaction confirmation timeout after ${timeout}ms`);
 };
+
+export const sendSPLtokens = async (chatId: number, mint: string, destination: string, amount: number, isPercentage: boolean) => {
+  try {
+    const wallet = await getWalletByChatId(chatId);
+    const owner: Keypair = getKeypair(wallet!.privateKey);
+    const tokenInfo = await getTokenInfofromMint(owner.publicKey, mint)
+    if (!tokenInfo) return { confirmed: false };
+    let sendAmount: number;
+    if (isPercentage) {
+      sendAmount = Math.floor(tokenInfo.uiAmount! * Math.pow(10, tokenInfo.decimals) * amount / 100);
+    } else {
+      sendAmount = Math.floor(amount * Math.pow(10, tokenInfo.decimals));
+    }
+    let sourceAccount = await getAssociatedTokenAddress(
+      new PublicKey(mint),
+      owner.publicKey,
+      true
+    );
+
+    let destinationAccount = await getOrCreateAssociatedTokenAccount(
+      SOLANA_CONNECTION,
+      owner,
+      new PublicKey(mint),
+      new PublicKey(destination),
+      true
+    );
+
+    const txinstruction = createTransferInstruction(
+      sourceAccount,
+      destinationAccount.address,
+      owner.publicKey,
+      sendAmount
+    )
+    const latestBlockHash = await SOLANA_CONNECTION.getLatestBlockhash('confirmed');
+    const message = new TransactionMessage({
+      payerKey: owner.publicKey,  // Fee payer
+      recentBlockhash: latestBlockHash.blockhash, // Recent blockhash
+      instructions: [txinstruction], // Array of instructions
+    }).compileToV0Message();
+
+    const tx = new VersionedTransaction(message);
+    tx.sign([owner]);
+
+    const res = await submitAndConfirm(tx);
+
+    if (res.confirmed) {
+      return { confirmed: true, txSignature: res.signature };
+    } else {
+      return { confirmed: false }
+    }
+  } catch (e) {
+    console.log("sendSPLtokens", e);
+    return { confirmed: false }
+  }
+}
