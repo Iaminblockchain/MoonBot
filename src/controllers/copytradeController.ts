@@ -59,8 +59,9 @@ const showPositionPad = async (chatId: number, replaceId?: number) => {
   const signals = await copytradedb.getTradeByChatId(chatId);
   const wallet = await walletdb.getWalletByChatId(chatId);
   if (!wallet) return;
-  const caption = `<b>Copy Trade</b>\n\n
-Copy Trade allows you to copy the buys and sells of any target wallet. 
+  const caption = `<b>Copy Trade groups</b>\n\n
+This function allows you to monitor any public group or channel on telegram and to buy any token as soon as the contract gets posted in the target group/channel.
+You can also customize the buy amount, take profit, stop loss and more for every channel you follow.
 🟢 Indicates a copy trade setup is active.
 🔴 Indicates a copy trade setup is paused.`;
   const signalKeyboard = signals.map((value, index) => {
@@ -109,12 +110,14 @@ const editcopytradesignal = async (
   replaceId: number,
   dbId?: string,
 ) => {
-  const caption = `<b>To setup a new Copy Trade</b>
-- Assign a unique name or “tag” to your target wallet, to make it easier to identify.
-- Set the target signal channel to get signal contract address(https://t.me/abc or @abc).
-- Set a specific SOL amount to always use for signals from signal channel.
-- Set the number of times to replicate the purchase.
-- Set Toke Profit/Value for sell from signal channel.
+  const caption = `<b>HOW TO FOLLOW A GROUP/ CHANNEL</b>
+- Assign a unique name or “tag” to your target group/channel, to make it easier to identify.
+- Set the target signal channel (https://t.me/abc or @abc) to get signals on the coins they launch.
+- Set a specific Buy amount in Sol (for this set up, the bot will always buy specified amount).
+- Slippage: Difference between the expected price of a trade and the price at which the trade is executed. (Normally around 5-20% depending on how much volatile the coin is)
+- Replicate Buy: Set the number of times to replicate the purchase (How many time the bot should perform the buy if a group or channel calls the coin multiple times, the fastest option is to leave it at one)
+- Stop loss: If the coin dumps you can minimize the losses by setting a stop loss. Example: if you set 20, the bot will sell once the coin loses 20% of the value. 
+- Take profit: Similar to the stop loss, if the coin you bought gains a specific percentage in value the bot can sell your entire position for you. 
 
 To manage your Copy Trade:
 - Click the “Active” button to pause the Copy Trade.

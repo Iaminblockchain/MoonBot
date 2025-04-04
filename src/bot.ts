@@ -230,30 +230,30 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
         walletInfo = `Address: <code>${publicKey}</code> \nBalance: ${balance} SOL`;
     }
     return {
-        title: `<b>Welcome to MoonBot</b> \n\nSolana's fastest bot to trade any coin (SPL token), built by the MoonBot community! \n\n${walletInfo}`,
+        title: `<b>Welcome to MoonBot</b> \n\nThe first copy sniping telegram bot with one directive: buy low and sell high. \n\n${walletInfo}`,
         buttons: [
             [
                 { text: 'Buy', callback_data: "buyController_start" },
                 { text: 'Sell', callback_data: "sc_start" }
             ],
             [
-                { text: 'Positions', callback_data: "positionController_start" },
-                { text: 'Limit Orders', callback_data: "limitOrderController_start" }
+                { text: 'Positions (Coming soon)🔜', callback_data: "positionController_start" },
+                // { text: 'Limit Orders', callback_data: "limitOrderController_start" }
             ],
             [
                 { text: 'Copy Trade', callback_data: "ct_start" },
                 { text: 'Autobuy', callback_data: "autoBuyController_start" }
             ],
             [
-                { text: 'Referrals', callback_data: "referralController_start" },
-                { text: 'Settings', callback_data: "settingController_start" }
+                { text: 'Referrals (Coming soon) 🔜', callback_data: "referralController_start" },
+                { text: 'Settings (Coming soon) 🔜', callback_data: "settingController_start" }
             ],
             [
                 { text: 'Wallet', callback_data: "walletController_start" },
-                { text: 'Withdraw', callback_data: "wC_start" }
+                { text: 'Withdraw (Coming soon) 🔜', callback_data: "wC_start" }
             ],
             [
-                { text: 'Help', callback_data: "helpController_start" },
+                { text: 'Help (Coming soon) 🔜', callback_data: "helpController_start" },
                 { text: 'Refresh', callback_data: "Refresh" }
             ]
         ]
