@@ -5,15 +5,62 @@ import { botInstance, getChatIdandMessageId, setState, getState, switchMenu, STA
 import { getPublicKeyinFormat } from "./sellController";
 import { SOLANA_CONNECTION } from "..";
 
+type WithdrawSettingType = {
+  amount?: number;
+  isPercentage?: boolean;
+  tokenAddress?: string;
+}
+
+export const withdrawSetting = new Map<number, WithdrawSettingType[]>();
+
+const getWithdrawSetting = (chatId: number, tokenAddress: string) => {
+  const rest = withdrawSetting.get(chatId);
+  if (rest) {
+    const tokenSetting = rest.find(setting => setting.tokenAddress === tokenAddress);
+    if (tokenSetting) {
+      return tokenSetting;
+    } else {
+      withdrawSetting.set(chatId, [...rest, { tokenAddress }])
+      return { tokenAddress };
+    }
+  } else {
+    withdrawSetting.set(chatId, [{ tokenAddress }])
+    return { tokenAddress };
+  }
+}
+
+const setWithdarwSettingAmount = (chatId: number, tokenAddress: string, amount: number, isPercentage: boolean) => {
+  const rest = withdrawSetting.get(chatId);
+  if (rest) {
+    const tokenSetting = rest.find(setting => setting.tokenAddress === tokenAddress);
+    if (tokenSetting) {
+      const restTokenSetting = rest.filter(setting => setting.tokenAddress !== tokenAddress);
+      withdrawSetting.set(chatId, [...restTokenSetting, { tokenAddress, amount, isPercentage }]);
+    } else {
+      withdrawSetting.set(chatId, [...rest, { tokenAddress, amount, isPercentage }]);
+    }
+  } else {
+    withdrawSetting.set(chatId, [{ tokenAddress, amount, isPercentage }]);
+  }
+}
+
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   try {
     const { data: callbackData, message: callbackMessage } = query;
     if (!callbackData || !callbackMessage) return;
-    if (callbackData == "withdrawC_start") {
+    if (callbackData == "wC_start") {
       withdrawStart(callbackMessage.chat.id);
-    } else if (callbackData.startsWith("withdrawC_show_")) {
+    } else if (callbackData.startsWith("wC_show_")) {
       const token = callbackData.split('_');
       withdrawPad(callbackMessage.chat.id, callbackMessage.message_id, token[2]);
+    } else if (callbackData.startsWith("wC_set_")) {
+      const setting = callbackData.split('_');
+      setWithdrawAmount(callbackMessage.chat.id, callbackMessage.message_id, setting[2], setting[3]);
+    } else if (callbackData.startsWith("wC_withdraw_")) {
+      const token = callbackData.split('_');
+      sendWithdraw(callbackMessage.chat.id, query.id, token[2])
+
+
     }
 
   } catch (error) {
@@ -22,53 +69,119 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
 }
 
 const withdrawStart = async (chatId: number, replaceId?: number) => {
-  const wallet = await walletdb.getWalletByChatId(chatId);
-  if (!wallet) {
-    botInstance.sendMessage(chatId!, "❌ No wallet found. Please connect a wallet first.");
-    return;
+  try {
+    const wallet = await walletdb.getWalletByChatId(chatId);
+    if (!wallet) {
+      botInstance.sendMessage(chatId!, "❌ No wallet found. Please connect a wallet first.");
+      return;
+    }
+    const publicKey = getPublicKeyinFormat(wallet.privateKey);
+
+    // Fetch all tokens in the wallet
+    const tokenAccounts = await solana.getAllTokensWithBalance(SOLANA_CONNECTION, publicKey);
+
+    if (!tokenAccounts || tokenAccounts.length === 0) {
+      botInstance.sendMessage(chatId!, "⚠️ No tokens found in your wallet.");
+      return;
+    }
+    let tokenList = ''
+    // Generate buttons for each token
+    tokenAccounts.forEach((token, index) => [
+      tokenList += `${index + 1} : ${token.name}(${token.symbol}): ${token.balance} ${token.symbol}\n`
+    ]);
+
+    const caption = "<b>Select a token to withdraw\n\n</b>" + tokenList;
+
+    const Keyboard = tokenAccounts.map((token, index) => {
+      return [
+        {
+          text: `${index + 1}: ${token.name}(${token.symbol})`,
+          command: `wC_show_${token.address}`,
+        },
+      ];
+    });
+
+    const keyboardList = Keyboard.concat([
+      [{ text: "Close", command: "close" }],
+    ]);
+
+    const reply_markup = {
+      inline_keyboard: keyboardList.map((rowItem) =>
+        rowItem.map((item) => {
+          return {
+            text: item.text,
+            callback_data: item.command,
+          };
+        })
+      ),
+    };
+
+    if (replaceId) {
+      botInstance.editMessageText(caption, {
+        message_id: replaceId,
+        chat_id: chatId,
+        parse_mode: "HTML",
+        disable_web_page_preview: false,
+        reply_markup,
+      });
+    } else {
+      await botInstance.sendMessage(chatId, caption, {
+        parse_mode: "HTML",
+        disable_web_page_preview: false,
+        reply_markup,
+      });
+    }
+  } catch (e) {
+    console.log("withdrawStart Error", e);
   }
-  const publicKey = getPublicKeyinFormat(wallet.privateKey);
+}
 
-  // Fetch all tokens in the wallet
-  const tokenAccounts = await solana.getAllTokensWithBalance(SOLANA_CONNECTION, publicKey);
+const withdrawPad = async (chatId: number, replaceId: number, tokenAddress: string) => {
+  try {
+    const wallet = await walletdb.getWalletByChatId(chatId);
+    const publicKey = getPublicKeyinFormat(wallet!.privateKey);
+    const tokenInfo = await solana.getTokenInfofromMint(publicKey, tokenAddress)
+    const metaData = await solana.getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
+    const withdrawSettingToken = getWithdrawSetting(chatId, tokenAddress);
+    const caption = `<b>Withdraw ${metaData?.name}(${metaData?.symbol})\n\n</b>
+  Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}`;
 
-  if (!tokenAccounts || tokenAccounts.length === 0) {
-    botInstance.sendMessage(chatId!, "⚠️ No tokens found in your wallet.");
-    return;
-  }
-  let tokenList = ''
-  // Generate buttons for each token
-  tokenAccounts.forEach((token, index) => [
-    tokenList += `${index + 1} : ${token.name}(${token.symbol}): ${token.balance} ${token.symbol}\n`
-  ]);
-
-  const caption = "<b>Select a token to withdraw\n\n</b>" + tokenList;
-
-  const Keyboard = tokenAccounts.map((token, index) => {
-    return [
+    const keyboard = (withdrawsetting: WithdrawSettingType) => [[{
+      text: `${withdrawsetting.amount == 50 && withdrawsetting.isPercentage ? "✅ 50 %" : "50 %"}`,
+      command: `wC_set_50_${withdrawsetting.tokenAddress}`,
+    }, {
+      text: `${withdrawsetting.amount == 100 && withdrawsetting.isPercentage ? "✅ 100 %" : "100 %"}`,
+      command: `wC_set_100_${withdrawsetting.tokenAddress}`,
+    }, {
+      text: `${withdrawsetting.amount !== 50 && withdrawsetting.amount !== 100 && withdrawsetting.amount && withdrawsetting.isPercentage ? `✅ ${withdrawsetting.amount} %` : "X %"}`,
+      command: `wC_set_x_${withdrawsetting.tokenAddress}`,
+    },], [{
+      text: `${withdrawsetting.amount && withdrawsetting.isPercentage == false ? `✅ ${withdrawsetting.amount} ${metaData?.symbol}` : `X ${metaData?.symbol}`}`,
+      command: `wC_set_xm_${withdrawsetting.tokenAddress}`,
+    }], [
       {
-        text: `${index + 1}: ${token.name}(${token.symbol})`,
-        command: `withdrawC_show_${token.address}`,
+        text: `Withdraw`,
+        command: `wC_withdraw_${withdrawsetting.tokenAddress}`,
       },
+    ], [
+      {
+        text: `👈 Back`,
+        command: `wC_back`,
+      },
+    ]
     ];
-  });
 
-  const keyboardList = Keyboard.concat([
-    [{ text: "Close", command: "close" }],
-  ]);
+    const reply_markup = {
+      inline_keyboard: keyboard(withdrawSettingToken).map((rowItem) =>
+        rowItem.map((item) => {
+          return {
+            text: item.text,
+            callback_data: item.command,
+          };
+        })
+      ),
+    };
 
-  const reply_markup = {
-    inline_keyboard: keyboardList.map((rowItem) =>
-      rowItem.map((item) => {
-        return {
-          text: item.text,
-          callback_data: item.command,
-        };
-      })
-    ),
-  };
-
-  if (replaceId) {
     botInstance.editMessageText(caption, {
       message_id: replaceId,
       chat_id: chatId,
@@ -76,64 +189,90 @@ const withdrawStart = async (chatId: number, replaceId?: number) => {
       disable_web_page_preview: false,
       reply_markup,
     });
-  } else {
-    await botInstance.sendMessage(chatId, caption, {
-      parse_mode: "HTML",
-      disable_web_page_preview: false,
-      reply_markup,
-    });
+  } catch (e) {
+    console.log("withdrawPad Error", e);
   }
 }
 
-const withdrawPad = async (chatId: number, replaceId: number, tokenAddress: string) => {
-  const wallet = await walletdb.getWalletByChatId(chatId);
-  const publicKey = getPublicKeyinFormat(wallet!.privateKey);
-  const tokenInfo = await solana.getTokenInfofromMint(publicKey, tokenAddress)
-  const metaData = await solana.getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-  const caption = `<b>Withdraw ${metaData?.name}(${metaData?.symbol})\n\n</b>
-  Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}`;
+const setWithdrawAmount = async (chatId: number, replaceId: number, identifier: string, tokenAddress: string) => {
+  if (identifier == "50") {
+    setWithdarwSettingAmount(chatId, tokenAddress, 50, true)
+    withdrawPad(chatId, replaceId, tokenAddress);
+    return;
+  } else if (identifier == "100") {
+    setWithdarwSettingAmount(chatId, tokenAddress, 100, true)
+    withdrawPad(chatId, replaceId, tokenAddress);
+    return;
+  }
 
-  const keyboard = [[{
-    text: `50 %`,
-    command: `withdrawC_send_50`,
-  }, {
-    text: `100 %`,
-    command: `withdrawC_send_100`,
-  }, {
-    text: `X %`,
-    command: `withdrawC_send_x`,
-  },], [{
-    text: `X ${metaData?.symbol}`,
-    command: `withdrawC_send_xm`,
-  }], [
-    {
-      text: `Withdraw`,
-      command: `withdrawC_withdraw`,
-    },
-  ], [
-    {
-      text: `👈 Back`,
-      command: `withdrawC_back`,
-    },
-  ]
-  ];
 
+  const caption = `<b>Please type token amount to withdraw</b>\n\n`;
   const reply_markup = {
-    inline_keyboard: keyboard.map((rowItem) =>
-      rowItem.map((item) => {
-        return {
-          text: item.text,
-          callback_data: item.command,
-        };
-      })
-    ),
+    force_reply: true,
   };
-
-  botInstance.editMessageText(caption, {
-    message_id: replaceId,
-    chat_id: chatId,
+  const new_msg = await botInstance.sendMessage(chatId, caption, {
     parse_mode: "HTML",
-    disable_web_page_preview: false,
     reply_markup,
   });
+  botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
+    botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
+    botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
+
+    if (n_msg.text) {
+      if (identifier == "x") {
+        setWithdarwSettingAmount(chatId, tokenAddress, parseFloat(n_msg.text), true)
+        withdrawPad(chatId, replaceId, tokenAddress);
+        return;
+      } else if (identifier == "xm") {
+        setWithdarwSettingAmount(chatId, tokenAddress, parseFloat(n_msg.text), false)
+        withdrawPad(chatId, replaceId, tokenAddress);
+        return;
+      }
+    }
+  });
+}
+
+const sendWithdraw = async (chatId: number, queryId: string, tokenAddress: string) => {
+  const withdrawsetting = getWithdrawSetting(chatId, tokenAddress)
+  if (withdrawsetting.amount == undefined || withdrawsetting.isPercentage == undefined) {
+    botInstance.answerCallbackQuery({
+      callback_query_id: queryId,
+      text: "Please try again after setting withdraw Amount.",
+      show_alert: false,
+    });
+    return;
+  } else {
+    const caption = `<b>Please type destination wallet address to withdraw</b>\n\n`;
+    const reply_markup = {
+      force_reply: true,
+    };
+    const new_msg = await botInstance.sendMessage(chatId, caption, {
+      parse_mode: "HTML",
+      reply_markup,
+    });
+    botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
+      botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
+      botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
+
+      if (n_msg.text) {
+        if (!solana.isValidAddress(n_msg.text)) {
+          await botInstance.sendMessage(chatId, '⚠️ Please input correct wallet address.', {
+            parse_mode: "HTML"
+          })
+          return;
+        }
+        const result = await solana.sendSPLtokens(chatId, tokenAddress, n_msg.text, withdrawsetting.amount!, withdrawsetting.isPercentage!)
+        if (result.confirmed) {
+          botInstance.sendMessage(chatId, '✅ Successfully withdraw token.', {
+            parse_mode: "HTML"
+          })
+        } else {
+          botInstance.sendMessage(chatId, '⚠️ Withdraw is failed. Please try again.', {
+            parse_mode: "HTML"
+          })
+        }
+      }
+    });
+  }
+
 }

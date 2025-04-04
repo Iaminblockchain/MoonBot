@@ -132,7 +132,7 @@ export const init = () => {
                 sellController.handleCallBackQuery(query);
             } else if (data?.startsWith("walletController_")) {
                 walletController.handleCallBackQuery(query);
-            } else if (data?.startsWith("withdrawC_")) {
+            } else if (data?.startsWith("wC_")) {
                 withdrawController.handleCallBackQuery(query);
             } else if (data?.startsWith("settingController_")) {
                 settingController.handleCallBackQuery(query);
@@ -250,7 +250,7 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
             ],
             [
                 { text: 'Wallet', callback_data: "walletController_start" },
-                { text: 'Withdraw', callback_data: "withdrawC_start" }
+                { text: 'Withdraw', callback_data: "wC_start" }
             ],
             [
                 { text: 'Help', callback_data: "helpController_start" },
