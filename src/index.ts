@@ -73,10 +73,10 @@ const initializeServices = async () => {
     logger.info('Connecting to mongo database...');
     await db.connect();
 
-    //login
+    // login
     client = await getTgClient();
 
-    //check number of chats we're in
+    // check number of chats we're in
     const dbChats = await Chat.find({}, 'chat_id');
     logger.info('number of chats in the DB ' + dbChats.length);
 
