@@ -10,6 +10,9 @@ import { getTgClient } from "./scraper/scraper";
 import { joinChannelsDB } from "./scraper/manageGroups";
 import { Chat } from "./models/chatModel";
 import { seedPredefinedChannels } from "./scraper/seedPredefinedChannels";
+import { botInstance } from "./bot";
+import mongoose from "mongoose";
+import { TelegramClient } from "telegram";
 
 dotenv.config();
 
@@ -27,13 +30,51 @@ export const SOLANA_CONNECTION = new Connection(SOLANA_RPC_ENDPOINT, {
   commitment: "confirmed",
 });
 
+export let client: TelegramClient | undefined;
+
+const gracefulShutdown = async () => {
+  logger.info('Starting graceful shutdown...');
+  
+  try {
+    // Close Telegram client if it exists
+    if (client) {
+      await client.disconnect();
+      logger.info('Telegram client disconnected');
+    }
+
+    // Stop Telegram bot if it exists
+    if (botInstance) {
+      await botInstance.stopPolling();
+      logger.info('Telegram bot polling stopped');
+    }
+
+    // Close MongoDB connection
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.connection.close();
+      logger.info('MongoDB connection closed');
+    }
+
+    logger.info('Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    logger.error('Error during graceful shutdown:', error);
+    process.exit(1);
+  }
+};
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  logger.info('SIGINT received');
+  await gracefulShutdown();
+});
+
 const initializeServices = async () => {
   try {
     logger.info('Connecting to mongo database...');
     await db.connect();
 
     //login
-    const client = await getTgClient();
+    client = await getTgClient();
 
     //check number of chats we're in
     const dbChats = await Chat.find({}, 'chat_id');
