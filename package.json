@@ -5,7 +5,8 @@
   "scripts": {
     "start": "ts-node-dev src/index.ts",
     "login-telegram": "ts-node-dev src/loginTelegram.ts",
-    "dropchats": "ts-node-dev src/scraper/dropchats.ts"
+    "dropchats": "ts-node-dev src/scraper/dropchats.ts",
+    "build": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
