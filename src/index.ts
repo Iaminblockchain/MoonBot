@@ -2,13 +2,18 @@ import { retrieveEnvVariable } from "./config";
 import * as db from "./db";
 import * as dotenv from "dotenv";
 import { Connection } from "@solana/web3.js";
-import { scrape } from "./scraper/scrapescript";
+import { scrape } from "./scraper/scraper";
 import * as bot from "./bot";
 import { logger } from "./util";
 import { setupServer } from "./server";
+import { getTgClient } from "./scraper/scraper";
+import { joinChannelsDB } from "./scraper/manageGroups";
+import { Chat } from "./models/chatModel";
+import { seedPredefinedChannels } from "./scraper/seedPredefinedChannels";
 
 dotenv.config();
 
+export const SETUP_BOT = retrieveEnvVariable("setup_bot") === "true";
 export const TELEGRAM_BOT_TOKEN = retrieveEnvVariable("telegram_bot_token");
 export const MONGO_URI = retrieveEnvVariable("mongo_url");
 export const SOLANA_RPC_ENDPOINT = retrieveEnvVariable("solana_rpc_endpoint");
@@ -27,11 +32,36 @@ const initializeServices = async () => {
     logger.info('Connecting to mongo database...');
     await db.connect();
 
-    logger.info('Initializing scrape script...');
-    await scrape();
+    //login
+    const client = await getTgClient();
 
-    logger.info('Starting TG bot...');
-    bot.init();
+    //check number of chats we're in
+    const dbChats = await Chat.find({}, 'chat_id');
+    logger.info('number of chats in the DB ' + dbChats.length);
+
+    if (dbChats.length == 0) {
+      logger.info("no chats in the DB, seed them now");
+      await seedPredefinedChannels();
+    }
+
+    //TODO more accurate: go through all chats each and see if we joined them
+
+    const dialogs = await client.getDialogs({});
+    logger.info('number of chats TG client is in: ' + dialogs.length);
+    if (dialogs.length == 0) {
+      logger.info("haven't joined chats");
+      await joinChannelsDB(client);
+    }
+
+    logger.info('Initializing scrape script...');
+    await scrape(client);
+
+    if (SETUP_BOT) {
+      logger.info('Starting TG bot...');
+      bot.init();
+    } else {
+      logger.info('TG bot setup skipped (SETUP_BOT=false)');
+    }
 
     return true;
   } catch (error) {

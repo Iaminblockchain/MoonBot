@@ -1,53 +1,48 @@
 import mongoose from 'mongoose';
 import { Chat } from '../models/chatModel';
-import predefinedChannels from '../../channels_predefined.json';
 import { retrieveEnvVariable } from '../config';
 import { logger } from '../util';
 import { v4 as uuidv4 } from 'uuid';
+import fs from 'fs';
+import path from 'path';
+import { parse } from 'csv-parse/sync';
 
 const MONGO_URI = retrieveEnvVariable("mongo_url");
+const CSV_PATH = path.join(__dirname, '../../channels.csv');
 
-async function seedPredefinedChannels() {
+export async function seedPredefinedChannels() {
     try {
         await mongoose.connect(MONGO_URI);
         logger.info('MongoDB connected');
 
-        for (const channel of predefinedChannels) {
-            const exists = await Chat.findOne({ chat_id: channel }); // corrected here
+        const csvData = fs.readFileSync(CSV_PATH, 'utf-8');
+        const records = parse(csvData, {
+            columns: true,
+            skip_empty_lines: true,
+        });
+
+        for (const channel of records) {
+            const chat_id = channel.ID;
+            const username = !channel.Username ? null : channel.Username;
+
+            const exists = await Chat.findOne({ chat_id });
             if (!exists) {
                 const newChat = new Chat({
                     id: uuidv4(),
-                    chat_id: channel
+                    chat_id: chat_id,
+                    username: username,
                 });
                 await newChat.save();
-                logger.info(`Inserted channel: ${channel}`);
+                logger.info(`Inserted channel: ${username}`);
             } else {
-                logger.info(`Channel already exists: ${channel}`);
+                logger.info(`Channel already exists: ${username}`);
             }
         }
 
         logger.info('Finished seeding predefined channels');
-        process.exit(0);
+
     } catch (error) {
         logger.error('Error seeding predefined channels', error);
         process.exit(1);
     }
 }
-
-async function dropAllChannels() {
-    try {
-        await mongoose.connect(MONGO_URI);
-        logger.info('MongoDB connected');
-
-        const result = await Chat.deleteMany({});
-        logger.info(`Deleted ${result.deletedCount} channels`);
-
-        process.exit(0);
-    } catch (error) {
-        logger.error('Error deleting all channels', error);
-        process.exit(1);
-    }
-}
-
-//dropAllChannels();
-seedPredefinedChannels();
