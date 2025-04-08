@@ -1,8 +1,8 @@
 # Use official Node.js 20 (latest LTS as of early 2025)
 FROM node:20-alpine
 
-# Install Yarn globally
-RUN npm install -g yarn
+# No need to install yarn globally, it's already installed in the base image
+# RUN npm install -g yarn --force
 
 # Set working directory
 WORKDIR /app
