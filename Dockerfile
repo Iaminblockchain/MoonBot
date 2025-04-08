@@ -1,13 +1,16 @@
 # Use official Node.js 20 (latest LTS as of early 2025)
 FROM node:20-alpine
 
+# Install Yarn globally
+RUN npm install -g yarn
+
 # Set working directory
 WORKDIR /app
 
-COPY package*.json ./
+COPY package*.json yarn.lock ./
 
 # Install dependencies
-RUN npm install
+RUN yarn install --frozen-lockfile
 
 # Copy application code
 COPY . .
@@ -16,4 +19,4 @@ COPY . .
 EXPOSE 8080
 
 # Start the application
-CMD ["npm", "start"]
+CMD ["yarn", "start"]
