@@ -6,7 +6,7 @@
 app = 'moonbot-server'
 primary_region = 'iad'
 kill_signal = "SIGINT"
-kill_timeout = 30 # 30 second timeout to allow connections to close
+kill_timeout = 0 # Allows connections to close
 
 [build]
   dockerfile = "Dockerfile"
