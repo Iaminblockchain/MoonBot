@@ -9,14 +9,6 @@ import path from 'path';
 export const setupServer = (port: number): Promise<void> => {
     const app = express();
 
-    // Serve the HTML file at the root endpoint
-    // app.get('/', (req, res) => {
-    //     res.sendFile(path.join(__dirname, 'index.html'));
-    // });
-
-    app.use(express.static('public'));
-
-
     app.get('/health', (_, res) => {
         res.status(200).send('OK');
     });

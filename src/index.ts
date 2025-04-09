@@ -74,7 +74,22 @@ const initializeServices = async () => {
     await db.connect();
 
     // login
+    logger.info('Connecting to telegram client...');
     client = await getTgClient();
+
+    return true;
+  } catch (error) {
+    console.error('Service initialization failed:', error);
+    return false;
+  }
+};
+
+const runServices = async () => {
+  try {
+    if (!client) {
+      logger.error('Telegram client is not initialized');
+      return false;
+    }
 
     // check number of chats we're in
     const dbChats = await Chat.find({}, 'chat_id');
@@ -84,8 +99,6 @@ const initializeServices = async () => {
       logger.info("no chats in the DB, seed them now");
       await seedPredefinedChannels();
     }
-
-    //TODO more accurate: go through all chats each and see if we joined them
 
     const dialogs = await client.getDialogs({});
     logger.info('number of chats TG client is in: ' + dialogs.length);
@@ -121,10 +134,17 @@ const main = async () => {
   }
 
   try {
+    console.info("Starting server...")
     await setupServer(port);
-    logger.info('Application successfully started!');
+    logger.info('✅ Server successfully started!');
   } catch (error) {
     console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+
+  const servicesRunning = await runServices();
+  if (!servicesRunning) {
+    console.error('Failed to run services. Exiting...');
     process.exit(1);
   }
 };
