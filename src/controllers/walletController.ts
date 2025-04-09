@@ -2,6 +2,7 @@ import TelegramBot, { CallbackQuery } from "node-telegram-bot-api";
 import * as walletdb from '../models/walletModel';
 import * as solana from '../solana';
 import { botInstance, getChatIdandMessageId, setState, getState, switchMenu, STATE } from "../bot";
+import { logger } from "../util";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     try {
@@ -18,7 +19,7 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
             showPrivateKey(query);
         }
     } catch (error) {
-        console.log("handleCallBackQuery error:", error);
+        logger.error("handleCallBackQuery error:", error);
     }
 }
 
@@ -68,7 +69,7 @@ const getWalletInfoAndButtons = async (chatId: TelegramBot.ChatId) => {
             return { title, buttons };
         }
     } catch (error) {
-        console.log('getWalletInfoAndButtons error:', error);
+        logger.error('getWalletInfoAndButtons error:', error);
         return null;
     }
 }
@@ -85,7 +86,7 @@ const createWallet = async (query: TelegramBot.CallbackQuery) => {
             switchMenu(chatId!, messageId, walletinfo.title, walletinfo.buttons);
         }
     } catch (error) {
-        console.log('createWallet error:', error);
+        logger.error('createWallet error:', error);
     }
 }
 
@@ -95,7 +96,7 @@ const importWallet = async (query: TelegramBot.CallbackQuery) => {
         botInstance.sendMessage(chatId!, 'Input private key:');
         setState(chatId!, STATE.INPUT_PRIVATE_KEY, { messageId });
     } catch (error) {
-        console.log("importWallet error:", error);
+        logger.error("importWallet error:", error);
     }
 }
 
@@ -113,7 +114,7 @@ export const handlePrivateKey = async (msg: TelegramBot.Message) => {
             botInstance.deleteMessage(chatId, messageId);
         }
     } catch (error) {
-        console.log("handlePrivateKey error:", error);
+        logger.error("handlePrivateKey error:", error);
     }
 }
 

@@ -136,7 +136,7 @@ export const init = () => {
                 withdrawController.handleCallBackQuery(query);
             } else if (data?.startsWith("settingController_")) {
                 settingController.handleCallBackQuery(query);
-            } else if (data?.startsWith("positionController_")) {
+            } else if (data?.startsWith("pC_")) {
                 positionController.handleCallBackQuery(query);
             } else if (data?.startsWith("autoBuyController_")) {
                 autoBuyController.handleCallBackQuery(query);
@@ -237,11 +237,11 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
                 { text: 'Sell', callback_data: "sc_start" }
             ],
             [
-                { text: 'Positions (Coming soon)🔜', callback_data: "positionController_start" },
+                { text: 'Positions', callback_data: "pC_start" }, // positionController
                 // { text: 'Limit Orders', callback_data: "limitOrderController_start" }
             ],
             [
-                { text: 'Copy Trade', callback_data: "ct_start" },
+                { text: 'Copy Trade Groups/Channels', callback_data: "ct_start" },
                 { text: 'Autobuy', callback_data: "autoBuyController_start" }
             ],
             [
@@ -250,7 +250,7 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
             ],
             [
                 { text: 'Wallet', callback_data: "walletController_start" },
-                { text: 'Withdraw (Coming soon) 🔜', callback_data: "wC_start" }
+                { text: 'Withdraw', callback_data: "wC_start" } // withdrawController
             ],
             [
                 { text: 'Help (Coming soon) 🔜', callback_data: "helpController_start" },

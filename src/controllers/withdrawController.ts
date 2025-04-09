@@ -4,6 +4,7 @@ import * as solana from '../solana';
 import { botInstance, getChatIdandMessageId, setState, getState, switchMenu, STATE } from "../bot";
 import { getPublicKeyinFormat } from "./sellController";
 import { SOLANA_CONNECTION } from "..";
+import { logger } from "../util";
 
 type WithdrawSettingType = {
   amount?: number;
@@ -59,12 +60,12 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     } else if (callbackData.startsWith("wC_withdraw_")) {
       const token = callbackData.split('_');
       sendWithdraw(callbackMessage.chat.id, query.id, token[2])
-
-
+    } else if (callbackData == "wC_back") {
+      withdrawStart(callbackMessage.chat.id, callbackMessage.message_id);
     }
 
   } catch (error) {
-    console.log("handleCallBackQuery error:", error);
+    logger.error("handleCallBackQuery error:", error);
   }
 }
 
@@ -72,7 +73,7 @@ const withdrawStart = async (chatId: number, replaceId?: number) => {
   try {
     const wallet = await walletdb.getWalletByChatId(chatId);
     if (!wallet) {
-      botInstance.sendMessage(chatId!, "❌ No wallet found. Please connect a wallet first.");
+      botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
       return;
     }
     const publicKey = getPublicKeyinFormat(wallet.privateKey);
@@ -81,7 +82,7 @@ const withdrawStart = async (chatId: number, replaceId?: number) => {
     const tokenAccounts = await solana.getAllTokensWithBalance(SOLANA_CONNECTION, publicKey);
 
     if (!tokenAccounts || tokenAccounts.length === 0) {
-      botInstance.sendMessage(chatId!, "⚠️ No tokens found in your wallet.");
+      botInstance.sendMessage(chatId, "⚠️ No tokens found in your wallet.");
       return;
     }
     let tokenList = ''
@@ -132,14 +133,18 @@ const withdrawStart = async (chatId: number, replaceId?: number) => {
       });
     }
   } catch (e) {
-    console.log("withdrawStart Error", e);
+    logger.error("withdrawStart Error", e);
   }
 }
 
 const withdrawPad = async (chatId: number, replaceId: number, tokenAddress: string) => {
   try {
     const wallet = await walletdb.getWalletByChatId(chatId);
-    const publicKey = getPublicKeyinFormat(wallet!.privateKey);
+    if (!wallet) {
+      botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
+      return;
+    }
+    const publicKey = getPublicKeyinFormat(wallet.privateKey);
     const tokenInfo = await solana.getTokenInfofromMint(publicKey, tokenAddress)
     const metaData = await solana.getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
     const withdrawSettingToken = getWithdrawSetting(chatId, tokenAddress);
@@ -190,7 +195,7 @@ const withdrawPad = async (chatId: number, replaceId: number, tokenAddress: stri
       reply_markup,
     });
   } catch (e) {
-    console.log("withdrawPad Error", e);
+    logger.error("withdrawPad Error", e);
   }
 }
 
@@ -234,7 +239,7 @@ const setWithdrawAmount = async (chatId: number, replaceId: number, identifier: 
 
 const sendWithdraw = async (chatId: number, queryId: string, tokenAddress: string) => {
   const withdrawsetting = getWithdrawSetting(chatId, tokenAddress)
-  if (withdrawsetting.amount == undefined || withdrawsetting.isPercentage == undefined) {
+  if (!withdrawsetting.amount || !withdrawsetting.isPercentage) {
     botInstance.answerCallbackQuery({
       callback_query_id: queryId,
       text: "Please try again after setting withdraw Amount.",
@@ -274,5 +279,4 @@ const sendWithdraw = async (chatId: number, queryId: string, tokenAddress: strin
       }
     });
   }
-
 }

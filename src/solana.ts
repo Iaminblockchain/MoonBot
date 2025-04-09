@@ -556,7 +556,7 @@ export async function jito_executeAndConfirm(
 
     const jitoFee_transaction = new VersionedTransaction(jitoFee_message);
     jitoFee_transaction.sign([payer]);
-    const jitoTxSignature = bs58.encode(jitoFee_transaction.signatures[0]);
+    const txSignature = bs58.encode(transaction.signatures[0]);
     const serializedJitoFeeTransaction = bs58.encode(
       jitoFee_transaction.serialize()
     );
@@ -577,10 +577,10 @@ export async function jito_executeAndConfirm(
     const success_res = res.filter((r) => !(r instanceof Error));
     if (success_res.length > 0) {
       console.log("Jito validator accepted the tx");
-      return await jito_confirm(CONNECTION, jitoTxSignature, lastestBlockhash);
+      return await jito_confirm(CONNECTION, txSignature, lastestBlockhash);
     } else {
       console.log("No Jito validators accepted the tx");
-      return { confirmed: false, signature: jitoTxSignature };
+      return { confirmed: false, signature: txSignature };
     }
   } catch (e) {
     if (e instanceof axios.AxiosError) {

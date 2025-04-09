@@ -9,6 +9,7 @@ import bs58 from "bs58";
 const { PublicKey } = require('@solana/web3.js'); // Import PublicKey
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { autoBuySettings, getPrice, getSPLBalance } from "./autoBuyController";
+import { logger } from "../util";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   try {
@@ -44,7 +45,6 @@ const onClick25Sell = async (query: TelegramBot.CallbackQuery) => {
     const tokenATA = getAssociatedTokenAddressSync(new PublicKey(tokenAddress), keypair.publicKey);
     const tokenBalance = await SOLANA_CONNECTION.getTokenAccountBalance(tokenATA);
     solana.jupiter_swap(SOLANA_CONNECTION, privateKey, tokenAddress, solana.WSOL_ADDRESS, 0.25 * Number(tokenBalance.value.amount), "ExactIn").then((result) => {
-      console.log("jupiter swap:", result)
       if (result.confirmed) {
         botInstance.sendMessage(chatId!, 'Sell successfully');
       } else {
@@ -67,7 +67,6 @@ const onClick50Sell = async (query: TelegramBot.CallbackQuery) => {
     const tokenATA = getAssociatedTokenAddressSync(new PublicKey(tokenAddress), keypair.publicKey);
     const tokenBalance = await SOLANA_CONNECTION.getTokenAccountBalance(tokenATA);
     solana.jupiter_swap(SOLANA_CONNECTION, privateKey, tokenAddress, solana.WSOL_ADDRESS, 0.5 * Number(tokenBalance.value.amount), "ExactIn").then((result) => {
-      console.log("jupiter swap:", result)
       if (result.confirmed) {
         botInstance.sendMessage(chatId!, 'Sell successfully');
       } else {
@@ -90,7 +89,6 @@ const onClick75Sell = async (query: TelegramBot.CallbackQuery) => {
     const tokenATA = getAssociatedTokenAddressSync(new PublicKey(tokenAddress), keypair.publicKey);
     const tokenBalance = await SOLANA_CONNECTION.getTokenAccountBalance(tokenATA);
     solana.jupiter_swap(SOLANA_CONNECTION, privateKey, tokenAddress, solana.WSOL_ADDRESS, 0.75 * Number(tokenBalance.value.amount), "ExactIn").then((result) => {
-      console.log("jupiter swap:", result)
       if (result.confirmed) {
         botInstance.sendMessage(chatId!, 'Sell successfully');
       } else {
@@ -113,7 +111,6 @@ const onClick100Sell = async (query: TelegramBot.CallbackQuery) => {
     const tokenATA = getAssociatedTokenAddressSync(new PublicKey(tokenAddress), keypair.publicKey);
     const tokenBalance = await SOLANA_CONNECTION.getTokenAccountBalance(tokenATA);
     solana.jupiter_swap(SOLANA_CONNECTION, privateKey, tokenAddress, solana.WSOL_ADDRESS, Number(tokenBalance.value.amount), "ExactIn").then((result) => {
-      console.log("jupiter swap:", result)
       if (result.confirmed) {
         botInstance.sendMessage(chatId!, 'Sell successfully');
       } else {
@@ -214,7 +211,6 @@ export const onClickSellWithToken = async (query: TelegramBot.CallbackQuery) => 
     const wallet = await walletdb.getWalletByChatId(chatId!);
     if (query && query.data && wallet) {
       let queryData = query.data.split("_");
-      console.log("queryData", queryData)
       const token = queryData[2];
       const buttons = [
         [
@@ -269,15 +265,15 @@ export const autoSellHandler = () => {
           let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, info.contractAddress, solana.WSOL_ADDRESS, splAmount, "ExactIn", false)
 
           if (result.confirmed) {
-            botInstance.sendMessage(key!, `Auto-Sell Token : ${info.contractAddress} at Price: $${price} successfully`);
+            botInstance.sendMessage(key, `Auto-Sell Token : ${info.contractAddress} at Price: $${price} successfully`);
             removeTradeState(key, info.contractAddress);
           } else {
-            botInstance.sendMessage(key!, `Auto-Sell Token : ${info.contractAddress}  failed`);
+            botInstance.sendMessage(key, `Auto-Sell Token : ${info.contractAddress}  failed`);
             removeTradeState(key, info.contractAddress);
           }
         }
       } catch (e) {
-        console.log(`Auto-Sell : chatId:${key} - Token:${info.contractAddress} - Error:${e}`)
+        logger.error(`Auto-Sell Error:${e}`, {chatId: key, TokenAddress: info.contractAddress})
       }
     })
   })

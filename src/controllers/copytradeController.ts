@@ -5,6 +5,7 @@ import { botInstance } from "../bot";
 import axios from "axios";
 import { setAutotrade } from "./autoBuyController";
 import mongoose from "mongoose";
+import { logger } from "../util";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   const { data: callbackData, message: callbackMessage } = query;
@@ -67,7 +68,7 @@ You can also customize the buy amount, take profit, stop loss and more for every
   const signalKeyboard = signals.map((value, index) => {
     return [
       {
-        text: ` ${value.active ? "🟢" : "🔴" } Signal ${index + 1} : ${value.tag}`,
+        text: ` ${value.active ? "🟢" : "🔴"} Signal ${index + 1} : ${value.tag}`,
         command: "ct_edit_" + value.id,
       },
     ];
@@ -128,8 +129,12 @@ To manage your Copy Trade:
   } else {
     trade = await copytradedb.addTrade(chatId);
   }
+  if (!trade) {
+    logger.error("No Copy Trade signal Error", { dbId: dbId, chatId: chatId })
+    return;
+  }
   const reply_markup = {
-    inline_keyboard: editCopyTradeKeyboard(trade!.toObject()).map((rowItem) =>
+    inline_keyboard: editCopyTradeKeyboard(trade.toObject()).map((rowItem) =>
       rowItem.map((item) => {
         return {
           text: item.text,
@@ -351,7 +356,6 @@ const editCopyTradeKeyboard = (params: copytradedb.ITrade) => {
 export const onSignal = async (channel: string, address: string) => {
   const chatIds = await copytradedb.getChatIdByChannel(channel);
   chatIds.forEach((id) => {
-    console.log("run auto signal:", id, address, channel);
     setAutotrade(id, address, channel);
   });
 };
