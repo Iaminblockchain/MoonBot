@@ -7,14 +7,22 @@ import { ALLOWED_ORIGIN } from '.';
 
 export const setupServer = (port: number): Promise<void> => {
     const app = express();
+    const health_endpoint = '/health';
 
-    app.get('/health', (_, res) => {
-        res.status(200).send('OK');
+    logger.info("Will setup cors with allowed origin", { allowedOrigin: ALLOWED_ORIGIN });
+
+    app.use((req, res, next) => {
+        if (req.path === health_endpoint) {
+            return next();
+        }
+        return cors({ origin: ALLOWED_ORIGIN })(req, res, next);
     });
 
-    app.use(cors({ origin: ALLOWED_ORIGIN }));
-
     app.use(express.static('public'));
+
+    app.get(health_endpoint, (_, res) => {
+        res.status(200).send('OK');
+    });
 
     app.get('/api/chats', async (_, res) => {
         try {
