@@ -9,7 +9,7 @@ import { setupServer } from "./server";
 import { getTgClient } from "./scraper/scraper";
 import { joinChannelsDB } from "./scraper/manageGroups";
 import { Chat } from "./models/chatModel";
-import { seedPredefinedChannels } from "./scraper/seedPredefinedChannels";
+import { getCSVRecords, seedPredefinedChannels } from "./scraper/seedPredefinedChannels";
 import { botInstance } from "./bot";
 import mongoose from "mongoose";
 import { TelegramClient } from "telegram";
@@ -35,7 +35,7 @@ export let client: TelegramClient | undefined;
 
 const gracefulShutdown = async () => {
   logger.info('Starting graceful shutdown...');
-  
+
   try {
     // Close Telegram client if it exists
     if (client) {
@@ -92,17 +92,21 @@ const runServices = async () => {
       return false;
     }
 
-    // check number of chats we're in
+    //check DB and csv, ensure we seed the chats from csv file
     const dbChats = await Chat.find({}, 'chat_id');
-    logger.info('number of chats in the DB ' + dbChats.length);
+    logger.info('number of chats in the DB ', { dbChats: dbChats.length });
 
-    if (dbChats.length == 0) {
-      logger.info("no chats in the DB, seed them now");
+    const csvRecords = getCSVRecords();
+    logger.info('number of records in CSV: ', { csvRecords: csvRecords.length });
+
+    if (dbChats.length === 0 || dbChats.length !== csvRecords.length) {
+      logger.info("seeding predefined channels from CSV...");
       await seedPredefinedChannels();
     }
 
+    // check number of chats we're in
     const dialogs = await client.getDialogs({});
-    logger.info('number of chats TG client is in: ' + dialogs.length);
+    logger.info('number of chats TG client is in: ', { dialogs: dialogs.length });
     if (dialogs.length == 0) {
       logger.info("haven't joined chats");
       await joinChannelsDB(client);
