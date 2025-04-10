@@ -11,6 +11,7 @@ import * as positionController from './controllers/positionController';
 import * as autoBuyController from './controllers/autoBuyController';
 import * as helpController from './controllers/helpController';
 import * as copytradeController from './controllers/copytradeController';
+import { TelegramClient } from "telegram";
 import { logger } from './util';
 
 import cron from "node-cron";
@@ -67,7 +68,9 @@ export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: st
     trade.set(chatid.toString(), [...next]);
 };
 
-export const init = () => {
+export const init = (client: TelegramClient) => {
+    copytradeController.setClient(client);
+    
     logger.info("init TG bot with token");
     botInstance = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
     botInstance.getMe().then((botInfo: any) => {

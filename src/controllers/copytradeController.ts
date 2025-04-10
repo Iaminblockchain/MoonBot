@@ -2,10 +2,16 @@ import TelegramBot from "node-telegram-bot-api";
 import * as walletdb from "../models/walletModel";
 import * as copytradedb from "../models/copyTradeModel";
 import { botInstance } from "../bot";
-import axios from "axios";
+import { TelegramClient } from "telegram";
 import { setAutotrade } from "./autoBuyController";
 import mongoose from "mongoose";
 import { logger } from "../util";
+
+let tgClient: TelegramClient | null = null;
+
+export const setClient = (client: TelegramClient) => {
+  tgClient = client;
+};
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   const { data: callbackData, message: callbackMessage } = query;

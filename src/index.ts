@@ -117,7 +117,7 @@ const runServices = async () => {
 
     if (SETUP_BOT) {
       logger.info('Starting TG bot...');
-      bot.init();
+      bot.init(client);
     } else {
       logger.info('TG bot setup skipped (SETUP_BOT=false)');
     }
