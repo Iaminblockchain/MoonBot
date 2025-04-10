@@ -16,6 +16,7 @@ import { TelegramClient } from "telegram";
 
 dotenv.config();
 
+export const ALLOWED_ORIGIN = retrieveEnvVariable("allowed_origin");
 export const SETUP_BOT = retrieveEnvVariable("setup_bot") === "true";
 export const TELEGRAM_BOT_TOKEN = retrieveEnvVariable("telegram_bot_token");
 export const MONGO_URI = retrieveEnvVariable("mongo_url");

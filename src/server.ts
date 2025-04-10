@@ -3,17 +3,18 @@ import { logger } from './util';
 import { Chat } from './models/chatModel';
 import { Call } from './models/callModel';
 import cors from 'cors';
+import { ALLOWED_ORIGIN } from '.';
 
 export const setupServer = (port: number): Promise<void> => {
     const app = express();
 
-    app.use(cors({ origin: 'http://localhost:3000' }));
-
-    app.use(express.static('public'));
-
     app.get('/health', (_, res) => {
         res.status(200).send('OK');
     });
+
+    app.use(cors({ origin: ALLOWED_ORIGIN }));
+
+    app.use(express.static('public'));
 
     app.get('/api/chats', async (_, res) => {
         try {
