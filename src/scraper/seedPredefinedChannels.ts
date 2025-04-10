@@ -8,7 +8,7 @@ import path from 'path';
 import { parse } from 'csv-parse/sync';
 
 const MONGO_URI = retrieveEnvVariable("mongo_url");
-const CSV_PATH = path.join(__dirname, '../../channels.csv');
+const CSV_PATH = path.join(__dirname, '../../data/channels.csv');
 
 export async function seedPredefinedChannels() {
     try {

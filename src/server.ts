@@ -1,34 +1,18 @@
 import express from 'express';
 import { logger } from './util';
-import { ScrapeStats } from './models/scrapeStats';
 import { Chat } from './models/chatModel';
-
-import path from 'path';
-
+import { Call } from './models/callModel';
+import cors from 'cors';
 
 export const setupServer = (port: number): Promise<void> => {
     const app = express();
 
+    app.use(cors({ origin: 'http://localhost:3000' }));
+
+    app.use(express.static('public'));
+
     app.get('/health', (_, res) => {
         res.status(200).send('OK');
-    });
-
-    app.get('/api/stats', async (_, res) => {
-        try {
-            const stats = await ScrapeStats.findOne({});
-            const totalChannels = await Chat.countDocuments();
-            if (stats) {
-                res.json({
-                    ...stats.toObject(),
-                    total_channels: totalChannels
-                });
-            } else {
-                res.status(500).send('Error fetching stats');
-            }
-        } catch (error) {
-            logger.error('Failed to fetch scrape stats', error);
-            res.status(500).send('Error fetching stats');
-        }
     });
 
     app.get('/api/chats', async (_, res) => {
@@ -38,6 +22,16 @@ export const setupServer = (port: number): Promise<void> => {
         } catch (error) {
             logger.error('Failed to fetch chats', error);
             res.status(500).send('Error fetching chats');
+        }
+    });
+
+    app.get('/api/calls', async (_, res) => {
+        try {
+            const calls = await Call.find({});
+            res.json(calls);
+        } catch (error) {
+            logger.error('Failed to fetch calls', error);
+            res.status(500).send('Error fetching calls');
         }
     });
 

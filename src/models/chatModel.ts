@@ -4,6 +4,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IChat extends Document {
     id: string;
     chat_id: string;
+    username: string;
     creation_date: Date;
     message_count: { type: Number, default: 0 }
     token_count: { type: Number, default: 0 },
