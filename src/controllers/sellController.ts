@@ -44,7 +44,7 @@ const onClick25Sell = async (query: TelegramBot.CallbackQuery) => {
     var tokenAddress = queryData[2];
     const tokenATA = getAssociatedTokenAddressSync(new PublicKey(tokenAddress), keypair.publicKey);
     const tokenBalance = await SOLANA_CONNECTION.getTokenAccountBalance(tokenATA);
-    solana.jupiter_swap(SOLANA_CONNECTION, privateKey, tokenAddress, solana.WSOL_ADDRESS, 0.25 * Number(tokenBalance.value.amount), "ExactIn").then((result) => {
+    solana.jupiter_swap(SOLANA_CONNECTION, privateKey, tokenAddress, solana.WSOL_ADDRESS, 0.25 * Number(tokenBalance.value.amount), "ExactIn", true).then((result) => {
       if (result.confirmed) {
         botInstance.sendMessage(chatId!, 'Sell successfully');
       } else {

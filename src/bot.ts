@@ -100,7 +100,7 @@ export const init = (client: TelegramClient) => {
         const messageText = msg.text;
         logger.info(`message: ${messageText} ${chatId}`);
 
-        if (!msg.text!.startsWith('/')) {
+        if (msg.text !== undefined && !msg.text.startsWith('/')) {
             const currentState = getState(chatId.toString());
             if (currentState) {
                 if (currentState.state == STATE.INPUT_TOKEN) {
@@ -117,9 +117,6 @@ export const init = (client: TelegramClient) => {
                 autoBuyController.checkAutoBuy(msg);
             }
         }
-        //  else if () {
-
-        // }
     });
 
     botInstance.on('callback_query', (query: any) => {
@@ -240,11 +237,12 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
                 { text: 'Sell', callback_data: "sc_start" }
             ],
             [
-                { text: 'Positions', callback_data: "pC_start" }, // positionController
+                { text: 'Copy Trade Groups/Channels', callback_data: "ct_start" },
+
                 // { text: 'Limit Orders', callback_data: "limitOrderController_start" }
             ],
             [
-                { text: 'Copy Trade Groups/Channels', callback_data: "ct_start" },
+                { text: 'Positions', callback_data: "pC_start" }, // positionController
                 { text: 'Autobuy', callback_data: "autoBuyController_start" }
             ],
             [
@@ -256,7 +254,7 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
                 { text: 'Withdraw', callback_data: "wC_start" } // withdrawController
             ],
             [
-                { text: 'Help (Coming soon) 🔜', callback_data: "helpController_start" },
+                { text: 'Help', callback_data: "helpController_start" },
                 { text: 'Refresh', callback_data: "Refresh" }
             ]
         ]

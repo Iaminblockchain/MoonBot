@@ -15,6 +15,8 @@ import {
   SignatureStatus,
   TransactionSignature,
   TransactionConfirmationStatus,
+  AddressLookupTableAccount,
+  TransactionInstruction,
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
@@ -33,10 +35,11 @@ import axios from "axios";
 const { fetchMarketAccounts } = require("./scripts/fetchMarketAccounts");
 const { getPoolKeysByPoolId } = require("./scripts/getPoolKeysByPoolId");
 import swap from "./swap";
-import { JITO_TIP, SOLANA_CONNECTION } from ".";
+import { FEE_COLLECTION_WALLET, JITO_TIP, SOLANA_CONNECTION } from ".";
 import { connection } from "mongoose";
 import { getWalletByChatId } from "./models/walletModel";
 import { getKeypair, getPublicKeyinFormat } from "./controllers/sellController";
+import { logger } from "./util";
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
@@ -58,6 +61,7 @@ const endpoints = [
   "https://ny.mainnet.block-engine.jito.wtf/api/v1/bundles",
   "https://tokyo.mainnet.block-engine.jito.wtf/api/v1/bundles",
 ];
+
 
 export const getSolBalance = async (privateKey: string) => {
   try {
@@ -444,14 +448,20 @@ export const jupiter_swap = async (
   slippage: number = 500
 ) => {
   try {
+    const feePayer = new PublicKey(FEE_COLLECTION_WALLET);
+    let feeAmount = 0;
     const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
-    const quoteUrl = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${Math.floor(
+    const quoteUrl = `https://api.jup.ag/swap/v1/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${Math.floor(
       amount
     )}&slippageBps=${slippage}&swapMode=${swapMode}`;
     const quoteResponse = await fetch(quoteUrl).then((res) => res.json());
     if (quoteResponse.error) throw new Error("Failed to fetch quote response");
-
-    const swapResponse = await fetch("https://quote-api.jup.ag/v6/swap", {
+    if (inputMint == "So11111111111111111111111111111111111111112") {
+      feeAmount = Math.floor(parseInt(quoteResponse.inAmount) / 100);
+    } else {
+      feeAmount = Math.floor(parseInt(quoteResponse.outAmount) / 100);
+    }
+    const instructions = await fetch("https://api.jup.ag/swap/v1/swap-instructions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -469,16 +479,81 @@ export const jupiter_swap = async (
         },
       }),
     }).then((res) => res.json());
-    if (!swapResponse.swapTransaction)
-      throw new Error("Failed to get swap transaction");
+    if (instructions.error) {
+      throw new Error("Failed to get swap instructions: " + instructions.error);
+    }
 
-    const swapTransaction = swapResponse.swapTransaction;
-    const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
-    let transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+    const {
+      tokenLedgerInstruction, // If you are using `useTokenLedger = true`.
+      computeBudgetInstructions, // The necessary instructions to setup the compute budget.
+      setupInstructions, // Setup missing ATA for the users.
+      swapInstruction: swapInstructionPayload, // The actual swap instruction.
+      cleanupInstruction, // Unwrap the SOL if `wrapAndUnwrapSol = true`.
+      addressLookupTableAddresses, // The lookup table addresses that you can use if you are using versioned transaction.
+    } = instructions;
+
+    const deserializeInstruction = (instruction: any) => {
+      return new TransactionInstruction({
+        programId: new PublicKey(instruction.programId),
+        keys: instruction.accounts.map((key: any) => ({
+          pubkey: new PublicKey(key.pubkey),
+          isSigner: key.isSigner,
+          isWritable: key.isWritable,
+        })),
+        data: Buffer.from(instruction.data, "base64"),
+      });
+    };
+
+    const getAddressLookupTableAccounts = async (
+      keys: string[]
+    ): Promise<AddressLookupTableAccount[]> => {
+      const addressLookupTableAccountInfos =
+        await SOLANA_CONNECTION.getMultipleAccountsInfo(
+          keys.map((key) => new PublicKey(key))
+        );
+
+      return addressLookupTableAccountInfos.reduce((acc, accountInfo, index) => {
+        const addressLookupTableAddress = keys[index];
+        if (accountInfo) {
+          const addressLookupTableAccount = new AddressLookupTableAccount({
+            key: new PublicKey(addressLookupTableAddress),
+            state: AddressLookupTableAccount.deserialize(accountInfo.data),
+          });
+          acc.push(addressLookupTableAccount);
+        }
+
+        return acc;
+      }, new Array<AddressLookupTableAccount>());
+    };
+
+    const addressLookupTableAccounts: AddressLookupTableAccount[] = [];
+
+    addressLookupTableAccounts.push(
+      ...(await getAddressLookupTableAccounts(addressLookupTableAddresses))
+    );
+
+    const blockhash = (await SOLANA_CONNECTION.getLatestBlockhash()).blockhash;
+    const messageV0 = new TransactionMessage({
+      payerKey: keypair.publicKey,
+      recentBlockhash: blockhash,
+      instructions: [
+        ...computeBudgetInstructions.map(deserializeInstruction),
+        ...setupInstructions.map(deserializeInstruction),
+        deserializeInstruction(swapInstructionPayload),
+        deserializeInstruction(cleanupInstruction),
+        // fee instruction
+        SystemProgram.transfer({
+          fromPubkey: keypair.publicKey,
+          toPubkey: feePayer,
+          lamports: feeAmount,
+        })
+      ],
+    }).compileToV0Message(addressLookupTableAccounts);
+    const transaction = new VersionedTransaction(messageV0);
     let latestBlockhash = await CONNECTION.getLatestBlockhash();
     transaction.message.recentBlockhash = latestBlockhash.blockhash; // Ensure fresh blockhash
     transaction.sign([keypair]);
-    const txSignature = bs58.encode(transaction.signatures[0]);
+
     let res;
     if (isJito) {
       res = await jito_executeAndConfirm(
@@ -515,7 +590,7 @@ export const jupiter_swap = async (
     }
     return { confirmed: false, txSignature: null };
   } catch (error) {
-    console.log("jupiter swap:", error);
+    logger.error("jupiter swap:", { error });
     return { confirmed: false, txSignature: null };
   }
 };
