@@ -10,14 +10,19 @@ import { parse } from 'csv-parse/sync';
 const MONGO_URI = retrieveEnvVariable("mongo_url");
 const CSV_PATH = path.join(__dirname, '../../data/channels.csv');
 
-export function getCSVRecords(): any[] {
+export async function getCSVRecords(): Promise<any[]> {
     const CSV_PATH = path.join(__dirname, '../../data/channels.csv');
-    const csvData = fs.readFileSync(CSV_PATH, 'utf-8');
-    const records = parse(csvData, {
-        columns: true,
-        skip_empty_lines: true,
-    });
-    return records;
+    try {
+        const csvData = await fs.promises.readFile(CSV_PATH, 'utf-8');
+        const records = parse(csvData, {
+            columns: true,
+            skip_empty_lines: true,
+        });
+        return records;
+    } catch (error) {
+        logger.error('Error reading CSV file:', error);
+        return [];
+    }
 }
 
 export async function seedPredefinedChannels() {
@@ -25,7 +30,11 @@ export async function seedPredefinedChannels() {
         await mongoose.connect(MONGO_URI);
         logger.info('MongoDB connected');
 
-        const csvRecords = getCSVRecords();
+        const csvRecords = await getCSVRecords();
+        if (csvRecords.length === 0) {
+            logger.warn('No records found in CSV file');
+            return;
+        }
 
         for (const channel of csvRecords) {
             const chat_id = channel.ID;
@@ -49,6 +58,6 @@ export async function seedPredefinedChannels() {
 
     } catch (error) {
         logger.error('Error seeding predefined channels', error);
-        process.exit(1);
+        throw error;
     }
 }

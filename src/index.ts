@@ -98,7 +98,7 @@ const runServices = async () => {
     const dbChats = await Chat.find({}, 'chat_id');
     logger.info('number of chats in the DB ', { dbChats: dbChats.length });
 
-    const csvRecords = getCSVRecords();
+    const csvRecords = await getCSVRecords();
     logger.info('number of records in CSV: ', { csvRecords: csvRecords.length });
 
     if (dbChats.length === 0 || dbChats.length !== csvRecords.length) {
