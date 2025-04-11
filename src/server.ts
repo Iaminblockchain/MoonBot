@@ -12,10 +12,10 @@ export const setupServer = (port: number): Promise<void> => {
     logger.info("Will setup cors with allowed origin", { allowedOrigin: ALLOWED_ORIGIN });
 
     app.use((req, res, next) => {
-        // if (req.path === health_endpoint) {
-        //     return next();
-        // }
-        return cors()(req, res, next);
+        if (req.path === health_endpoint) {
+            return next();
+        }
+        return cors({ origin: ALLOWED_ORIGIN })(req, res, next);
     });
 
     app.use(express.static('public'));
