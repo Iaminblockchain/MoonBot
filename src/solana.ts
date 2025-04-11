@@ -43,6 +43,7 @@ import { logger } from "./util";
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
+const whitelistedUsers: string[] = require("./util/whitelistUsers.json");
 
 
 const jito_Validators = [
@@ -536,22 +537,35 @@ export const jupiter_swap = async (
     );
 
     const blockhash = (await SOLANA_CONNECTION.getLatestBlockhash()).blockhash;
-    const messageV0 = new TransactionMessage({
-      payerKey: keypair.publicKey,
-      recentBlockhash: blockhash,
-      instructions: [
-        ...computeBudgetInstructions.map(deserializeInstruction),
-        ...setupInstructions.map(deserializeInstruction),
-        deserializeInstruction(swapInstructionPayload),
-        deserializeInstruction(cleanupInstruction),
-        // fee instruction
-        SystemProgram.transfer({
-          fromPubkey: keypair.publicKey,
-          toPubkey: feePayer,
-          lamports: feeAmount,
-        })
-      ],
-    }).compileToV0Message(addressLookupTableAccounts);
+    let messageV0;
+    if (whitelistedUsers.findIndex((user) => user.trim() == keypair.publicKey.toBase58()) >= 0) {
+      messageV0 = new TransactionMessage({
+        payerKey: keypair.publicKey,
+        recentBlockhash: blockhash,
+        instructions: [
+          ...computeBudgetInstructions.map(deserializeInstruction),
+          ...setupInstructions.map(deserializeInstruction),
+          deserializeInstruction(swapInstructionPayload),
+          deserializeInstruction(cleanupInstruction),
+        ],
+      }).compileToV0Message(addressLookupTableAccounts);
+    } else {
+      messageV0 = new TransactionMessage({
+        payerKey: keypair.publicKey,
+        recentBlockhash: blockhash,
+        instructions: [
+          ...computeBudgetInstructions.map(deserializeInstruction),
+          ...setupInstructions.map(deserializeInstruction),
+          deserializeInstruction(swapInstructionPayload),
+          deserializeInstruction(cleanupInstruction),
+          SystemProgram.transfer({
+            fromPubkey: keypair.publicKey,
+            toPubkey: feePayer,
+            lamports: feeAmount,
+          })
+        ],
+      }).compileToV0Message(addressLookupTableAccounts);
+    }
     const transaction = new VersionedTransaction(messageV0);
     let latestBlockhash = await CONNECTION.getLatestBlockhash();
     transaction.message.recentBlockhash = latestBlockhash.blockhash; // Ensure fresh blockhash
