@@ -98,13 +98,14 @@ const runServices = async () => {
     const dbChats = await Chat.find({}, 'chat_id');
     logger.info('number of chats in the DB ', { dbChats: dbChats.length });
 
-    const csvRecords = await getCSVRecords();
-    logger.info('number of records in CSV: ', { csvRecords: csvRecords.length });
+    // Commented out for now due to potential issues with server start up time
+    // const csvRecords = await getCSVRecords();
+    // logger.info('number of records in CSV: ', { csvRecords: csvRecords.length });
 
-    if (dbChats.length === 0 || dbChats.length !== csvRecords.length) {
-      logger.info("seeding predefined channels from CSV...");
-      await seedPredefinedChannels();
-    }
+    // if (dbChats.length === 0 || dbChats.length !== csvRecords.length) {
+    //   logger.info("seeding predefined channels from CSV...");
+    //   await seedPredefinedChannels();
+    // }
 
     // check number of chats we're in
     const dialogs = await client.getDialogs({});
