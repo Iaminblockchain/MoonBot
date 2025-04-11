@@ -1,8 +1,11 @@
 import { ICall, Call } from "../models/callModel";
+import { IChat, Chat } from "../models/chatModel";
 import { NewMessageEvent } from "telegram/events";
 import { logger } from '../util';
 import { v4 as uuidv4 } from 'uuid';
 const axios = require('axios');
+import { onSignal } from '../controllers/copytradeController';
+import { Api } from "telegram";
 
 // Regex for contract addresses
 const PUMP_FUN_CA_REGEX = /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g;
@@ -92,6 +95,8 @@ export async function contractFound(
 
     totalCAFound += 1;
 
+    //Track the performance
+
     let entry_price;
     try {
         entry_price = await getTokenPrice(contractAddress);
@@ -120,33 +125,66 @@ export async function contractFound(
         logger.error('no entry price');
     }
 
+    //call copy trade
+    logger.info("onSignal " + chat_id_str);
+    await onSignal(chat_id_str, contractAddress);
+
 }
 
 export async function processMessages(event: NewMessageEvent): Promise<void> {
-
     try {
+        //first check that the message sender is a user
+        if (!(event.message.sender instanceof Api.User)) {
+            //skipping non-user message
+            return;
+        }
+
         const messageText = event.message.text || "";
-        const chatid = event.message.senderId;
+        if (messageText == "") {
+            return;
+        }
+
+        //not using event.message.senderId;
+        const chatid = event.message.chatId;
         if (!chatid) return;
-        logger.info("message " + messageText + " " + chatid);
 
+        let chat_id_str = String(chatid);
+
+        //not needed
+        // if (chat_id_str.startsWith("-100")) {
+        //     chat_id_str = chat_id_str.slice(4);
+        // }
+
+        // Query database for the user's info
+        const chatDoc = await Chat.findOne({ chat_id: chat_id_str });
+
+        const username = chatDoc?.username || "N/A";
+
+        // Log message info
+        logger.info("Incoming message", {
+            messageText: messageText,
+            chatId: chat_id_str,
+            username: username
+        });
+
+        // Update stats
         totalMessagesRead++;
-        logger.info("stats. total messages " + totalMessagesRead + " CAs: " + totalCAFound);
+        logger.info("Current stats", {
+            totalMessages: totalMessagesRead,
+            totalContractAddressesFound: totalCAFound
+        });
 
-        const numericId = chatid.toJSNumber();
-        const chat_id_str = String(numericId);
-
-        logger.info(`process message from  ${chatid}`);
-
-        //note: matching several CAs not just one
+        // Detect contract address
         const contractAddresses = messageText.match(PUMP_FUN_CA_REGEX) || [];
-
         if (contractAddresses.length > 0) {
-            let contractAddress = contractAddresses[0] || '';
-            logger.info(`Detected contract address: ${contractAddress}`);
+            const contractAddress = contractAddresses[0] || '';
+            logger.info("Detected contract address", {
+                contractAddress: contractAddress,
+                chatId: chat_id_str
+            });
             await contractFound(contractAddress, chat_id_str);
         }
     } catch (e) {
-        logger.error(`Error processing message: ${e}`);
+        logger.error("Error processing message", { error: e });
     }
 }

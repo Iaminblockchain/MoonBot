@@ -5,6 +5,8 @@ import { retrieveEnvVariable } from "../config";
 import { logger } from "../util";
 import mongoose from 'mongoose';
 import { TELEGRAM_STRING_SESSION, TELEGRAM_API_ID, TELEGRAM_API_HASH } from "../index";
+import { Trade, getTradeByChatId } from '../models/copyTradeModel';
+
 
 const MONGO_URI = retrieveEnvVariable("mongo_url");
 import { Chat } from '../models/chatModel';
@@ -61,10 +63,23 @@ async function listCallsDB(): Promise<void> {
     }
 }
 
+export const getAllTrades = async () => {
+    try {
+        return await Trade.find({}).sort({ _id: -1 });
+    } catch (error) {
+        console.log("Error fetching all trades", error);
+        return [];
+    }
+};
 
 (async () => {
     await client.connect();
     //await listChannelsDB();
-    await listCallsDB();
+    //await listCallsDB();
     //await listUserChannels();
+
+    const allTrades = await getAllTrades();
+    allTrades.forEach(trade => {
+        console.log(`ChatID: ${trade.chatId}, Signal: ${trade.signal}`);
+    });
 })();

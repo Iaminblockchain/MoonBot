@@ -6,6 +6,7 @@ import * as tradedb from '../models/tradeModel';
 import * as solana from '../solana';
 import { getPrice } from "./autoBuyController";
 const { PublicKey } = require('@solana/web3.js'); // Import PublicKey
+import { logger } from "../util";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   try {
@@ -178,7 +179,7 @@ export const autoBuyContract = async (
     botInstance.sendMessage(chatId, "Wallet not found. Please create or import a wallet first.");
     return;
   }
-  console.log("run auto buy", settings, contractAddress, chatId);
+  logger.info("run auto buy", { settings: settings, contractAddress: contractAddress, chatId: chatId });
   let solAmount = settings.amount;
   if (settings.isPercentage) {
     const balance = await solana.getSolBalance(wallet.privateKey);

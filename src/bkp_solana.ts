@@ -1,22 +1,23 @@
 import bs58 from 'bs58';
-import { 
-  Keypair, 
-  Connection, 
-  LAMPORTS_PER_SOL, 
-  PublicKey, 
-  SystemProgram, 
-  Transaction, 
-  sendAndConfirmTransaction, 
-  ParsedInstruction, 
-  ParsedAccountData, 
-  VersionedTransaction, 
-  TransactionMessage, 
-  BlockhashWithExpiryBlockHeight 
+import {
+  Keypair,
+  Connection,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  sendAndConfirmTransaction,
+  ParsedInstruction,
+  ParsedAccountData,
+  VersionedTransaction,
+  TransactionMessage,
+  BlockhashWithExpiryBlockHeight
 } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, AccountLayout, TOKEN_2022_PROGRAM_ID, getMint, getAccount } from "@solana/spl-token";
 import { Metaplex } from "@metaplex-foundation/js";
 import * as config from './config';
 import axios from 'axios';
+import { logger } from './util';
 
 const { fetchMarketAccounts } = require("./scripts/fetchMarketAccounts");
 const { getPoolKeysByPoolId } = require("./scripts/getPoolKeysByPoolId");
@@ -58,7 +59,7 @@ export const getSolBalance = async (privateKey: string) => {
     else
       return 0;
   } catch (error) {
-    console.log(error);
+    logger.error(error);
     return 0;
   }
 };
@@ -102,10 +103,10 @@ const sendSOL = async (senderPrivateKey: string, receiverAddress: string, amount
     );
     transaction.feePayer = senderKeypair.publicKey;
     const signature = await sendAndConfirmTransaction(connection, transaction, [senderKeypair]);
-    console.log(`Send SOL TX: ${signature}`);
+    logger.info(`Send SOL TX: ${signature}`);
     return signature;
   } catch (error) {
-    console.log("Send SOL Erro: ", error);
+    logger.error("Send SOL Erro: ", error);
     return null;
   }
 };
@@ -126,7 +127,7 @@ async function getTokenAddressFromTokenAccount(tokenAccountAddress: string) {
 }
 
 export const getTokenSwapInfo = async (connection: Connection, signature: string) => {
-  console.log("getTokenSwapInfo, start");
+  logger.info("getTokenSwapInfo, start");
   try {
     const tx = await connection.getParsedTransaction(signature, { maxSupportedTransactionVersion: 0 });
     const instructions = tx!.transaction.message.instructions;
@@ -146,7 +147,7 @@ export const getTokenSwapInfo = async (connection: Connection, signature: string
           }
         }
       } else if (instructions[i].programId.toBase58() === jupiterAggregatorV6) {
-        console.log('index = ', i);
+        logger.info('index = ', i);
         for (let j = 0; j < innerinstructions!.length; j++) {
           if (innerinstructions![j].index === i) {
             const length = innerinstructions![j].instructions.length;
@@ -185,7 +186,7 @@ export const getTokenSwapInfo = async (connection: Connection, signature: string
               }
             }
             const result = { isSwap: true, type: "jupiter swap", sendToken, sendAmount, receiveToken, receiveAmount, blockTime: tx?.blockTime };
-            console.log('swap info = ', result);
+            logger.info('swap info = ', result);
             return result;
           }
         }
@@ -193,7 +194,7 @@ export const getTokenSwapInfo = async (connection: Connection, signature: string
     }
     return { isSwap: false, type: null, sendToken: null, sendAmount: null, receiveToken: null, receiveAmount: null, blockTime: null };
   } catch (error) {
-    console.log('getTokenSwapInfo, Error');
+    logger.error('getTokenSwapInfo, Error');
     return { isSwap: false, type: null, sendToken: null, sendAmount: null, receiveToken: null, receiveAmount: null, blockTime: null };
   }
 };
@@ -207,16 +208,16 @@ export async function swapToken(
   amount: number,
   swapMode: "ExactIn" | "ExactOut"
 ) {
-  console.log("Fetching Pool details...", `  - Date:${new Date()}`);
+  logger.info("Fetching Pool details...", `  - Date:${new Date()}`);
   // Convert input strings to PublicKey objects.
   const inputMintPK = new PublicKey(inputMint);
   const outputMintPK = new PublicKey(outputMint);
-  
+
   const marketData = await fetchMarketAccounts(CONNECTION, inputMintPK, outputMintPK, "confirmed");
   let pool = await getPoolKeysByPoolId(marketData.id, CONNECTION);
   pool = convertPoolFormat(pool);
-  console.log("Pools fetched", pool, `  - Date:${new Date()}`);
-  
+  logger.info("Pools fetched", pool, `  - Date:${new Date()}`);
+
   const swapConfig = {
     executeSwap: true,
     useVersionedTransaction: true,
@@ -231,72 +232,173 @@ export async function swapToken(
   let swapResp = await swap(swapConfig, PRIVATE_KEY);
   let confirmed: boolean = false;
   let signature = null;
-  if(swapResp){
+  if (swapResp) {
     confirmed = swapResp.confirmed;
     signature = swapResp.signature;
   }
   if (confirmed) {
-    console.log("http://solscan.io/tx/" + signature);
+    logger.info("http://solscan.io/tx/" + signature);
     return { confirmed: true, signature: signature };
   } else {
-    console.log("Transaction failed");
-    return { confirmed: false, signature: null };
-  }  
-}
-
-export const jupiter_swap = async (
-  CONNECTION: Connection, 
-  PRIVATE_KEY: string, 
-  publicKey: string, 
-  inputMint: string, 
-  outputMint: string, 
-  amount: number, 
-  swapMode: "ExactIn" | "ExactOut"
-) => {
-  try {
-    console.log("~~final amount", amount)
-    const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
-    console.log("~~urlll", `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=50&swapMode=${swapMode}`)
-    const quoteResponse = await (
-      await fetch(`https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${Math.floor(amount)}&slippageBps=50&swapMode=${swapMode}`)
-    ).json();
-    console.log('quoteResponse = ', quoteResponse);
-    const { swapTransaction } = await (
-      await fetch('https://quote-api.jup.ag/v6/swap', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          quoteResponse,
-          userPublicKey: keypair.publicKey.toString(),
-          wrapAndUnwrapSol: true,
-        })
-      })
-    ).json();
-    console.log("~~~swapTransaction", swapTransaction)
-    const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-    console.log("~~swapTransactionBuf", swapTransactionBuf)
-    var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
-    console.log("~~~transaction", transaction);
-    transaction.sign([keypair]);
-    const txSignature = bs58.encode(transaction.signatures[0]);
-    console.log("~txSignature", txSignature)
-    const latestBlockHash = await CONNECTION.getLatestBlockhash('processed');
-    const res = await jito_executeAndConfirm(CONNECTION, transaction, keypair, latestBlockHash, JITO_TIP);
-    const confirmed = res.confirmed;
-    const signature = res.signature;
-    if (confirmed) {
-      console.log("http://solscan.io/tx/" + txSignature);
-    } else {
-      console.log("Transaction failed");
-    }
-    return { confirmed, txSignature };
-  } catch (error) {
-    console.log('jupiter swap failed');
+    logger.info("Transaction failed . bkp_solana");
+    logger.info("swapresp " + swapResp);
     return { confirmed: false, signature: null };
   }
 }
+
+
+export const jupiter_swap = async (
+  CONNECTION: Connection,
+  PRIVATE_KEY: string,
+  userPublicKey: string,
+  inputMint: string,
+  outputMint: string,
+  amount: number,
+  swapMode: "ExactIn" | "ExactOut"
+) => {
+  logger.info("=== [Jupiter Swap]: Start ===");
+
+  // Step 1: Log everything up front for clarity
+  logger.info("[1/9] Private Key (first 8 chars):", PRIVATE_KEY.slice(0, 8), "... length:", PRIVATE_KEY.length);
+  logger.info("[1/9] userPublicKey param:", userPublicKey);
+  logger.info("[1/9] inputMint:", inputMint);
+  logger.info("[1/9] outputMint:", outputMint);
+  logger.info("[1/9] amount:", amount);
+  logger.info("[1/9] swapMode:", swapMode);
+
+  // Step 2: Validate mints are base58
+  const isBase58 = (candidate: string) => {
+    // Basic check: all characters must be in the base58 set
+    // (Regex excludes 0, O, I, l which are removed from the typical base58 set)
+    return /^[1-9A-HJ-NP-Za-km-z]+$/.test(candidate);
+  };
+
+  if (!isBase58(inputMint)) {
+    logger.error("❌ inputMint is not valid base58:", inputMint);
+    logger.error("Characters must be in [1-9 A-HJ-NP-Za-km-z] (no 0, O, I, l).");
+    return { confirmed: false, signature: null };
+  }
+
+  if (!isBase58(outputMint)) {
+    logger.error("❌ outputMint is not valid base58:", outputMint);
+    logger.error("Characters must be in [1-9 A-HJ-NP-Za-km-z] (no 0, O, I, l).");
+    return { confirmed: false, signature: null };
+  }
+
+  try {
+    new PublicKey(inputMint);
+  } catch (e) {
+    logger.error("❌ inputMint is not a valid Solana public key:", e);
+    return { confirmed: false, signature: null };
+  }
+
+  try {
+    new PublicKey(outputMint);
+  } catch (e) {
+    logger.error("❌ outputMint is not a valid Solana public key:", e);
+    return { confirmed: false, signature: null };
+  }
+
+  // Step 3: Decode user Keypair
+  let keypair: Keypair;
+  try {
+    const decoded = bs58.decode(PRIVATE_KEY);
+    keypair = Keypair.fromSecretKey(decoded);
+  } catch (err) {
+    logger.error("❌ Failed to decode PRIVATE_KEY into a Keypair:", err);
+    return { confirmed: false, signature: null };
+  }
+  const derivedUserPubkey = keypair.publicKey.toBase58();
+  logger.info("[2/9] Derived userPubkey from PRIVATE_KEY:", derivedUserPubkey);
+
+  // Step 4: Build the Jupiter quote URL
+  const floorAmount = Math.floor(amount);
+  const quoteUrl = `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${floorAmount}&slippageBps=50&swapMode=${swapMode}`;
+  logger.info("[3/9] Jupiter quote URL:", quoteUrl);
+
+  // Step 5: Fetch quote
+  let quoteResponse: any;
+  try {
+    const quoteRaw = await fetch(quoteUrl);
+    quoteResponse = await quoteRaw.json();
+  } catch (err) {
+    logger.error("❌ Failed to fetch/parse Jupiter quote:", err);
+    return { confirmed: false, signature: null };
+  }
+  logger.info("[4/9] Jupiter quote response:", quoteResponse);
+
+  if (!quoteResponse || !quoteResponse.routes || quoteResponse.routes.length === 0) {
+    logger.error("❌ Invalid or empty quote response from Jupiter.");
+    return { confirmed: false, signature: null };
+  }
+
+  // Step 6: Prepare swap request payload
+  const swapPayload = {
+    quoteResponse,
+    userPublicKey: derivedUserPubkey, // We always swap using the actual derived publicKey
+    wrapAndUnwrapSol: true,
+  };
+  logger.info("[5/9] Swap payload to be sent:", swapPayload);
+
+  let swapData: any;
+  try {
+    const swapResp = await fetch("https://quote-api.jup.ag/v6/swap", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(swapPayload),
+    });
+    swapData = await swapResp.json();
+  } catch (err) {
+    logger.error("❌ Failed to fetch/parse Jupiter swap response:", err);
+    return { confirmed: false, signature: null };
+  }
+  logger.info("[6/9] Jupiter swap response:", swapData);
+
+  const { swapTransaction } = swapData;
+  if (!swapTransaction) {
+    logger.error("❌ 'swapTransaction' missing in the swap response. Full data:", swapData);
+    return { confirmed: false, signature: null };
+  }
+  logger.info("[6/9] Encoded swap transaction (first 50 chars):", swapTransaction.slice(0, 50) + "...");
+
+  // Step 7: Deserialize the transaction
+  let transaction: VersionedTransaction;
+  try {
+    const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
+    transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+  } catch (err) {
+    logger.error("❌ Failed to deserialize the base64 'swapTransaction':", err);
+    return { confirmed: false, signature: null };
+  }
+
+  // Step 8: Sign transaction
+  transaction.sign([keypair]);
+  const localSig = bs58.encode(transaction.signatures[0]);
+  logger.info("[7/9] Signed transaction with localSig:", localSig);
+
+  // Step 9: Get latest blockhash & Jito confirm
+  let latestBlockhash: BlockhashWithExpiryBlockHeight;
+  try {
+    latestBlockhash = await CONNECTION.getLatestBlockhash("processed");
+  } catch (err) {
+    logger.error("❌ Failed to get latest blockhash:", err);
+    return { confirmed: false, signature: null };
+  }
+  logger.info("[8/9] Latest blockhash:", latestBlockhash);
+
+  logger.info("[9/9] Sending transaction to jito_executeAndConfirm...");
+  const res = await jito_executeAndConfirm(CONNECTION, transaction, keypair, latestBlockhash, JITO_TIP);
+  const { confirmed, signature } = res;
+
+  if (confirmed) {
+    logger.info(`✅ Swap confirmed! See details: https://solscan.io/tx/${signature}`);
+  } else {
+    logger.error("❌ Swap failed or not confirmed.");
+  }
+
+  logger.info("=== [Jupiter Swap]: End ===\n");
+  return { confirmed, signature };
+};
 
 async function getRandomValidator() {
   const res =
@@ -311,9 +413,9 @@ export async function jito_executeAndConfirm(
   lastestBlockhash: BlockhashWithExpiryBlockHeight,
   jitofee: number
 ) {
-  console.log("Executing transaction (jito)...");
+  logger.info("Executing transaction (jito)...");
   const jito_validator_wallet = await getRandomValidator();
-  console.log("Selected Jito Validator: ", jito_validator_wallet.toBase58());
+  logger.info("Selected Jito Validator: ", jito_validator_wallet.toBase58());
   try {
     const jitoFee_message = new TransactionMessage({
       payerKey: payer.publicKey,
@@ -345,29 +447,29 @@ export async function jito_executeAndConfirm(
         params: [final_transaction],
       })
     );
-    console.log("~~requests", requests)
-    console.log("Sending tx to Jito validators...");
+    logger.info("~~requests", requests)
+    logger.info("Sending tx to Jito validators...");
     const res = await Promise.all(requests.map((p) => p.catch((e) => e)));
     const success_res = res.filter((r) => !(r instanceof Error));
     if (success_res.length > 0) {
-      console.log("Jito validator accepted the tx");
+      logger.info("Jito validator accepted the tx");
       return await jito_confirm(CONNECTION, jitoTxSignature, lastestBlockhash);
     } else {
-      console.log("No Jito validators accepted the tx");
+      logger.info("No Jito validators accepted the tx");
       return { confirmed: false, signature: jitoTxSignature };
     }
   } catch (e) {
     if (e instanceof axios.AxiosError) {
-      console.log("Failed to execute the jito transaction");
+      logger.info("Failed to execute the jito transaction");
     } else {
-      console.log("Error during jito transaction execution: ", e);
+      logger.error("Error during jito transaction execution: ", e);
     }
     return { confirmed: false, signature: null };
   }
 }
 
 async function jito_confirm(CONNECTION: Connection, signature: string, latestBlockhash: BlockhashWithExpiryBlockHeight) {
-  console.log("Confirming the jito transaction...");
+  logger.info("Confirming the jito transaction...");
   const confirmation = await CONNECTION.confirmTransaction(
     {
       signature,
@@ -376,7 +478,7 @@ async function jito_confirm(CONNECTION: Connection, signature: string, latestBlo
     },
     "confirmed"
   );
-  console.log("~~~confirmation", confirmation)
+  logger.info("~~~confirmation", confirmation)
   return { confirmed: !confirmation.value.err, signature };
 }
 
@@ -386,7 +488,7 @@ export async function getDecimals(connection: Connection, mintAddress: PublicKey
     const result = ((info.value?.data) as ParsedAccountData).parsed.info.decimals || 0;
     return result;
   } catch (error) {
-    console.log('getDecimals error');
+    logger.error('getDecimals error');
     return null;
   }
 }
@@ -420,10 +522,10 @@ export const getTokenMetaData = async (CONNECTION: Connection, address: string) 
       const metaData = { name, symbol, logo, decimals, address, totalSupply, description, extensions, renounced, type: token_type };
       return metaData;
     } else {
-      console.log("utils.getTokenMetadata tokenInfo", token);
+      logger.info("utils.getTokenMetadata tokenInfo", token);
     }
   } catch (error) {
-    console.log("getTokenMetadata", error);
+    logger.error("getTokenMetadata", error);
   }
   return null;
 }
@@ -444,7 +546,7 @@ export const getTokenBalance = async (CONNECTION: Connection, walletAddress: str
     const balance = tokenAccount.amount;
     return balance;
   } catch (error) {
-    console.error('Error fetching token balance:', error);
+    logger.error('Error fetching token balance:', error);
     return null;
   }
 };

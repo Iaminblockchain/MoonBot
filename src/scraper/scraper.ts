@@ -10,7 +10,6 @@ import { Chat } from "../models/chatModel";
 import { processMessages } from "./processMessages";
 import { tgClient } from "telegram/client";
 
-
 // Listen to channels in the DB
 async function listenChats(client: TelegramClient): Promise<void> {
   const all_chats = await Chat.find({}, 'chat_id');
@@ -61,6 +60,22 @@ export async function getTgClient(): Promise<TelegramClient> {
   }
 }
 
+export async function checkJoined(client: TelegramClient, name: string): Promise<boolean> {
+  const channelName = name.replace("https://t.me/", "").replace("@", "").trim();
+  try {
+    const dialogs = await client.getDialogs({});
+    const found = dialogs.some(dialog => {
+      const entity = dialog.entity as any;
+      return entity?.username?.toLowerCase() === channelName.toLowerCase();
+    });
+
+    logger.info(`checkJoined: ${channelName} is ${found ? "already joined" : "not joined"}`);
+    return found;
+  } catch (e: any) {
+    logger.error(`checkJoined error: ${e.message || e}`);
+    return false;
+  }
+}
 
 // Main function to start the client
 export async function scrape(client: TelegramClient): Promise<void> {

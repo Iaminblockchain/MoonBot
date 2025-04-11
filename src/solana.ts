@@ -44,6 +44,7 @@ export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
 
+
 const jito_Validators = [
   "DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh",
   "ADuUkR4vqLUMWXxW9gh6D6L8pMSawimctcNZ5pGwDcEt",
@@ -374,11 +375,13 @@ export async function swapToken(
       console.log("http://solscan.io/tx/" + signature);
       return { confirmed: true, signature: signature };
     } else {
-      console.log("Transaction failed");
+      //TODO check insufficent funds!
+      logger.info("Transaction failed (solana)");
+      logger.info("swapResp " + swapResp);
       return { confirmed: false, signature: null };
     }
   } catch (e) {
-    console.log("Transaction Failed");
+    console.log("Transaction Failed (solana). error " + e);
     return { confirmed: false, signature: null };
   }
 }
@@ -591,6 +594,13 @@ export const jupiter_swap = async (
     return { confirmed: false, txSignature: null };
   } catch (error) {
     logger.error("jupiter swap:", { error });
+
+    logger.error(inputMint);
+    logger.error(outputMint);
+    logger.error(amount);
+    logger.error(swapMode);
+    logger.error(error);
+
     return { confirmed: false, txSignature: null };
   }
 };

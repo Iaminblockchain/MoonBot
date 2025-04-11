@@ -70,7 +70,7 @@ export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: st
 
 export const init = (client: TelegramClient) => {
     copytradeController.setClient(client);
-    
+
     logger.info("init TG bot with token");
     botInstance = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
     botInstance.getMe().then((botInfo: any) => {
@@ -121,9 +121,14 @@ export const init = (client: TelegramClient) => {
 
     botInstance.on('callback_query', (query: any) => {
         try {
-            const chatId = query.message!.chat.id;
+            if (!query.message) {
+                logger.error("missing message object");
+                return;
+            }
+            const chatId = query.message.chat.id;
             const data = query.data;
             logger.info(`callback, chatId = ${chatId}, data = ${data}`);
+            logger.info(`query ${query}`);
             if (data?.startsWith("buyController_")) {
                 buyController.handleCallBackQuery(query);
             } else if (data?.startsWith("ct_")) {
@@ -188,12 +193,25 @@ export async function switchMenu(chatId: TelegramBot.ChatId, messageId: number |
     };
 
     try {
-        await botInstance.editMessageText(title, { chat_id: chatId, message_id: messageId, reply_markup: keyboard, disable_web_page_preview: true, parse_mode: 'HTML' });
-    } catch (error) {
-        logger.info(error);
+        // Can't fetch original message content with Telegram API
+        const currentMessage = await botInstance.getChat(chatId);
+
+        // Instead, catch the specific error and ignore it
+        await botInstance.editMessageText(title, {
+            chat_id: chatId,
+            message_id: messageId,
+            reply_markup: keyboard,
+            disable_web_page_preview: true,
+            parse_mode: 'HTML',
+        });
+    } catch (error: any) {
+        if (error.response?.body?.description?.includes('message is not modified')) {
+            logger.info("Skipped edit: message content and markup are identical");
+        } else {
+            logger.error("Error editing message", error);
+        }
     }
 }
-
 const onStartCommand = async (msg: TelegramBot.Message) => {
     logger.info('user:', msg.chat.username);
     const { title, buttons } = await getTitleAndButtons(msg.chat.id);

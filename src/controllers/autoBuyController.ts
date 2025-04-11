@@ -11,6 +11,8 @@ import {
 import { PublicKey } from "@solana/web3.js";
 import { SOLANA_CONNECTION } from "..";
 import { findTrade } from "../models/copyTradeModel";
+import { ITrade } from "../models/copyTradeModel";
+import { logger } from "../util";
 
 // In-memory storage for auto-buy settings per chat.
 export interface AutoBuySettings {
@@ -229,57 +231,60 @@ export function checkAutoBuy(msg: TelegramBot.Message) {
 export const setAutotrade = async (
   chatId: number,
   contractAddress: string,
-  channel?: string
+  trade?: ITrade
 ) => {
+  logger.info("setAutotrade");
 
-  if (!isValidAddress(contractAddress)) return;
-  let settings: any;
-  if (channel) {
-    settings = await findTrade({ chatId, signal: channel });
-  } else {
-    settings = autoBuySettings.get(chatId);
+  if (!isValidAddress(contractAddress)) {
+    logger.error("invalid contractAddress", { contractAddress });
+    return;
   }
-  console.log("settings", settings, chatId, channel)
-  if (
-    settings &&
-    settings.active &&
-    settings.amount &&
-    settings.maxSlippage !== null
-  ) {
-    console.log(
-      `Auto-buy triggered for chat ${chatId} with contract ${contractAddress}`
+
+  logger.info("chatId " + chatId);
+
+  if (!trade) {
+    logger.error("settings is null");
+    return;
+  }
+
+  logger.info("settings", { trade, chatId });
+
+  //TODO! fix this is broken
+  //const amount = Number(trade.amount);
+  //custom now
+  const amount = 0.001;
+  const active = trade.active;
+  const maxSlippage = trade.maxSlippage;
+
+  logger.info("amount", amount);
+  logger.info("active", active);
+  logger.info("maxSlippage", maxSlippage);
+
+  const validsettings = active && amount && maxSlippage !== null;
+  logger.info("validsettings? ", validsettings);
+
+  if (validsettings) {
+    logger.info("Auto-buy triggered", { contractAddress });
+
+    buyController.autoBuyContract(
+      chatId,
+      {
+        amount: amount,
+        isPercentage: false,
+        maxSlippage: trade.maxSlippage!,
+        takeProfit: trade.tp,
+        stopLoss: trade.sl,
+        repetitiveBuy: trade.repetitiveBuy,
+      },
+      contractAddress
     );
-    // Create a new settings object with maxSlippage asserted as non-null.
-    if (channel) {
-      buyController.autoBuyContract(
-        chatId,
-        {
-          amount: settings.amount,
-          isPercentage: false,
-          maxSlippage: settings.maxSlippage!,
-          takeProfit: settings.tp,
-          stopLoss: settings.sl,
-          repetitiveBuy: settings.repetitiveBuy,
-        },
-        contractAddress
-      );
-    } else {
-      buyController.autoBuyContract(
-        chatId,
-        {
-          amount: settings.amount,
-          isPercentage: false,
-          maxSlippage: settings.maxSlippage!,
-          takeProfit: settings.takeProfit,
-          stopLoss: settings.stopLoss,
-          repetitiveBuy: settings.repetitiveBuy,
-        },
-        contractAddress
-      );
-    }
+  } else {
+    logger.error("invalid settings");
+    if (!active) logger.error("not active");
+    if (!amount) logger.error("no amount set");
+    if (maxSlippage === null || maxSlippage === undefined) logger.error("no slippage");
   }
-}
-
+};
 /**
  * (Optional) Allow external modules to update auto-buy settings.
  */
