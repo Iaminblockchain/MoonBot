@@ -6,6 +6,7 @@ import { TelegramClient } from "telegram";
 import { setAutotrade } from "./autoBuyController";
 import mongoose from "mongoose";
 import { logger } from "../util";
+import { Trade } from '../models/copyTradeModel';
 
 let tgClient: TelegramClient | null = null;
 
@@ -386,7 +387,6 @@ const editCopyTradeKeyboard = (params: copytradedb.ITrade) => {
   ];
 };
 
-import { Trade, getTradeByChatId } from '../models/copyTradeModel';
 
 export const getAllTrades = async () => {
   try {
@@ -399,17 +399,18 @@ export const getAllTrades = async () => {
 
 
 export const onSignal = async (chat: string, address: string) => {
-  logger.info("copytrade onSignal ", { chat: chat, address: address });
+  logger.debug("copytrade onSignal ", { chat: chat, address: address });
 
-  //get the users signals
+  // get the users signals
   const allTrades = await getAllTrades();
-  logger.info(allTrades);
+  logger.debug(allTrades);
 
-  // the matching active signals
+  // find the matching active signals
   const matchingTrades = allTrades
     .filter(trade => String(trade.chatId) === chat && trade.active);
-  logger.info("matchingTrades ", { matchingTrades: matchingTrades });
+  logger.info("matching signals ", { matchingTrades: matchingTrades.length });
 
+  // trigger auto trade copytrade onSignal
   matchingTrades.forEach(trade => {
     logger.info("set auto trade for", { id: trade.chatId, address, tradeId: trade._id });
     setAutotrade(trade.chatId, address, trade);

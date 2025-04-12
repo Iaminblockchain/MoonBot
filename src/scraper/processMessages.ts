@@ -3,7 +3,7 @@ import { IChat, Chat } from "../models/chatModel";
 import { NewMessageEvent } from "telegram/events";
 import { logger } from '../util';
 import { v4 as uuidv4 } from 'uuid';
-const axios = require('axios');
+import { getTokenPrice } from "../getPrice";
 import { onSignal } from '../controllers/copytradeController';
 import { Api } from "telegram";
 
@@ -51,47 +51,12 @@ async function trackPerformance(contractAddress: string, entry_price: string): P
     }
 }
 
-async function getTokenPrice(
-    ids: string,
-    vsToken: string | null = null,
-    showExtraInfo: boolean = false
-): Promise<any> {
-    try {
-        const params: { ids: string; vsToken?: string; showExtraInfo?: boolean } = { ids };
-
-        // Use showExtraInfo if true, otherwise use vsToken if provided
-        if (showExtraInfo) {
-            params.showExtraInfo = true;
-        } else if (vsToken) {
-            params.vsToken = vsToken;
-        }
-
-        const response = await axios.get('https://api.jup.ag/price/v2', { params });
-
-        const priceData = response.data.data;
-
-        // Extracting details
-        for (const tokenId in priceData) {
-            if (priceData.hasOwnProperty(tokenId)) {
-                const tokenInfo = priceData[tokenId];
-                logger.info('Price ', { token: tokenInfo.id, price: tokenInfo.price });
-                return tokenInfo.price;
-            }
-        }
-
-        logger.error("price not found")
-
-    } catch (error) {
-        logger.error('Error fetching price:', error);
-        throw error;
-    }
-}
-
 export async function contractFound(
     contractAddress: string,
-    chat_id_str: string
+    chat_id_str: string,
+    chat_username: string
 ): Promise<void> {
-    logger.info("contract found ", { contractAddress: contractAddress, chat_id_str: chat_id_str });
+    logger.info("contract found ", { contractAddress, chat_id_str, chat_username });
 
     totalCAFound += 1;
 
@@ -127,6 +92,7 @@ export async function contractFound(
 
     //call copy trade
     logger.info("onSignal " + chat_id_str);
+    //TODO check join
     await onSignal(chat_id_str, contractAddress);
 
 }
@@ -155,16 +121,16 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
         //     chat_id_str = chat_id_str.slice(4);
         // }
 
-        // Query database for the user's info
+        // Query database for the chat username info
         const chatDoc = await Chat.findOne({ chat_id: chat_id_str });
 
-        const username = chatDoc?.username || "N/A";
+        const chat_username = chatDoc?.username || "N/A";
 
         // Log message info
-        logger.info("Incoming message", {
+        logger.debug("Incoming message", {
             messageText: messageText,
             chatId: chat_id_str,
-            username: username
+            chat_username: chat_username
         });
 
         // Update stats
@@ -180,9 +146,10 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
             const contractAddress = contractAddresses[0] || '';
             logger.info("Detected contract address", {
                 contractAddress: contractAddress,
-                chatId: chat_id_str
+                chatId: chat_id_str,
+                chat_username: chat_username
             });
-            await contractFound(contractAddress, chat_id_str);
+            await contractFound(contractAddress, chat_id_str, chat_username);
         }
     } catch (e) {
         logger.error("Error processing message", { error: e });

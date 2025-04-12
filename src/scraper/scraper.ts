@@ -23,7 +23,7 @@ async function listenChats(client: TelegramClient): Promise<void> {
     .map(chat => Number(chat.chat_id))
     .filter(id => !isNaN(id));
 
-  logger.info(`Parsed chat IDs`, { ids: allChatIds });
+  logger.debug(`Parsed chat IDs`, { ids: allChatIds });
 
   if (allChatIds.length > 0) {
     client.addEventHandler(

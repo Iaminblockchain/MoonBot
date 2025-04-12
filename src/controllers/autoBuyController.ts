@@ -240,7 +240,7 @@ export const setAutotrade = async (
     return;
   }
 
-  logger.info("chatId " + chatId);
+  logger.debug("chatId ", { chatId });
 
   if (!trade) {
     logger.error("settings is null");

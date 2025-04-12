@@ -77,7 +77,14 @@ const initializeServices = async () => {
 
     // login
     logger.info('Connecting to telegram client...');
-    client = await getTgClient();
+    try {
+      client = await getTgClient();
+    } catch (error) {
+      //RPCError: 406: AUTH_KEY_DUPLICATED
+      logger.error("error starting TG client " + error);
+      process.exit(0);
+    }
+
 
     return true;
   } catch (error) {
@@ -96,6 +103,7 @@ const runServices = async () => {
     //check DB
     const dbChats = await Chat.find({}, 'chat_id');
     logger.info('number of chats in the DB ', { dbChats: dbChats.length });
+
 
     if (dbChats.length === 0) {
       logger.error("run chats_import.sh");
