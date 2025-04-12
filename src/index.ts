@@ -9,7 +9,6 @@ import { setupServer } from "./server";
 import { getTgClient } from "./scraper/scraper";
 import { joinChannelsDB } from "./scraper/manageGroups";
 import { Chat } from "./models/chatModel";
-import { getCSVRecords, seedPredefinedChannels } from "./scraper/seedPredefinedChannels";
 import { botInstance } from "./bot";
 import mongoose from "mongoose";
 import { TelegramClient } from "telegram";
@@ -94,26 +93,17 @@ const runServices = async () => {
       return false;
     }
 
-    //check DB and csv, ensure we seed the chats from csv file
+    //check DB
     const dbChats = await Chat.find({}, 'chat_id');
     logger.info('number of chats in the DB ', { dbChats: dbChats.length });
 
-    // Commented out for now due to potential issues with server start up time
-    // const csvRecords = await getCSVRecords();
-    // logger.info('number of records in CSV: ', { csvRecords: csvRecords.length });
-
-    // if (dbChats.length === 0 || dbChats.length !== csvRecords.length) {
-    //   logger.info("seeding predefined channels from CSV...");
-    //   await seedPredefinedChannels();
-    // }
-
-    // check number of chats we're in
-    const dialogs = await client.getDialogs({});
-    logger.info('number of chats TG client is in: ', { dialogs: dialogs.length });
-    if (dialogs.length == 0) {
-      logger.info("haven't joined chats");
-      await joinChannelsDB(client);
+    if (dbChats.length === 0) {
+      logger.error("run chats_import.sh");
+      process.exit(0);
     }
+
+    // check if we have joined the chats that are in DB
+    await joinChannelsDB(client);
 
     logger.info('Initializing scrape script...');
     await scrape(client);

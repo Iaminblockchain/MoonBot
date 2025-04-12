@@ -7,8 +7,9 @@
     "login-telegram": "ts-node-dev src/loginTelegram.ts",
     "dropchats": "ts-node-dev src/scraper/dropchats.ts",
     "showdb": "ts-node-dev src/util/showDB.ts",
-    "joinchannel": "ts-node-dev src/util/join.ts",
+    "joinchannel": "ts-node-dev src/util/joinByName.ts",
     "exportchannels": "ts-node-dev src/util/export.ts",
+    "joinchatsdb": "ts-node-dev src/util/joinChatsFromDB.ts",
     "build": "tsc --noEmit"
   },
   "keywords": [],
