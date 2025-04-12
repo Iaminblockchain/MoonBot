@@ -25,6 +25,7 @@ export const enum STATE {
 
 export type TRADE = {
     contractAddress: string,
+    startPrice: number,
     targetPrice: number,
     lowPrice: number,
 }
@@ -55,10 +56,10 @@ export const clearState = () => {
     state.clear();
 };
 
-export const setTradeState = (chatid: TelegramBot.ChatId, contractAddress: string, targetPrice: number, lowPrice: number) => {
+export const setTradeState = (chatid: TelegramBot.ChatId, contractAddress: string, startPrice: number, targetPrice: number, lowPrice: number) => {
     const prev = trade.get(chatid.toString())
-    if (prev) trade.set(chatid.toString(), [...prev, { contractAddress, targetPrice, lowPrice }]);
-    else trade.set(chatid.toString(), [{ contractAddress, targetPrice, lowPrice }]);
+    if (prev) trade.set(chatid.toString(), [...prev, { contractAddress, targetPrice, lowPrice, startPrice }]);
+    else trade.set(chatid.toString(), [{ contractAddress, targetPrice, lowPrice, startPrice }]);
 };
 
 export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: string) => {

@@ -265,7 +265,12 @@ export const autoSellHandler = () => {
           let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, info.contractAddress, solana.WSOL_ADDRESS, splAmount, "ExactIn", false)
 
           if (result.confirmed) {
-            botInstance.sendMessage(key, `Auto-Sell Token : ${info.contractAddress} at Price: $${price} successfully`);
+            const metadata = await solana.getTokenMetaData(SOLANA_CONNECTION, info.contractAddress);
+            if (price > info.targetPrice) {
+              botInstance.sendMessage(key, `Auto-Sell Token : You successfully sold ${metadata?.name}(${metadata?.symbol}) : ${info.contractAddress} at Price: $${price} for a ${((price / info.startPrice - 1) * 100).toFixed(1)}% gain `);
+            } else if (price < info.lowPrice) {
+              botInstance.sendMessage(key, `Auto-Sell Token : You successfully sold ${metadata?.name}(${metadata?.symbol}) : ${info.contractAddress} at Price: $${price} for a ${((1 - price / info.startPrice) * 100).toFixed(1)}% loss `);
+            }
             removeTradeState(key, info.contractAddress);
           } else {
             botInstance.sendMessage(key, `Auto-Sell Token : ${info.contractAddress}  failed`);
@@ -273,7 +278,7 @@ export const autoSellHandler = () => {
           }
         }
       } catch (e) {
-        logger.error(`Auto-Sell Error:${e}`, {chatId: key, TokenAddress: info.contractAddress})
+        logger.error(`Auto-Sell Error:${e}`, { chatId: key, TokenAddress: info.contractAddress })
       }
     })
   })

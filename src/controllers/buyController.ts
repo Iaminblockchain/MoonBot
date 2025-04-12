@@ -172,7 +172,8 @@ const AddBuynumber = (chatId: string, contractAddress: string) => {
 export const autoBuyContract = async (
   chatId: number,
   settings: { amount: number; isPercentage: boolean; maxSlippage: number, takeProfit: number, repetitiveBuy: number, stopLoss: number },
-  contractAddress: string
+  contractAddress: string,
+  tradeSignal?: string
 ) => {
   const wallet = await walletdb.getWalletByChatId(chatId);
   if (!wallet) {
@@ -187,9 +188,11 @@ export const autoBuyContract = async (
   }
   const buyNumber = getBuynumber(chatId.toString(), contractAddress);
   if (buyNumber >= settings.repetitiveBuy) return;
+
+  const metaData = await solana.getTokenMetaData(SOLANA_CONNECTION, contractAddress)
   botInstance.sendMessage(
     chatId,
-    `Auto-buy: Sending buy transaction for token ${contractAddress} with ${solAmount} SOL (Max Slippage: ${settings.maxSlippage}%)`
+    `Auto-buy: Sending buy transaction for Token ${metaData?.name}(${metaData?.symbol}) : ${contractAddress} with ${solAmount} SOL ${tradeSignal ? `from signal @${tradeSignal} ` : ''}(Max Slippage: ${settings.maxSlippage}%)`
   );
 
   let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, contractAddress, solAmount * 10 ** 9, "ExactIn", false, settings.maxSlippage * 100)
@@ -199,8 +202,8 @@ export const autoBuyContract = async (
     botInstance.sendMessage(chatId, `Auto-buy successful: ${trx}`);
     const splprice = await getPrice(contractAddress);
     // TODO: Update SPL Price
-    botInstance.sendMessage(chatId!, `Auto-sell Registered: ${contractAddress}, Current Price: ${splprice}, TakeProfit Price: ${(splprice * (100 + settings.takeProfit) / 100)}, StopLoss Price: ${splprice * (100 - settings.stopLoss) / 100}`);
-    setTradeState(chatId, contractAddress, splprice * (100 + settings.takeProfit) / 100, splprice * (100 - settings.stopLoss) / 100);
+    botInstance.sendMessage(chatId, `Auto-sell Registered: ${contractAddress}, Current Price: ${splprice}, TakeProfit Price: ${(splprice * (100 + settings.takeProfit) / 100)}(${settings.takeProfit}%), StopLoss Price: ${splprice * (100 - settings.stopLoss) / 100}(${settings.stopLoss}%)`);
+    setTradeState(chatId, contractAddress, splprice , splprice * (100 + settings.takeProfit) / 100, splprice * (100 - settings.stopLoss) / 100);
     AddBuynumber(chatId.toString(), contractAddress);
   } else {
     botInstance.sendMessage(chatId, "Auto-buy failed.");
