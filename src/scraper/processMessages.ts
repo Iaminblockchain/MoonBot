@@ -56,7 +56,7 @@ export async function contractFound(
     chat_id_str: string,
     chat_username: string
 ): Promise<void> {
-    logger.info("contract found ", { contractAddress, chat_id_str, chat_username });
+    logger.info("process: contract found ", { contractAddress, chat_id_str, chat_username });
 
     totalCAFound += 1;
 
@@ -65,9 +65,9 @@ export async function contractFound(
     let entry_price;
     try {
         entry_price = await getTokenPrice(contractAddress);
-        logger.info("price now ", { entry_price: entry_price });
+        logger.info("process:  price now ", { entry_price: entry_price });
     } catch (err) {
-        logger.error("error getting price ", { contractAddress: contractAddress });
+        logger.error("process: error getting price ", { contractAddress: contractAddress });
     }
     if (entry_price) {
         try {
@@ -79,7 +79,7 @@ export async function contractFound(
                 message_date: new Date(),
             });
             await callRecord.save();
-            logger.info("Saved call record", { chat_id_str: chat_id_str, contractAddress: contractAddress })
+            logger.info("process: Saved call record", { chat_id_str: chat_id_str, contractAddress: contractAddress })
 
             //start tracking
             trackPerformance(contractAddress, entry_price);
@@ -91,7 +91,7 @@ export async function contractFound(
     }
 
     //call copy trade
-    logger.info("onSignal " + chat_id_str);
+    logger.info("process: onSignal " + chat_id_str);
     //TODO check join
     await onSignal(chat_id_str, contractAddress);
 

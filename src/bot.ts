@@ -72,7 +72,7 @@ export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: st
 export const init = (client: TelegramClient) => {
     copytradeController.setClient(client);
 
-    logger.info("init TG bot with token");
+    logger.info("TGbot: init TG bot with token");
     botInstance = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
     botInstance.getMe().then((botInfo: any) => {
         logger.info(`Bot name: ${botInfo.username}`);
@@ -99,7 +99,7 @@ export const init = (client: TelegramClient) => {
         const chatId = msg.chat.id;
         const messageId = msg.message_id;
         const messageText = msg.text;
-        logger.info(`message: ${messageText} ${chatId}`);
+        logger.info(`TGbot: message: ${messageText} ${chatId}`, { messageText, chatId });
 
         if (msg.text !== undefined && !msg.text.startsWith('/')) {
             const currentState = getState(chatId.toString());
@@ -128,8 +128,7 @@ export const init = (client: TelegramClient) => {
             }
             const chatId = query.message.chat.id;
             const data = query.data;
-            logger.info(`callback, chatId = ${chatId}, data = ${data}`);
-            logger.info(`query ${query}`);
+            logger.info(`TGbot: callback, chatId = ${chatId}, data = ${data} query =${query}`, { chatId, data, query });
             if (data?.startsWith("buyController_")) {
                 buyController.handleCallBackQuery(query);
             } else if (data?.startsWith("ct_")) {

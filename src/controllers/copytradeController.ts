@@ -22,9 +22,9 @@ const notifySuccess = async (chatId: number, message: string) => {
 }
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
-  logger.info("handleCallBackQuery ", { query: query });
+  logger.info("copytrade: handleCallBackQuery ", { query: query });
   const { data: callbackData, message: callbackMessage } = query;
-  logger.info("callbackData ", { callbackData: callbackData });
+  logger.info("copytrade: callbackData ", { callbackData: callbackData });
   if (!callbackData || !callbackMessage) return;
   try {
     if (callbackData == "ct_start") {
@@ -210,7 +210,7 @@ const editSignalcopytradesignal = async (chatId: number, replaceId: number, dbId
     reply_markup,
   });
   botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
-    logger.info("onReplyToMessage")
+    logger.info("copytrade: onReplyToMessage")
     botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
     botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
 
@@ -399,7 +399,7 @@ export const getAllTrades = async () => {
 
 
 export const onSignal = async (chat: string, address: string) => {
-  logger.debug("copytrade onSignal ", { chat: chat, address: address });
+  logger.debug("copytrade: onSignal ", { chat: chat, address: address });
 
   // get the users signals
   const allTrades = await getAllTrades();
@@ -408,11 +408,11 @@ export const onSignal = async (chat: string, address: string) => {
   // find the matching active signals
   const matchingTrades = allTrades
     .filter(trade => String(trade.chatId) === chat && trade.active);
-  logger.info("matching signals ", { matchingTrades: matchingTrades.length });
+  logger.info("copytrade: matching signals ", { matchingTrades: matchingTrades.length });
 
   // trigger auto trade copytrade onSignal
   matchingTrades.forEach(trade => {
-    logger.info("set auto trade for", { id: trade.chatId, address, tradeId: trade._id });
+    logger.info("copytrade: set auto trade for", { id: trade.chatId, address, tradeId: trade._id });
     setAutotrade(trade.chatId, address, trade);
   });
 };
