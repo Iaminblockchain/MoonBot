@@ -7,6 +7,7 @@ import * as solana from '../solana';
 import { getPrice } from "./autoBuyController";
 const { PublicKey } = require('@solana/web3.js'); // Import PublicKey
 import { logger } from "../util";
+import { transcode } from "buffer";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   try {
@@ -34,11 +35,11 @@ const onClickHalfBuy = async (query: TelegramBot.CallbackQuery) => {
     const privateKey = wallet.privateKey;
     const publicKey = solana.getPublicKey(privateKey);
     botInstance.sendMessage(chatId!, 'Sending buy transaction');
-    var result = await solana.swapToken(SOLANA_CONNECTION, privateKey, publicKey, new PublicKey(solana.WSOL_ADDRESS), new PublicKey(trade.tokenAddress), 0.5, "ExactIn")
+    let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, 0.5, "ExactIn", false);
     if (result.confirmed) {
       let trx = null;
-      if (result.signature) {
-        trx = `http://solscan.io/tx/${result.signature}`
+      if (result.txSignature) {
+        trx = `http://solscan.io/tx/${result.txSignature}`
       }
       botInstance.sendMessage(chatId!, `Buy successfully: ${trx}`);
     } else {
@@ -55,11 +56,11 @@ const onClickOneBuy = async (query: TelegramBot.CallbackQuery) => {
     const privateKey = wallet.privateKey;
     const publicKey = solana.getPublicKey(privateKey);
     botInstance.sendMessage(chatId!, 'Sending buy transaction');
-    var result = await solana.swapToken(SOLANA_CONNECTION, privateKey, publicKey, new PublicKey(solana.WSOL_ADDRESS), new PublicKey(trade.tokenAddress), 1, "ExactIn")
+    let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, 1, "ExactIn", false);
     if (result.confirmed) {
       let trx = null;
-      if (result.signature) {
-        trx = `http://solscan.io/tx/${result.signature}`
+      if (result.txSignature) {
+        trx = `http://solscan.io/tx/${result.txSignature}`
       }
       botInstance.sendMessage(chatId!, `Buy successfully: ${trx}`);
     } else {
@@ -78,18 +79,18 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
   const chatId = message.chat.id;
   const messageId = message.message_id;
   const amount = parseFloat(message.text!);
-  console.log("input amount", amount)
   const wallet = await walletdb.getWalletByChatId(chatId!);
   const trade = await tradedb.getTradeByChatId(chatId!);
   if (wallet && trade) {
     const privateKey = wallet.privateKey;
     const publicKey = solana.getPublicKey(privateKey);
     botInstance.sendMessage(chatId!, 'Sending buy transaction');
-    var result = await solana.swapToken(SOLANA_CONNECTION, privateKey, publicKey, new PublicKey(solana.WSOL_ADDRESS), new PublicKey(trade.tokenAddress), amount, "ExactIn")
+    logger.info("outmint:", { tokenAddress: trade.tokenAddress });
+    let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, parseInt((amount * 10 ** 9).toString()), "ExactIn", false);
     if (result.confirmed) {
       let trx = null;
-      if (result.signature) {
-        trx = `http://solscan.io/tx/${result.signature}`
+      if (result.txSignature) {
+        trx = `http://solscan.io/tx/${result.txSignature}`
       }
       botInstance.sendMessage(chatId!, `Buy successfully: ${trx}`);
     } else {
@@ -118,6 +119,7 @@ export const showBuyPad = async (message: TelegramBot.Message) => {
       ]
     ]
     botInstance.sendMessage(chatId, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: 'HTML' })
+    logger.info("buy token address: ", { manualBuyTokenAddress: tokenAddress })
     tradedb.createTrade(chatId, tokenAddress!);
     botInstance.deleteMessage(chatId, getDeleteMessageId(chatId));
 
@@ -134,12 +136,12 @@ const onBuyControlStart = async (query: TelegramBot.CallbackQuery) => {
     botInstance.sendMessage(chatId!, 'Enter token address to buy.', { parse_mode: 'HTML' }).then((message: any) => {
       const messageId = message.message_id;
       setDeleteMessageId(chatId!, messageId!);
-      console.log(chatId, message)
     });
   } catch (error) {
-    console.log('onClickTokenLaunchButton, error: ' + error);
+    logger.error('onClickTokenLaunchButton, error: ', { error });
   }
 }
+
 export type BuyTrade = {
   contract: string,
   buynumber: number,
