@@ -40,6 +40,7 @@ import { connection } from "mongoose";
 import { getWalletByChatId } from "./models/walletModel";
 import { getKeypair, getPublicKeyinFormat } from "./controllers/sellController";
 import { logger } from "./util";
+import { log } from "console";
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
@@ -76,7 +77,7 @@ export const getSolBalance = async (privateKey: string) => {
       return Number(accountInfo.lamports) / 10 ** 9;
     else return 0;
   } catch (error) {
-    console.log(error);
+    logger.error({ error });
     return 0;
   }
 };
@@ -127,10 +128,10 @@ const sendSOL = async (
     const signature = await sendAndConfirmTransaction(SOLANA_CONNECTION, transaction, [
       senderKeypair,
     ]);
-    console.log(`Send SOL TX: ${signature}`);
+    logger.info("Send SOL TX: ", { signature });
     return signature;
-  } catch (error) {
-    console.log("Send SOL Erro: ", error);
+  } catch (error: any) {
+    logger.error("Send SOL Erro: ", { error });
     return null;
   }
 };
@@ -147,7 +148,6 @@ async function getTokenAddressFromTokenAccount(tokenAccountAddress: string) {
     const accountData = AccountLayout.decode(accountInfo.data);
     const mintAddress = new PublicKey(accountData.mint);
 
-    // console.log(`Token address (mint address) for token account ${tokenAccountAddress}: ${mintAddress.toBase58()}`);
     return mintAddress.toBase58();
   } catch (error) {
     console.error("Error fetching token address:", error);
@@ -158,30 +158,23 @@ export const getTokenSwapInfo = async (
   connection: Connection,
   signature: string
 ) => {
-  console.log("getTokenSwapInfo, start");
+  logger.info("getTokenSwapInfo, start");
   try {
     const tx = await connection.getParsedTransaction(signature, {
       maxSupportedTransactionVersion: 0,
     });
-    // console.log('tx = ', tx);
 
     const instructions = tx!.transaction.message.instructions;
-    // console.log('instructions = ', instructions);
 
     const innerinstructions = tx!.meta!.innerInstructions;
-    // console.log('innerInstructions = ', innerinstructions);
 
     // check if this is raydium swap trx
     const raydiumPoolV4 = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8";
     const jupiterAggregatorV6 = "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4";
     for (let i = 0; i < instructions.length; i++) {
-      // console.log("programid = ", instructions[i].programId.toString());
       if (instructions[i].programId.toBase58() === raydiumPoolV4) {
-        // console.log('index = ', i);
         for (let j = 0; j < innerinstructions!.length; j++) {
           if (innerinstructions![j].index === i) {
-            // console.log("swap inner instructions, send = ", innerinstructions[j].instructions[0].parsed.info);
-            // console.log("swap inner instructions, receive = ", innerinstructions[j].instructions[1].parsed.info);
             const sendToken = await getTokenAddressFromTokenAccount(
               (innerinstructions![j].instructions[0] as ParsedInstruction)
                 .parsed.info.destination
@@ -204,12 +197,10 @@ export const getTokenSwapInfo = async (
               receiveToken: receiveToken,
               receiveAmount: receiveAmount,
             };
-            // console.log('swap info = ', result);
             return result;
           }
         }
       } else if (instructions[i].programId.toBase58() === jupiterAggregatorV6) {
-        console.log("index = ", i);
         for (let j = 0; j < innerinstructions!.length; j++) {
           if (innerinstructions![j].index === i) {
             const length = innerinstructions![j].instructions.length;
@@ -300,7 +291,7 @@ export const getTokenSwapInfo = async (
               receiveAmount: receiveAmount,
               blockTime: tx?.blockTime,
             };
-            console.log("swap info = ", result);
+            logger.info("swap info = ", { result });
             return result;
           }
         }
@@ -317,7 +308,7 @@ export const getTokenSwapInfo = async (
       blockTime: null,
     };
   } catch (error) {
-    console.log("getTokenSwapInfo, Error");
+    logger.error("getTokenSwapInfo, Error");
     return {
       isSwap: false,
       type: null,
@@ -341,7 +332,7 @@ export async function swapToken(
 ) {
   // Fetching market data for the tokens to retrieve the pool ID
   try {
-    console.log("Fetching Pool details...", `  - Date:${new Date()}`);
+    logger.info("Fetching Pool details...", `  - Date:${new Date()}`);
 
     const marketData = await fetchMarketAccounts(
       CONNECTION,
@@ -352,7 +343,7 @@ export async function swapToken(
     // Fetching pool keys using the retrieved pool ID (marketData.id)
     var pool = await getPoolKeysByPoolId(marketData.id, CONNECTION);
     pool = convertPoolFormat(pool);
-    console.log("Pools fetched", pool, `  - Date:${new Date()}`);
+    logger.info("Pools fetched", pool, `  - Date:${new Date()}`);
     var swapConfig = {
       executeSwap: true, // Send tx when true, simulate tx when false
       useVersionedTransaction: true,
@@ -373,7 +364,7 @@ export async function swapToken(
       signature = swapResp.signature;
     }
     if (confirmed) {
-      console.log("http://solscan.io/tx/" + signature);
+      logger.info("http://solscan.io/tx/" + signature);
       return { confirmed: true, signature: signature };
     } else {
       //TODO check insufficent funds!
@@ -382,64 +373,10 @@ export async function swapToken(
       return { confirmed: false, signature: null };
     }
   } catch (e) {
-    console.log("Transaction Failed (solana). error " + e);
+    logger.error("Transaction Failed (solana). :", { error: e });
     return { confirmed: false, signature: null };
   }
 }
-
-// export const jupiter_swap = async (CONNECTION: Connection, PRIVATE_KEY: string, publicKey: string, inputMint: string, outputMint: string, amount: number, swapMode: "ExactIn" | "ExactOut") => {
-//   try {
-//     console.log("~~final amount", amount)
-//     const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
-//     console.log("~~urlll", `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}&slippageBps=50&swapMode=${swapMode}`)
-//     const quoteResponse = await (
-//       await fetch(`https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${Math.floor(amount)}&slippageBps=50&swapMode=${swapMode}`
-//       )
-//     ).json();
-//     console.log('quoteResponse = ', quoteResponse);
-
-//     // get serialized transactions for the swap
-//     const { swapTransaction } = await (
-//       await fetch('https://quote-api.jup.ag/v6/swap', {
-//         method: 'POST',
-//         headers: {
-//           'Content-Type': 'application/json'
-//         },
-//         body: JSON.stringify({
-//           quoteResponse,
-//           userPublicKey: keypair.publicKey.toString(),
-//           wrapAndUnwrapSol: true,
-//           // prioritizationFeeLamports: 10000000
-//         })
-//       })
-//     ).json();
-//     console.log("~~~swapTransaction", swapTransaction)
-//     // deserialize the transaction
-//     const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-//     console.log("~~swapTransactionBuf", swapTransactionBuf)
-//     var transaction = VersionedTransaction.deserialize(swapTransactionBuf);
-//     console.log("~~~transaction",transaction);
-
-//     // sign the transaction
-//     transaction.sign([keypair]);
-//     const txSignature = bs58.encode(transaction.signatures[0]);
-//     console.log("~txSignature", txSignature)
-//     const latestBlockHash = await CONNECTION.getLatestBlockhash('processed');
-
-//     const res = await jito_executeAndConfirm(CONNECTION, transaction, keypair, latestBlockHash, config.JITO_TIP);
-//     const confirmed = res.confirmed;
-//     const signature = res.signature;
-//     if (confirmed) {
-//       console.log("http://solscan.io/tx/" + txSignature);
-//     } else {
-//       console.log("Transaction failed");
-//     }
-//     return { confirmed, txSignature };
-//   } catch (error) {
-//     console.log('jupiter swap failed');
-//     return { confirmed: false, signature: null };
-//   }
-// }
 
 export const jupiter_swap = async (
   CONNECTION: Connection,
@@ -587,7 +524,7 @@ export const jupiter_swap = async (
     if (res.confirmed) {
       return { confirmed: true, txSignature: res.signature };
     } else {
-      console.log("Transaction failed, retrying with new blockhash...");
+      logger.info("Transaction failed, retrying with new blockhash...");
 
       latestBlockhash = await CONNECTION.getLatestBlockhash("processed");
       transaction.message.recentBlockhash = latestBlockhash.blockhash;
@@ -675,17 +612,17 @@ export async function jito_executeAndConfirm(
     const res = await Promise.all(requests.map((p) => p.catch((e) => e)));
     const success_res = res.filter((r) => !(r instanceof Error));
     if (success_res.length > 0) {
-      console.log("Jito validator accepted the tx");
+      logger.info("Jito validator accepted the tx");
       return await jito_confirm(CONNECTION, txSignature, lastestBlockhash);
     } else {
-      console.log("No Jito validators accepted the tx");
+      logger.info("No Jito validators accepted the tx");
       return { confirmed: false, signature: txSignature };
     }
   } catch (e) {
     if (e instanceof axios.AxiosError) {
-      console.log("Failed to execute the jito transaction");
+      logger.error("Failed to execute the jito transaction");
     } else {
-      console.log("Error during jito transaction execution: ", e);
+      logger.error("Error during jito transaction execution: ", { error: e });
     }
     return { confirmed: false, signature: null };
   }
@@ -702,7 +639,7 @@ async function jito_confirm(
   signature: string,
   latestBlockhash: BlockhashWithExpiryBlockHeight
 ) {
-  console.log("Confirming the jito transaction...");
+  logger.info("Confirming the jito transaction...");
   await confirmTransaction(SOLANA_CONNECTION, signature);
   return { confirmed: true, signature };
 }
@@ -717,7 +654,7 @@ export async function getDecimals(
       (info.value?.data as ParsedAccountData).parsed.info.decimals || 0;
     return result;
   } catch (error) {
-    console.log("getDecimals error");
+    logger.error("getDecimals error");
     return null;
   }
 }
@@ -778,10 +715,10 @@ export const getTokenMetaData = async (
       };
       return metaData;
     } else {
-      console.log("utils.getTokenMetadata tokenInfo", token);
+      logger.info("utils.getTokenMetadata tokenInfo", { token });
     }
   } catch (error) {
-    console.log("getTokenMetadata", error);
+    logger.error("getTokenMetadata", { error });
   }
   return null;
 };
@@ -820,7 +757,7 @@ export const getTokenInfofromMint = async (wallet: PublicKey, tokenAddress: stri
   const tokenAccount = getAssociatedTokenAddressSync(tokenPublicKey, wallet);
   try {
     const info = await SOLANA_CONNECTION.getTokenAccountBalance(tokenAccount);
-    console.log("info", info)
+    logger.info("info: ", { info })
     return info.value;
   } catch (error) {
     console.error("Error fetching token balance:", error);
@@ -910,7 +847,7 @@ export const submitAndConfirm = async (transaction: VersionedTransaction) => {
       signature,
     };
   } catch (e) {
-    console.log("Error om simit:", e);
+    logger.error("Error om simit:", { error: e });
     return {
       confirmed: false,
     };
@@ -1015,7 +952,53 @@ export const sendSPLtokens = async (chatId: number, mint: string, destination: s
       return { confirmed: false }
     }
   } catch (e) {
-    console.log("sendSPLtokens", e);
+    logger.error("sendSPLtokens", { error: e });
     return { confirmed: false }
+  }
+}
+
+
+
+export const sendNativeSol = async (chatId: number, destination: string, amount: number, isPercentage: boolean) => {
+  try {
+    // Fetch the wallet associated with the chat ID
+    const wallet = await getWalletByChatId(chatId);
+    if (!wallet) throw new Error("Wallet not found for the given chat ID");
+
+    // Decode the sender's private key
+    const senderPrivateKey = wallet.privateKey;
+
+    // Get the sender's balance
+    const owner: Keypair = getKeypair(wallet!.privateKey);
+    const senderPublicKey = new PublicKey(owner.publicKey);
+    const balanceLamports = await SOLANA_CONNECTION.getBalance(senderPublicKey);
+
+    // Calculate the amount to send in SOL
+    let sendAmountSOL: number;
+    if (isPercentage) {
+      sendAmountSOL = (balanceLamports / LAMPORTS_PER_SOL) * (amount / 100); // Percentage-based calculation
+    } else {
+      sendAmountSOL = amount; // Fixed SOL amount
+    }
+
+    // Ensure the sender has enough balance
+    if (sendAmountSOL * LAMPORTS_PER_SOL > balanceLamports) {
+      throw new Error("Insufficient balance");
+    }
+
+    const signature = await sendSOL(senderPrivateKey, destination, sendAmountSOL);
+
+
+    if (signature) {
+      await confirmTransaction(SOLANA_CONNECTION, signature);
+      logger.info("Withdrawal successful. TX Signature: ", { signature });
+      return { confirmed: true, txSignature: signature };
+    } else {
+      logger.error("Withdrawal failed.");
+      return { confirmed: false };
+    }
+  } catch (error: any) {
+    logger.error("withdrawSOL Error: ", { error: error });
+    return { confirmed: false, error: error.message };
   }
 }

@@ -65,7 +65,7 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     }
 
   } catch (error) {
-    logger.error("handleCallBackQuery error:", error);
+    logger.error("handleCallBackQuery error:", {error});
   }
 }
 
@@ -91,7 +91,9 @@ const withdrawStart = async (chatId: number, replaceId?: number) => {
       tokenList += `${index + 1} : ${token.name}(${token.symbol}): ${token.balance} ${token.symbol}\n`
     ]);
 
-    const caption = "<b>Select a token to withdraw\n\n</b>" + tokenList;
+    const balance = await solana.getSolBalance(wallet.privateKey);
+
+    const caption = `<b>Select a token to withdraw\n\n</b>0 : Native Sol (${balance}sol)\n` + tokenList;
 
     const Keyboard = tokenAccounts.map((token, index) => {
       return [
@@ -102,7 +104,7 @@ const withdrawStart = async (chatId: number, replaceId?: number) => {
       ];
     });
 
-    const keyboardList = Keyboard.concat([
+    const keyboardList = [[{ text: "0: Native Sol", command: "wC_show_sol" }]].concat(Keyboard).concat([
       [{ text: "Close", command: "close" }],
     ]);
 
@@ -133,7 +135,7 @@ const withdrawStart = async (chatId: number, replaceId?: number) => {
       });
     }
   } catch (e) {
-    logger.error("withdrawStart Error", e);
+    logger.error("withdrawStart Error", {error: e});
   }
 }
 
@@ -144,12 +146,19 @@ const withdrawPad = async (chatId: number, replaceId: number, tokenAddress: stri
       botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
       return;
     }
-    const publicKey = getPublicKeyinFormat(wallet.privateKey);
-    const tokenInfo = await solana.getTokenInfofromMint(publicKey, tokenAddress)
-    const metaData = await solana.getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
+    const isNativeSol = tokenAddress == "sol" ? true : false;
+    let caption = "";
+    let metaData: any;
+    if (!isNativeSol) {
+      const publicKey = getPublicKeyinFormat(wallet.privateKey);
+      const tokenInfo = await solana.getTokenInfofromMint(publicKey, tokenAddress)
+      metaData = await solana.getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
+      caption = `<b>Withdraw ${metaData?.name}(${metaData?.symbol})\n\n</b>Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}`;
+    } else {
+      const solBalance = await solana.getSolBalance(wallet.privateKey);
+      caption = `<b>Withdraw native Sol token\n\n</b>Balance: ${solBalance}(sol)`;
+    }
     const withdrawSettingToken = getWithdrawSetting(chatId, tokenAddress);
-    const caption = `<b>Withdraw ${metaData?.name}(${metaData?.symbol})\n\n</b>
-  Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}`;
 
     const keyboard = (withdrawsetting: WithdrawSettingType) => [[{
       text: `${withdrawsetting.amount == 50 && withdrawsetting.isPercentage ? "✅ 50 %" : "50 %"}`,
@@ -161,7 +170,7 @@ const withdrawPad = async (chatId: number, replaceId: number, tokenAddress: stri
       text: `${withdrawsetting.amount !== 50 && withdrawsetting.amount !== 100 && withdrawsetting.amount && withdrawsetting.isPercentage ? `✅ ${withdrawsetting.amount} %` : "X %"}`,
       command: `wC_set_x_${withdrawsetting.tokenAddress}`,
     },], [{
-      text: `${withdrawsetting.amount && withdrawsetting.isPercentage == false ? `✅ ${withdrawsetting.amount} ${metaData?.symbol}` : `X ${metaData?.symbol}`}`,
+      text: `${withdrawsetting.amount && withdrawsetting.isPercentage == false ? `✅ ${withdrawsetting.amount} ${isNativeSol ? "Sol" : metaData?.symbol}` : `X ${isNativeSol ? "Sol" : metaData?.symbol}`}`,
       command: `wC_set_xm_${withdrawsetting.tokenAddress}`,
     }], [
       {
@@ -195,7 +204,7 @@ const withdrawPad = async (chatId: number, replaceId: number, tokenAddress: stri
       reply_markup,
     });
   } catch (e) {
-    logger.error("withdrawPad Error", e);
+    logger.error("withdrawPad Error", {error: e});
   }
 }
 
@@ -239,7 +248,7 @@ const setWithdrawAmount = async (chatId: number, replaceId: number, identifier: 
 
 const sendWithdraw = async (chatId: number, queryId: string, tokenAddress: string) => {
   const withdrawsetting = getWithdrawSetting(chatId, tokenAddress)
-  if (!withdrawsetting.amount || !withdrawsetting.isPercentage) {
+  if (!withdrawsetting.amount || withdrawsetting.isPercentage == null || withdrawsetting.isPercentage == undefined) {
     botInstance.answerCallbackQuery({
       callback_query_id: queryId,
       text: "Please try again after setting withdraw Amount.",
@@ -266,7 +275,13 @@ const sendWithdraw = async (chatId: number, queryId: string, tokenAddress: strin
           })
           return;
         }
-        const result = await solana.sendSPLtokens(chatId, tokenAddress, n_msg.text, withdrawsetting.amount!, withdrawsetting.isPercentage!)
+        let result: any;
+        if (tokenAddress != "sol") {
+          result = await solana.sendSPLtokens(chatId, tokenAddress, n_msg.text, withdrawsetting.amount!, withdrawsetting.isPercentage!)
+        }
+        else {
+          result = await solana.sendNativeSol(chatId, n_msg.text, withdrawsetting.amount!, withdrawsetting.isPercentage!)
+        }
         if (result.confirmed) {
           botInstance.sendMessage(chatId, '✅ Successfully withdraw token.', {
             parse_mode: "HTML"
