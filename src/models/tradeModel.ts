@@ -2,7 +2,7 @@ import mongoose, { Schema, model, Document } from 'mongoose';
 import TelegramBot from 'node-telegram-bot-api';
 
 export interface ITrade extends Document {
-    chatId: number;
+    chatId: string;
     tokenAddress: string;
 }
 
@@ -24,7 +24,7 @@ export const createTrade = async (chatId: TelegramBot.ChatId, tokenAddress: stri
 
 export const getTradeByChatId = async (chatId: TelegramBot.ChatId) => {
     try {
-        return await Trade.findOne({ chatId: Number(chatId) }).sort({ _id: -1 });
+        return await Trade.findOne({ chatId }).sort({ _id: -1 });
     } catch (error) {
         return null;
     }

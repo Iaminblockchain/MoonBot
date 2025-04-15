@@ -24,12 +24,12 @@ export interface AutoBuySettings {
   stopLoss: number;
   repetitiveBuy: number;
 }
-export const autoBuySettings = new Map<number, AutoBuySettings>();
+export const autoBuySettings = new Map<string, AutoBuySettings>();
 
 /**
  * Prompts the user for auto-buy settings: buy amount and maximum slippage.
  */
-function promptBuyAmount(chatId: number) {
+function promptBuyAmount(chatId: string,) {
   botInstance
     .sendMessage(
       chatId,
@@ -197,7 +197,7 @@ function promptBuyAmount(chatId: number) {
  * Handles the /autobuy command (text-based).
  */
 export const onAutoBuyCommand = (msg: TelegramBot.Message) => {
-  promptBuyAmount(msg.chat.id);
+  promptBuyAmount(String(msg.chat.id));
 };
 
 /**
@@ -205,7 +205,7 @@ export const onAutoBuyCommand = (msg: TelegramBot.Message) => {
  */
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   if (query.data === "autoBuyController_start") {
-    const chatId = query.message?.chat.id;
+    const chatId = String(query.message?.chat.id);
     if (chatId) {
       botInstance.answerCallbackQuery(query.id);
       promptBuyAmount(chatId);
@@ -222,14 +222,14 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
  * triggers a purchase using the auto-buy settings.
  */
 export function checkAutoBuy(msg: TelegramBot.Message) {
-  const chatId = msg.chat.id;
+  const chatId = String(msg.chat.id);
   const text = msg.text || "";
   // Only process if text is a valid contract address.
   setAutotrade(chatId, text);
 }
 
 export const setAutotrade = async (
-  chatId: number,
+  chatId: string,
   contractAddress: string,
   trade?: ITrade
 ) => {
@@ -288,7 +288,7 @@ export const setAutotrade = async (
 /**
  * (Optional) Allow external modules to update auto-buy settings.
  */
-export function setAutoBuySettings(chatId: number, settings: AutoBuySettings) {
+export function setAutoBuySettings(chatId: string, settings: AutoBuySettings) {
   autoBuySettings.set(chatId, settings);
 }
 

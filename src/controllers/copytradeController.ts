@@ -14,7 +14,7 @@ export const setClient = (client: TelegramClient) => {
   tgClient = client;
 };
 
-const notifySuccess = async (chatId: number, message: string) => {
+const notifySuccess = async (chatId: string, message: string) => {
   const sent = await botInstance.sendMessage(chatId, `✅ ${message}`);
   setTimeout(() => {
     botInstance.deleteMessage(chatId, sent.message_id).catch(() => { });
@@ -27,52 +27,53 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   logger.info("copytrade: callbackData ", { callbackData: callbackData });
   if (!callbackData || !callbackMessage) return;
   try {
+    let chatid_string = String(callbackMessage.chat.id);
     if (callbackData == "ct_start") {
-      showPositionPad(callbackMessage.chat.id);
+      showPositionPad(chatid_string);
     } else if (callbackData == "ct_add_signal") {
       // botInstance.answerCallbackQuery({
       //   callback_query_id: query.id,
       //   text: "hello?",
       //   show_alert: false,
       // });
-      editcopytradesignal(callbackMessage.chat.id, callbackMessage.message_id);
+      editcopytradesignal(chatid_string, callbackMessage.message_id);
     } else if (callbackData.startsWith("ct_edit_")) {
       const data = callbackData.split("_");
-      editcopytradesignal(callbackMessage.chat.id, callbackMessage.message_id, data[2]);
+      editcopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
     } else if (callbackData.startsWith("ct_del_")) {
       const data = callbackData.split("_");
-      removecopytradesignal(callbackMessage.chat.id, callbackMessage.message_id, data[2]);
+      removecopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
     } else if (callbackData.startsWith("ct_tag_")) {
       const data = callbackData.split("_");
-      editTagcopytradesignal(callbackMessage.chat.id, callbackMessage.message_id, data[2]);
+      editTagcopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
     } else if (callbackData.startsWith("ct_sig_")) {
       const data = callbackData.split("_");
-      editSignalcopytradesignal(callbackMessage.chat.id, callbackMessage.message_id, data[2]);
+      editSignalcopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
     } else if (callbackData.startsWith("ct_buya_")) {
       const data = callbackData.split("_");
-      editBuyAmountcopytradesignal(callbackMessage.chat.id, callbackMessage.message_id, data[2]);
+      editBuyAmountcopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
     } else if (callbackData.startsWith("ct_sli_")) {
       const data = callbackData.split("_");
-      editSlippagecopytradesignal(callbackMessage.chat.id, callbackMessage.message_id, data[2]);
+      editSlippagecopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
     } else if (callbackData.startsWith("ct_rep_")) {
       const data = callbackData.split("_");
-      editreplicatecopytradesignal(callbackMessage.chat.id, callbackMessage.message_id, data[2]);
+      editreplicatecopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
     } else if (callbackData.startsWith("ct_stl_")) {
       const data = callbackData.split("_");
-      editStopLosscopytradesignal(callbackMessage.chat.id, callbackMessage.message_id, data[2]);
+      editStopLosscopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
     } else if (callbackData.startsWith("ct_tpr_")) {
       const data = callbackData.split("_");
-      editTakeProfitcopytradesignal(callbackMessage.chat.id, callbackMessage.message_id, data[2]);
+      editTakeProfitcopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
     } else if (callbackData.startsWith("ct_act_")) {
       const data = callbackData.split("_");
-      editActivitycopytradesignal(callbackMessage.chat.id, callbackMessage.message_id, data[2]);
+      editActivitycopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
     } else if (callbackData == "ct_back") {
-      showPositionPad(callbackMessage.chat.id, callbackMessage.message_id);
+      showPositionPad(chatid_string, callbackMessage.message_id);
     }
   } catch (error) { }
 };
 
-const showPositionPad = async (chatId: number, replaceId?: number) => {
+const showPositionPad = async (chatId: string, replaceId?: number) => {
   const signals = await copytradedb.getTradeByChatId(chatId);
   const wallet = await walletdb.getWalletByChatId(chatId);
   if (!wallet) return;
@@ -81,7 +82,7 @@ This function allows you to monitor any public group or channel on telegram and 
 You can also customize the buy amount, take profit, stop loss and more for every channel you follow.
 🟢 Indicates a copy trade setup is active.
 🔴 Indicates a copy trade setup is paused.`;
-  const signalKeyboard = signals.map((value, index) => {
+  const signalKeyboard = signals.map((value: copytradedb.ITrade, index: number) => {
     return [
       {
         text: ` ${value.active ? "🟢" : "🔴"} Signal ${index + 1} : ${value.tag}`,
@@ -95,7 +96,7 @@ You can also customize the buy amount, take profit, stop loss and more for every
   ]);
 
   const reply_markup = {
-    inline_keyboard: keyboardList.map((rowItem) =>
+    inline_keyboard: keyboardList.map((rowItem: { text: string; command: string }[]) =>
       rowItem.map((item) => {
         return {
           text: item.text,
@@ -123,7 +124,7 @@ You can also customize the buy amount, take profit, stop loss and more for every
 };
 
 const editcopytradesignal = async (
-  chatId: number,
+  chatId: string,
   replaceId: number,
   dbId?: string,
 ) => {
@@ -173,12 +174,12 @@ To manage your Copy Trade:
   });
 };
 
-const removecopytradesignal = async (chatId: number, replaceId: number, dbId: string) => {
+const removecopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
   const signals = await copytradedb.removeTrade(new mongoose.Types.ObjectId(dbId));
   showPositionPad(chatId, replaceId);
 };
 
-const editTagcopytradesignal = async (chatId: number, replaceId: number, dbId: string) => {
+const editTagcopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
   const caption = `<b>Please type Your signal Tag name</b>\n\n`;
   const reply_markup = {
     force_reply: true,
@@ -200,7 +201,7 @@ const editTagcopytradesignal = async (chatId: number, replaceId: number, dbId: s
 
 }
 
-const editSignalcopytradesignal = async (chatId: number, replaceId: number, dbId: string) => {
+const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
   const caption = `<b>Please type your signal like "@solsignal" or "https://t.me/solsignal"</b>\n\n`;
   const reply_markup = {
     force_reply: true,
@@ -233,7 +234,7 @@ const editSignalcopytradesignal = async (chatId: number, replaceId: number, dbId
   });
 }
 
-const editBuyAmountcopytradesignal = async (chatId: number, replaceId: number, dbId: string) => {
+const editBuyAmountcopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
   const caption = `<b>Please type sol amount to buy token</b>\n\n`;
   const reply_markup = {
     force_reply: true,
@@ -253,7 +254,7 @@ const editBuyAmountcopytradesignal = async (chatId: number, replaceId: number, d
   });
 }
 
-const editSlippagecopytradesignal = async (chatId: number, replaceId: number, dbId: string) => {
+const editSlippagecopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
   const caption = `<b>Please type your max slippage for swap</b>\n\n`;
   const reply_markup = {
     force_reply: true,
@@ -273,7 +274,7 @@ const editSlippagecopytradesignal = async (chatId: number, replaceId: number, db
   });
 }
 
-const editreplicatecopytradesignal = async (chatId: number, replaceId: number, dbId: string) => {
+const editreplicatecopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
   const caption = `<b>Please type number of repetitive bought</b>\n\n`;
   const reply_markup = {
     force_reply: true,
@@ -293,7 +294,7 @@ const editreplicatecopytradesignal = async (chatId: number, replaceId: number, d
   });
 }
 
-const editStopLosscopytradesignal = async (chatId: number, replaceId: number, dbId: string) => {
+const editStopLosscopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
   const caption = `<b>Please type stop loss percentage</b>\n\n`;
   const reply_markup = {
     force_reply: true,
@@ -313,7 +314,7 @@ const editStopLosscopytradesignal = async (chatId: number, replaceId: number, db
   });
 }
 
-const editTakeProfitcopytradesignal = async (chatId: number, replaceId: number, dbId: string) => {
+const editTakeProfitcopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
   const caption = `<b>Please type take profit percentage</b>\n\n`;
   const reply_markup = {
     force_reply: true,
@@ -333,7 +334,7 @@ const editTakeProfitcopytradesignal = async (chatId: number, replaceId: number, 
   });
 }
 
-const editActivitycopytradesignal = async (chatId: number, replaceId: number, dbId: string) => {
+const editActivitycopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
 
   await copytradedb.findAndUpdateOne({ _id: new mongoose.Types.ObjectId(dbId) }, [
     { $set: { active: { $not: "$active" } } },

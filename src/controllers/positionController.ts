@@ -11,23 +11,24 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     try {
         const { data: callbackData, message: callbackMessage } = query;
         if (!callbackData || !callbackMessage) return;
+        let callback_str = String(callbackMessage.chat.id);
         if (callbackData == "pC_start") {
-            showPositionStart(callbackMessage.chat.id);
+            showPositionStart(callback_str);
         } else if (callbackData.startsWith("pC_show_")) {
             const token = callbackData.split('_');
-            positionPad(callbackMessage.chat.id, callbackMessage.message_id, token[2]);
+            positionPad(callback_str, callbackMessage.message_id, token[2]);
         } else if (callbackData.startsWith("pC_sell_")) {
             const token = callbackData.split('_');
-            sellPosition(callbackMessage.chat.id, callbackMessage.message_id, token[2], token[3]);
+            sellPosition(callback_str, callbackMessage.message_id, token[2], token[3]);
         } else if (callbackData == "pC_back") {
-            showPositionStart(callbackMessage.chat.id, callbackMessage.message_id);
+            showPositionStart(callback_str, callbackMessage.message_id);
         }
     } catch (error) {
 
     }
 }
 
-const showPositionStart = async (chatId: number, replaceId?: number) => {
+const showPositionStart = async (chatId: string, replaceId?: number) => {
     try {
         const wallet = await getWalletByChatId(chatId);
         if (!wallet) {
@@ -95,7 +96,7 @@ const showPositionStart = async (chatId: number, replaceId?: number) => {
     }
 }
 
-const positionPad = async (chatId: number, replaceId: number, tokenAddress: string) => {
+const positionPad = async (chatId: string, replaceId: number, tokenAddress: string) => {
     try {
         const wallet = await getWalletByChatId(chatId);
         if (!wallet) {
@@ -152,7 +153,7 @@ const positionPad = async (chatId: number, replaceId: number, tokenAddress: stri
     }
 }
 
-const sellPosition = async (chatId: number, replaceId: number, amount: string, tokenAddress: string) => {
+const sellPosition = async (chatId: string, replaceId: number, amount: string, tokenAddress: string) => {
     try {
         const wallet = await getWalletByChatId(chatId);
         if (!wallet) {
@@ -163,8 +164,8 @@ const sellPosition = async (chatId: number, replaceId: number, amount: string, t
         const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress)
         if (!tokenInfo) {
             logger.error("No Token Balance Error");
-            logger.info("Wallet Address", {publicKey: publicKey.toBase58()});
-            logger.info("Token Address", {tokenAddress: tokenAddress});
+            logger.info("Wallet Address", { publicKey: publicKey.toBase58() });
+            logger.info("Token Address", { tokenAddress: tokenAddress });
             return;
         }
         const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);

@@ -12,9 +12,9 @@ type WithdrawSettingType = {
   tokenAddress?: string;
 }
 
-export const withdrawSetting = new Map<number, WithdrawSettingType[]>();
+export const withdrawSetting = new Map<string, WithdrawSettingType[]>();
 
-const getWithdrawSetting = (chatId: number, tokenAddress: string) => {
+const getWithdrawSetting = (chatId: string, tokenAddress: string) => {
   const rest = withdrawSetting.get(chatId);
   if (rest) {
     const tokenSetting = rest.find(setting => setting.tokenAddress === tokenAddress);
@@ -30,7 +30,7 @@ const getWithdrawSetting = (chatId: number, tokenAddress: string) => {
   }
 }
 
-const setWithdarwSettingAmount = (chatId: number, tokenAddress: string, amount: number, isPercentage: boolean) => {
+const setWithdarwSettingAmount = (chatId: string, tokenAddress: string, amount: number, isPercentage: boolean) => {
   const rest = withdrawSetting.get(chatId);
   if (rest) {
     const tokenSetting = rest.find(setting => setting.tokenAddress === tokenAddress);
@@ -50,26 +50,26 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     const { data: callbackData, message: callbackMessage } = query;
     if (!callbackData || !callbackMessage) return;
     if (callbackData == "wC_start") {
-      withdrawStart(callbackMessage.chat.id);
+      withdrawStart(String(callbackMessage.chat.id));
     } else if (callbackData.startsWith("wC_show_")) {
       const token = callbackData.split('_');
-      withdrawPad(callbackMessage.chat.id, callbackMessage.message_id, token[2]);
+      withdrawPad(String(callbackMessage.chat.id), callbackMessage.message_id, token[2]);
     } else if (callbackData.startsWith("wC_set_")) {
       const setting = callbackData.split('_');
-      setWithdrawAmount(callbackMessage.chat.id, callbackMessage.message_id, setting[2], setting[3]);
+      setWithdrawAmount(String(callbackMessage.chat.id), callbackMessage.message_id, setting[2], setting[3]);
     } else if (callbackData.startsWith("wC_withdraw_")) {
       const token = callbackData.split('_');
-      sendWithdraw(callbackMessage.chat.id, query.id, token[2])
+      sendWithdraw(String(callbackMessage.chat.id), query.id, token[2])
     } else if (callbackData == "wC_back") {
-      withdrawStart(callbackMessage.chat.id, callbackMessage.message_id);
+      withdrawStart(String(callbackMessage.chat.id), callbackMessage.message_id);
     }
 
   } catch (error) {
-    logger.error("handleCallBackQuery error:", {error});
+    logger.error("handleCallBackQuery error:", { error });
   }
 }
 
-const withdrawStart = async (chatId: number, replaceId?: number) => {
+const withdrawStart = async (chatId: string, replaceId?: number) => {
   try {
     const wallet = await walletdb.getWalletByChatId(chatId);
     if (!wallet) {
@@ -135,11 +135,11 @@ const withdrawStart = async (chatId: number, replaceId?: number) => {
       });
     }
   } catch (e) {
-    logger.error("withdrawStart Error", {error: e});
+    logger.error("withdrawStart Error", { error: e });
   }
 }
 
-const withdrawPad = async (chatId: number, replaceId: number, tokenAddress: string) => {
+const withdrawPad = async (chatId: string, replaceId: number, tokenAddress: string) => {
   try {
     const wallet = await walletdb.getWalletByChatId(chatId);
     if (!wallet) {
@@ -204,11 +204,11 @@ const withdrawPad = async (chatId: number, replaceId: number, tokenAddress: stri
       reply_markup,
     });
   } catch (e) {
-    logger.error("withdrawPad Error", {error: e});
+    logger.error("withdrawPad Error", { error: e });
   }
 }
 
-const setWithdrawAmount = async (chatId: number, replaceId: number, identifier: string, tokenAddress: string) => {
+const setWithdrawAmount = async (chatId: string, replaceId: number, identifier: string, tokenAddress: string) => {
   if (identifier == "50") {
     setWithdarwSettingAmount(chatId, tokenAddress, 50, true)
     withdrawPad(chatId, replaceId, tokenAddress);
@@ -246,7 +246,7 @@ const setWithdrawAmount = async (chatId: number, replaceId: number, identifier: 
   });
 }
 
-const sendWithdraw = async (chatId: number, queryId: string, tokenAddress: string) => {
+const sendWithdraw = async (chatId: string, queryId: string, tokenAddress: string) => {
   const withdrawsetting = getWithdrawSetting(chatId, tokenAddress)
   if (!withdrawsetting.amount || withdrawsetting.isPercentage == null || withdrawsetting.isPercentage == undefined) {
     botInstance.answerCallbackQuery({

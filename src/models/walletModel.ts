@@ -2,7 +2,7 @@ import mongoose, { Schema, model, Document } from 'mongoose';
 import TelegramBot from 'node-telegram-bot-api';
 
 export interface IWallet extends Document {
-    chatId: number;
+    chatId: string;
     privateKey: string;
 }
 
@@ -15,17 +15,17 @@ export const Wallet = model<IWallet>('Wallet', WalletSchema);
 
 export const getWalletByChatId = async (chatId: TelegramBot.ChatId) => {
     try {
-        return await Wallet.findOne({ chatId: Number(chatId) })
+        return await Wallet.findOne({ chatId });
     } catch (error) {
         return null;
     }
-}
+};
 
-export const createWallet = async (chatId: TelegramBot.ChatId, privateKey: string) => {  
+export const createWallet = async (chatId: TelegramBot.ChatId, privateKey: string) => {
     try {
-        const wallet = new Wallet( { chatId, privateKey } );
+        const wallet = new Wallet({ chatId, privateKey });
         await wallet.save();
     } catch (error) {
-        
+
     }
 }

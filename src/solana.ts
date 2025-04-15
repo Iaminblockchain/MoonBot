@@ -902,7 +902,7 @@ const confirmTransaction = async (
   throw new Error(`Transaction confirmation timeout after ${timeout}ms`);
 };
 
-export const sendSPLtokens = async (chatId: number, mint: string, destination: string, amount: number, isPercentage: boolean) => {
+export const sendSPLtokens = async (chatId: string, mint: string, destination: string, amount: number, isPercentage: boolean) => {
   try {
     const wallet = await getWalletByChatId(chatId);
     const owner: Keypair = getKeypair(wallet!.privateKey);
@@ -959,7 +959,7 @@ export const sendSPLtokens = async (chatId: number, mint: string, destination: s
 
 
 
-export const sendNativeSol = async (chatId: number, destination: string, amount: number, isPercentage: boolean) => {
+export const sendNativeSol = async (chatId: string, destination: string, amount: number, isPercentage: boolean) => {
   try {
     // Fetch the wallet associated with the chat ID
     const wallet = await getWalletByChatId(chatId);

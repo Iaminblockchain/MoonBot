@@ -170,7 +170,7 @@ const AddBuynumber = (chatId: string, contractAddress: string) => {
 }
 
 export const autoBuyContract = async (
-  chatId: number,
+  chatId: string,
   settings: { amount: number; isPercentage: boolean; maxSlippage: number, takeProfit: number, repetitiveBuy: number, stopLoss: number },
   contractAddress: string,
   tradeSignal?: string
@@ -203,7 +203,7 @@ export const autoBuyContract = async (
     const splprice = await getPrice(contractAddress);
     // TODO: Update SPL Price
     botInstance.sendMessage(chatId, `Auto-sell Registered: ${contractAddress}, Current Price: ${splprice}, TakeProfit Price: ${(splprice * (100 + settings.takeProfit) / 100)}(${settings.takeProfit}%), StopLoss Price: ${splprice * (100 - settings.stopLoss) / 100}(${settings.stopLoss}%)`);
-    setTradeState(chatId, contractAddress, splprice , splprice * (100 + settings.takeProfit) / 100, splprice * (100 - settings.stopLoss) / 100);
+    setTradeState(chatId, contractAddress, splprice, splprice * (100 + settings.takeProfit) / 100, splprice * (100 - settings.stopLoss) / 100);
     AddBuynumber(chatId.toString(), contractAddress);
   } else {
     botInstance.sendMessage(chatId, "Auto-buy failed.");

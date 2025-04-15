@@ -2,7 +2,7 @@ import mongoose, { Schema, model, Document } from "mongoose";
 import TelegramBot from "node-telegram-bot-api";
 
 export interface ITrade extends Document {
-  chatId: number;
+  chatId: string;
   tag: string | null;
   signal: string;
   amount: string;
@@ -78,7 +78,7 @@ export const findTrade = async (props: any) => {
 
 export const getTradeByChatId = async (chatId: TelegramBot.ChatId) => {
   try {
-    let copytrade = await Trade.find({ chatId: Number(chatId) });
+    const copytrade = await Trade.find({ chatId });
     return copytrade;
   } catch (error) {
     console.log("Error", error);
@@ -100,7 +100,7 @@ export const getChatIdByChannel = async (sig: string) => {
 
 export const getAllActiveChannels = async () => {
   try {
-    const tradesWithSignal = await Trade.find({active: true});
+    const tradesWithSignal = await Trade.find({ active: true });
     const signals = tradesWithSignal.map((trade) => trade.signal);
     return signals;
   } catch (error) {
@@ -114,7 +114,7 @@ export const extractAddress = (input: string) => {
     return input.substring(input.lastIndexOf("/") + 1);
   } else if (input.startsWith("@")) {
     return input.substring(1);
-  } else if (input.endsWith("%")){
+  } else if (input.endsWith("%")) {
     return input.slice(0, -1);
   }
   return input;
