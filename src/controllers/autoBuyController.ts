@@ -205,8 +205,9 @@ export const onAutoBuyCommand = (msg: TelegramBot.Message) => {
  */
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   if (query.data === "autoBuyController_start") {
-    const chatId = String(query.message?.chat.id);
-    if (chatId) {
+    const rawChatId = query.message?.chat?.id;
+    if (rawChatId !== undefined) {
+      const chatId = String(rawChatId);
       botInstance.answerCallbackQuery(query.id);
       promptBuyAmount(chatId);
     }
@@ -224,7 +225,6 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
 export function checkAutoBuy(msg: TelegramBot.Message) {
   const chatId = String(msg.chat.id);
   const text = msg.text || "";
-  // Only process if text is a valid contract address.
   setAutotrade(chatId, text);
 }
 
@@ -233,7 +233,7 @@ export const setAutotrade = async (
   contractAddress: string,
   trade?: ITrade
 ) => {
-  logger.info("setAutotrade");
+  logger.info(`setAutotrade ${chatId} ${contractAddress} ${trade}`);
 
   if (!isValidAddress(contractAddress)) {
     logger.error("invalid contractAddress", { contractAddress });

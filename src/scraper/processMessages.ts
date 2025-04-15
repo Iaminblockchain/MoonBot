@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getTokenPrice } from "../getPrice";
 import { onSignal } from '../controllers/copytradeController';
 import { Api } from "telegram";
+import { convertChatIdToMTProto } from "../scraper/manageGroups"
 
 // Regex for contract addresses
 const PUMP_FUN_CA_REGEX = /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g;
@@ -110,16 +111,19 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
             return;
         }
 
-        //not using event.message.senderId;
+        //not using event.message.senderId;        
         const chatid = event.message.chatId;
+        logger.info(`prev chatid: ${chatid}`)
         if (!chatid) return;
 
         let chat_id_str = String(chatid);
 
-        //not needed
-        // if (chat_id_str.startsWith("-100")) {
-        //     chat_id_str = chat_id_str.slice(4);
-        // }
+        if (!chatid || !event.client) return;
+
+        //convert id
+        chat_id_str = convertChatIdToMTProto(chat_id_str);
+
+        logger.info(`chat_id_str ${chat_id_str}`);
 
         // Query database for the chat username info
         const chatDoc = await Chat.findOne({ chat_id: chat_id_str });
@@ -127,7 +131,7 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
         const chat_username = chatDoc?.username || "N/A";
 
         // Log message info
-        logger.debug("Incoming message", {
+        logger.info("Incoming message", {
             messageText: messageText,
             chatId: chat_id_str,
             chat_username: chat_username

@@ -20,7 +20,8 @@ export let botInstance: any;
 export const enum STATE {
     INPUT_TOKEN,
     INPUT_BUY_AMOUNT,
-    INPUT_PRIVATE_KEY
+    INPUT_PRIVATE_KEY,
+    INPUT_COPYTRADE
 };
 
 export type TRADE = {
@@ -99,10 +100,11 @@ export const init = (client: TelegramClient) => {
         const chatId = msg.chat.id;
         const messageId = msg.message_id;
         const messageText = msg.text;
-        logger.info(`TGbot: message: ${messageText} ${chatId}`, { messageText, chatId });
+        logger.info(`TGbot: message: ${messageText} chatid ${chatId}`, { messageText, chatId });
 
         if (msg.text !== undefined && !msg.text.startsWith('/')) {
             const currentState = getState(chatId.toString());
+            logger.info(`currentState ${currentState}`)
             if (currentState) {
                 if (currentState.state == STATE.INPUT_TOKEN) {
                     removeState(chatId);
@@ -175,9 +177,12 @@ export const runAutoSellSchedule = () => {
 
 const closeMessage = (query: TelegramBot.CallbackQuery) => {
     const { chatId, messageId } = getChatIdandMessageId(query);
-    botInstance.deleteMessage(chatId!, messageId!);
-};
+    if (!chatId || !messageId) return;
 
+    botInstance.deleteMessage(chatId, messageId).catch((error: any) => {
+        logger.warn(`Failed to delete message ${messageId} in chat ${chatId}: ${error.message}`);
+    });
+};
 export const getChatIdandMessageId = (query: TelegramBot.CallbackQuery) => {
     const chatId = query.message?.chat.id;
     const messageId = query.message?.message_id;

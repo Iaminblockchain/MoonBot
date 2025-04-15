@@ -122,3 +122,20 @@ export async function joinChannelsDB(client: TelegramClient): Promise<void> {
         logger.error(`Failed to join predefined channels: ${error}`);
     }
 }
+
+export function convertChatIdToMTProto(chat_id_str: string): string {
+    //convert id, more info https://core.telegram.org/api/bots/ids
+    let chat_id_num = BigInt(chat_id_str);
+
+    if (chat_id_num >= BigInt("-2002147483648") && chat_id_num <= BigInt("-1997852516353")) {
+        // Secret chat
+        chat_id_num = chat_id_num - BigInt("2000000000000");
+    } else if (chat_id_num >= BigInt("-1997852516352") && chat_id_num <= BigInt("-1000000000001")) {
+        // Supergroup/channel
+        chat_id_num = -chat_id_num - BigInt("1000000000000");
+    } else if (chat_id_num >= BigInt("-999999999999") && chat_id_num <= BigInt("-1")) {
+        // Basic group
+        chat_id_num = -chat_id_num;
+    }
+    return chat_id_num.toString();
+}

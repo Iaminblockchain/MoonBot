@@ -5,6 +5,7 @@ export interface ITrade extends Document {
   chatId: string;
   tag: string | null;
   signal: string;
+  signalChatId: string;
   amount: string;
   maxSlippage: number;
   tp: number;
@@ -14,9 +15,10 @@ export interface ITrade extends Document {
 }
 
 const TradeSchema: Schema = new Schema({
-  chatId: { type: Number, required: true },
+  chatId: { type: String, required: true },
   tag: { type: String, default: "", nullable: true },
   signal: { type: String, default: "" },
+  signalChatId: { type: String, default: null, nullable: true },
   amount: { type: Number, default: 0 },
   maxSlippage: { type: Number, default: 5 },
   tp: { type: Number, default: 0 },

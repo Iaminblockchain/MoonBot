@@ -1,12 +1,13 @@
 import TelegramBot from "node-telegram-bot-api";
 import * as walletdb from "../models/walletModel";
 import * as copytradedb from "../models/copyTradeModel";
-import { botInstance } from "../bot";
+import { botInstance, setState, STATE, removeState } from "../bot";
 import { TelegramClient } from "telegram";
 import { setAutotrade } from "./autoBuyController";
 import mongoose from "mongoose";
 import { logger } from "../util";
 import { Trade } from '../models/copyTradeModel';
+import { Chat } from "../models/chatModel";
 
 let tgClient: TelegramClient | null = null;
 
@@ -18,8 +19,15 @@ const notifySuccess = async (chatId: string, message: string) => {
   const sent = await botInstance.sendMessage(chatId, `✅ ${message}`);
   setTimeout(() => {
     botInstance.deleteMessage(chatId, sent.message_id).catch(() => { });
-  }, 3000);
+  }, 2000);
 }
+
+const notifyError = async (chatId: string, message: string) => {
+  const sent = await botInstance.sendMessage(chatId, `❌ ${message}`);
+  setTimeout(() => {
+    botInstance.deleteMessage(chatId, sent.message_id).catch(() => { });
+  }, 2000);
+};
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   logger.info("copytrade: handleCallBackQuery ", { query: query });
@@ -148,6 +156,8 @@ To manage your Copy Trade:
     logger.info(trade);
   } else {
     logger.info("no db id");
+
+    //find chat with 
     trade = await copytradedb.addTrade(chatId);
   }
   if (!trade) {
@@ -188,11 +198,14 @@ const editTagcopytradesignal = async (chatId: string, replaceId: number, dbId: s
     parse_mode: "HTML",
     reply_markup,
   });
+  //setState(chatId, STATE.INPUT_COPYTRADE);
+
   botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
     botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
     botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
 
     if (n_msg.text) {
+      //TODO  recheck      
       await copytradedb.updateTrade({ id: new mongoose.Types.ObjectId(dbId), tag: n_msg.text })
       editcopytradesignal(chatId, replaceId, dbId);
       await notifySuccess(chatId, "Tag updated");
@@ -206,6 +219,7 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
   const reply_markup = {
     force_reply: true,
   };
+  setState(chatId, STATE.INPUT_COPYTRADE);
   const new_msg = await botInstance.sendMessage(chatId, caption, {
     parse_mode: "HTML",
     reply_markup,
@@ -216,19 +230,30 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
     botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
 
     if (n_msg.text) {
-      let addr = copytradedb.extractAddress(n_msg.text);
-      logger.info("addr ", { addr: addr });
-      await copytradedb.updateTrade({ id: new mongoose.Types.ObjectId(dbId), signal: addr })
-      logger.info("editcopytradesignal. chatid " + chatId);
-      editcopytradesignal(chatId, replaceId, dbId);
-      await notifySuccess(chatId, "Group updated");
 
-      //TODO check if we know this group
-      // const joined = await checkJoined(client, "@solsignal");
-      // if (!joined) {
-      //join the group
-      //   await joinChannelByName(client, "@solsignal");
-      // }
+      let signalChat = n_msg.text;
+      setState(chatId, STATE.INPUT_COPYTRADE);
+      logger.info(`copytrade: signalChat ${signalChat}`, { target_group: signalChat });
+      try {
+        const chatDoc = await Chat.findOne({ username: signalChat });
+        const chatCount = await Chat.countDocuments();
+        if (chatDoc == null) {
+          //TODO
+          //try and join and add to DB          
+          logger.info(`chat not found. signalChat ${signalChat} ${chatCount}`);
+          //notify error
+          await notifyError(chatId, "Chat not found");
+        } else {
+          const signalChatId = chatDoc.chat_id;
+          logger.info("editcopytradesignal. chatid " + chatId + " signalChatId " + signalChatId);
+          await copytradedb.updateTrade({ id: new mongoose.Types.ObjectId(dbId), signal: signalChat, signalChatId: signalChatId })
+          editcopytradesignal(chatId, replaceId, dbId);
+          await notifySuccess(chatId, "Group updated");
+          removeState(chatId);
+        }
+      } catch (error) {
+        logger.error(error);
+      }
 
     }
   });
@@ -399,17 +424,21 @@ export const getAllTrades = async () => {
 };
 
 
-export const onSignal = async (chat: string, address: string) => {
-  logger.debug("copytrade: onSignal ", { chat: chat, address: address });
+export const onSignal = async (chat_id: string, address: string) => {
+  logger.info(`copytrade: onSignal chat ${chat_id}`, { chat: chat_id, address: address });
 
   // get the users signals
   const allTrades = await getAllTrades();
-  logger.debug(allTrades);
+  logger.info(allTrades);
+
+  const activeTrades = allTrades
+    .filter(trade => trade.active);
+  logger.info(`total active signals: ${activeTrades.length}`);
 
   // find the matching active signals
   const matchingTrades = allTrades
-    .filter(trade => String(trade.chatId) === chat && trade.active);
-  logger.info("copytrade: matching signals ", { matchingTrades: matchingTrades.length });
+    .filter(trade => String(trade.signalChatId) === chat_id && trade.active);
+  logger.info(`copytrade: matching signals ${matchingTrades.length}  all signals in DB ${allTrades.length}`, { matchingTrades: matchingTrades.length });
 
   // trigger auto trade copytrade onSignal
   matchingTrades.forEach(trade => {
