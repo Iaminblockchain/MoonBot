@@ -1,5 +1,5 @@
 import TelegramBot from "node-telegram-bot-api";
-import { botInstance } from "../bot";
+import { botInstance, closeMessage } from "../bot";
 import { isValidAddress } from "../solana";
 import * as buyController from "./buyController";
 import {
@@ -205,11 +205,45 @@ export const onAutoBuyCommand = (msg: TelegramBot.Message) => {
  */
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   if (query.data === "autoBuyController_start") {
+
     const rawChatId = query.message?.chat?.id;
     if (rawChatId !== undefined) {
       const chatId = String(rawChatId);
       botInstance.answerCallbackQuery(query.id);
-      promptBuyAmount(chatId);
+      logger.info("autoBuySettings", { autoBuySettings: autoBuySettings.get(chatId) });
+      const settings = autoBuySettings.get(chatId);
+      if (!settings || !settings.enabled || !settings.amount || settings.maxSlippage === null || settings.takeProfit === undefined || settings.stopLoss === undefined || settings.repetitiveBuy < 1) {
+        promptBuyAmount(chatId);
+      } else {
+        botInstance.sendMessage(
+          chatId,
+          `🟢 Auto-buy is enabled with settings:\n`,
+          {
+            parse_mode: "HTML",
+            reply_markup: {
+              inline_keyboard: showCopyTradeKeyboard(settings).map((rowItem) =>
+                rowItem.map((item) => {
+                  return {
+                    text: item.text,
+                    callback_data: item.command,
+                  };
+                })
+              )
+            }
+          }
+        );
+      }
+    }
+  } else if (query.data === "autoBuyController_delete_settings") {
+    const rawChatId = query.message?.chat?.id;
+    if (rawChatId !== undefined) {
+      const chatId = String(rawChatId);
+      autoBuySettings.delete(chatId);
+      closeMessage(query);
+      botInstance.answerCallbackQuery(query.id, {
+        text: "Auto-buy settings deleted.",
+      });
+      botInstance.sendMessage(chatId, "Auto-buy settings deleted.");
     }
   } else {
     botInstance.answerCallbackQuery(query.id, {
@@ -256,12 +290,12 @@ export const setAutotrade = async (
   const active = trade.active;
   const maxSlippage = trade.maxSlippage;
 
-  logger.info("amount", amount);
-  logger.info("active", active);
-  logger.info("maxSlippage", maxSlippage);
+  logger.info("amount", {amount});
+  logger.info("active", {active});
+  logger.info("maxSlippage", {maxSlippage});
 
   const validsettings = active && amount && maxSlippage !== null;
-  logger.info("validsettings? ", validsettings);
+  logger.info("validsettings? ", {validsettings});
 
   if (validsettings) {
     logger.info("Auto-buy triggered", { contractAddress });
@@ -301,7 +335,7 @@ export const getPrice = async (mint: string) => {
     const price = res.data[mint].price;
     return Number(price);
   } catch (e) {
-    console.log("Get Price", e);
+    logger.error("Get Price Error: ", { error: e });
     return 0;
   }
 };
@@ -343,7 +377,12 @@ const showCopyTradeKeyboard = (params: AutoBuySettings) => {
     [{ text: `Take Profit : ${params.takeProfit}%`, command: `dismiss` }],
     [{ text: `Stop Loss : ${params.stopLoss}%`, command: `dismiss` }],
     [{ text: `Repetitive Buy : ${params.repetitiveBuy} times`, command: `dismiss` }],
-
+    [
+      {
+        text: `Delete settings`,
+        command: `autoBuyController_delete_settings`,
+      },
+    ],
     [
       {
         text: `Close`,

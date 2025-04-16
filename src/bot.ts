@@ -78,7 +78,7 @@ export const init = (client: TelegramClient) => {
     botInstance.getMe().then((botInfo: any) => {
         logger.info(`Bot name: ${botInfo.username}`);
     }).catch((error: any) => {
-        logger.error("Error getting bot info:", error);
+        logger.error("Error getting bot info:", { error });
     });
     botInstance.setMyCommands(
         [
@@ -157,7 +157,7 @@ export const init = (client: TelegramClient) => {
                 return;
             }
         } catch (error) {
-            logger.info(error);
+            logger.info({ error });
         }
     });
 };
@@ -175,7 +175,7 @@ export const runAutoSellSchedule = () => {
     }
 };
 
-const closeMessage = (query: TelegramBot.CallbackQuery) => {
+export const closeMessage = (query: TelegramBot.CallbackQuery) => {
     const { chatId, messageId } = getChatIdandMessageId(query);
     if (!chatId || !messageId) return;
 
@@ -213,12 +213,12 @@ export async function switchMenu(chatId: TelegramBot.ChatId, messageId: number |
         if (error.response?.body?.description?.includes('message is not modified')) {
             logger.info("Skipped edit: message content and markup are identical");
         } else {
-            logger.error("Error editing message", error);
+            logger.error("Error editing message", { error });
         }
     }
 }
 const onStartCommand = async (msg: TelegramBot.Message) => {
-    logger.info('user:', msg.chat.username);
+    logger.info('user:', { username: msg.chat.username });
     const { title, buttons } = await getTitleAndButtons(msg.chat.id);
     botInstance.sendMessage(msg.chat.id, title, {
         reply_markup: {
@@ -252,6 +252,7 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
         const publicKey = solana.getPublicKey(wallet.privateKey);
         walletInfo = `Address: <code>${publicKey}</code> \nBalance: ${balance} SOL`;
     }
+
     return {
         title: `<b>Welcome to MoonBot</b> \n\nThe first copy sniping telegram bot with one directive: buy low and sell high. \n\n${walletInfo}`,
         buttons: [
