@@ -50,7 +50,11 @@ export async function joinChannel(
     logger.error(`Max retry attempts reached or unrecoverable error for channel ${chatId}.`);
 }
 
-export async function joinChannelByName(client: TelegramClient, name: string, dialogs: Dialog[]): Promise<void> {
+export async function joinChannelByName(
+    client: TelegramClient,
+    name: string,
+    dialogs: Dialog[]
+): Promise<{ id: string | null; success: boolean }> {
     const channelName = name.replace("https://t.me/", "").replace("@", "").toLowerCase();
     logger.info("joinChannelByName " + channelName);
 
@@ -58,11 +62,10 @@ export async function joinChannelByName(client: TelegramClient, name: string, di
 
     if (!(entity instanceof Api.Channel)) {
         logger.warn(`⚠️ Skipping ${channelName}: not a channel (got ${entity.className})`);
-        return;
+        return { id: null, success: false };
     }
 
     const channelId = entity.id;
-
     const alreadyJoined = dialogs.some(dialog => {
         const dialogEntity = dialog.entity;
         return dialogEntity instanceof Api.Channel && dialogEntity.id.equals?.(channelId);
@@ -70,13 +73,12 @@ export async function joinChannelByName(client: TelegramClient, name: string, di
 
     if (alreadyJoined) {
         logger.info(`⚠️ Already joined: ${channelName} channelId ${channelId}`);
-        return;
+        return { id: channelId.toString(), success: true };
     }
-    const MAX_RETRIES = 3;
 
+    const MAX_RETRIES = 3;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-
             const result: any = await client.invoke(
                 new Api.channels.JoinChannel({ channel: entity })
             );
@@ -85,7 +87,7 @@ export async function joinChannelByName(client: TelegramClient, name: string, di
             if (!channel) throw new Error("Join failed: no channel returned");
 
             logger.info(`✅ Successfully joined channel: ${channel.title} (${channel.id})`);
-            return;
+            return { id: channel.id.toString(), success: true };
         } catch (e: any) {
             const floodMatch = e.message?.match(/wait of (\d+) seconds/);
 
@@ -101,6 +103,7 @@ export async function joinChannelByName(client: TelegramClient, name: string, di
     }
 
     logger.error(`❌ Max retry attempts reached or unrecoverable error for ${channelName}.`);
+    return { id: null, success: false };
 }
 
 export async function joinChannelsDB(client: TelegramClient): Promise<void> {

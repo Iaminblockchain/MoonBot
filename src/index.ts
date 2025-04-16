@@ -12,6 +12,7 @@ import { Chat } from "./models/chatModel";
 import { botInstance } from "./bot";
 import mongoose from "mongoose";
 import { TelegramClient } from "telegram";
+import { initJoinQueue, startJoinQueue } from './scraper/queue';
 
 dotenv.config();
 
@@ -26,6 +27,7 @@ export const TELEGRAM_API_ID = Number(retrieveEnvVariable("telegram_api_id"));
 export const TELEGRAM_API_HASH = retrieveEnvVariable("telegram_api_hash");
 export const TELEGRAM_STRING_SESSION = retrieveEnvVariable("telegram_string_session");
 export const FEE_COLLECTION_WALLET = retrieveEnvVariable("fee_collection_wallet");
+
 
 export const SOLANA_CONNECTION = new Connection(SOLANA_RPC_ENDPOINT, {
   wsEndpoint: SOLANA_WSS_ENDPOINT,
@@ -85,7 +87,6 @@ const initializeServices = async () => {
       process.exit(0);
     }
 
-
     return true;
   } catch (error) {
     console.error('Service initialization failed:', error);
@@ -112,6 +113,10 @@ const runServices = async () => {
 
     // check if we have joined the chats that are in DB
     await joinChannelsDB(client);
+
+    logger.info('start queue');
+    initJoinQueue(MONGO_URI);
+    await startJoinQueue();
 
     logger.info('Initializing scrape script...');
     await scrape(client);

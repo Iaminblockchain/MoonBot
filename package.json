@@ -37,6 +37,7 @@
     "@solana/spl-token": "^0.4.8",
     "@solana/web3.js": "^1.95.0",
     "@types/prompt-sync": "^4.2.3",
+    "agenda": "^5.0.0",
     "axios": "^1.7.2",
     "bs58": "^6.0.0",
     "cors": "^2.8.5",

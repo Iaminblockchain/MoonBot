@@ -8,14 +8,15 @@ import mongoose from "mongoose";
 import { logger } from "../util";
 import { Trade } from '../models/copyTradeModel';
 import { Chat } from "../models/chatModel";
-import { joinChannelByName } from "../scraper/manageGroups";
-import { dialogs } from "telegram/client";
+import { getQueue } from '../scraper/queue';
 
 let tgClient: TelegramClient | null = null;
 
 export const setClient = (client: TelegramClient) => {
   tgClient = client;
 };
+
+
 
 const notifySuccess = async (chatId: string, message: string) => {
   const sent = await botInstance.sendMessage(chatId, `✅ ${message}`);
@@ -247,8 +248,7 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
           try {
             logger.info(`chat not found. signalChat ${signalChat} ${chatCount}`);
             logger.info("join channel");
-            const dialogs = await tgClient.getDialogs({});
-            joinChannelByName(tgClient, signalChat, dialogs);
+            await getQueue().now('join-channel', { username: signalChat });
           } catch (error) {
             logger.error(`error ${error}`);
             await notifyError(chatId, "can not join chat");
