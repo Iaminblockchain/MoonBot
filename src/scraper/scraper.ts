@@ -6,18 +6,13 @@ import { NewMessage } from "telegram/events";
 import { TELEGRAM_STRING_SESSION, TELEGRAM_API_ID, TELEGRAM_API_HASH } from "../index";
 import { logger } from '../util';
 import { Chat } from "../models/chatModel";
-
 import { processMessages } from "./processMessages";
-import { tgClient } from "telegram/client";
 
 // Listen to channels in the DB
 async function listenChats(client: TelegramClient): Promise<void> {
   const all_chats = await Chat.find({}, 'chat_id');
 
   logger.info(`Fetched chats from DB`, { count: all_chats.length });
-
-  //TODO check if we have joined the channels
-  // for now assume we joined already
 
   const allChatIds = all_chats
     .map(chat => Number(chat.chat_id))

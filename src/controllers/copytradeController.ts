@@ -253,7 +253,6 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
             logger.error(`error ${error}`);
             await notifyError(chatId, "can not join chat");
           }
-          //TODO add to DB
 
         } else {
           const signalChatId = chatDoc.chat_id;

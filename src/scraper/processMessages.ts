@@ -93,7 +93,7 @@ export async function contractFound(
 
     //call copy trade
     logger.info("process: onSignal " + chat_id_str);
-    //TODO check join
+
     await onSignal(chat_id_str, contractAddress);
 
 }
@@ -131,7 +131,7 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
         const chat_username = chatDoc?.username || "N/A";
 
         // Log message info
-        logger.info("Incoming message", {
+        logger.info(`Incoming message ${chat_username}`, {
             messageText: messageText,
             chatId: chat_id_str,
             chat_username: chat_username

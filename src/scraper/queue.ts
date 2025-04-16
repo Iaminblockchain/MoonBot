@@ -3,6 +3,8 @@ import { getTgClient } from './scraper';
 import { joinChannelByName } from '../scraper/manageGroups';
 import { logger } from '../util';
 import { Chat } from '../models/chatModel';
+import { processMessages } from './processMessages';
+import { NewMessage } from 'telegram/events';
 
 let agendaInstance: Agenda | null = null;
 
@@ -23,7 +25,13 @@ export function initJoinQueue(mongoUri: string) {
                 { chat_id: id, username },
                 { upsert: true }
             );
-            logger.info(`📥 Chat ${username} saved to DB with id ${id}`);
+            logger.info(`Chat ${username} saved to DB with id ${id}`);
+
+            //listen to events from the chat
+            client.addEventHandler(
+                processMessages,
+                new NewMessage({ chats: [id] })
+            );
         } else {
             logger.warn(`⚠️ Failed to join or save chat: ${username}`);
         }
