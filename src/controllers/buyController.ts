@@ -177,37 +177,41 @@ export const autoBuyContract = async (
   contractAddress: string,
   tradeSignal?: string
 ) => {
-  const wallet = await walletdb.getWalletByChatId(chatId);
-  if (!wallet) {
-    botInstance.sendMessage(chatId, "Wallet not found. Please create or import a wallet first.");
-    return;
-  }
-  logger.info("run auto buy", { settings: settings, contractAddress: contractAddress, chatId: chatId });
-  let solAmount = settings.amount;
-  if (settings.isPercentage) {
-    const balance = await solana.getSolBalance(wallet.privateKey);
-    solAmount = (balance * settings.amount) / 100;
-  }
-  const buyNumber = getBuynumber(chatId.toString(), contractAddress);
-  if (buyNumber >= settings.repetitiveBuy) return;
+  try {
+    const wallet = await walletdb.getWalletByChatId(chatId);
+    if (!wallet) {
+      botInstance.sendMessage(chatId, "Wallet not found. Please create or import a wallet first.");
+      return;
+    }
+    logger.info("run auto buy", { settings: settings, contractAddress: contractAddress, chatId: chatId });
+    let solAmount = settings.amount;
+    if (settings.isPercentage) {
+      const balance = await solana.getSolBalance(wallet.privateKey);
+      solAmount = (balance * settings.amount) / 100;
+    }
+    const buyNumber = getBuynumber(chatId.toString(), contractAddress);
+    if (buyNumber >= settings.repetitiveBuy) return;
 
-  const metaData = await solana.getTokenMetaData(SOLANA_CONNECTION, contractAddress)
-  botInstance.sendMessage(
-    chatId,
-    `Auto-buy: Sending buy transaction for Token ${metaData?.name}(${metaData?.symbol}) : ${contractAddress} with ${solAmount} SOL ${tradeSignal ? `from signal @${tradeSignal} ` : ''}(Max Slippage: ${settings.maxSlippage}%)`
-  );
+    const metaData = await solana.getTokenMetaData(SOLANA_CONNECTION, contractAddress)
+    botInstance.sendMessage(
+      chatId,
+      `Auto-buy: Sending buy transaction for Token ${metaData?.name}(${metaData?.symbol}) : ${contractAddress} with ${solAmount} SOL ${tradeSignal ? `from signal @${tradeSignal} ` : ''}(Max Slippage: ${settings.maxSlippage}%)`
+    );
 
-  let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, contractAddress, solAmount * 10 ** 9, "ExactIn", false, settings.maxSlippage * 100)
+    let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, contractAddress, solAmount * 10 ** 9, "ExactIn", false, settings.maxSlippage * 100)
 
-  if (result.confirmed) {
-    let trx = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "";
-    botInstance.sendMessage(chatId, `Auto-buy successful: ${trx}`);
-    const splprice = await getPrice(contractAddress);
-    // TODO: Update SPL Price
-    botInstance.sendMessage(chatId, `Auto-sell Registered: ${contractAddress}, Current Price: ${splprice}, TakeProfit Price: ${(splprice * (100 + settings.takeProfit) / 100)}(${settings.takeProfit}%), StopLoss Price: ${splprice * (100 - settings.stopLoss) / 100}(${settings.stopLoss}%)`);
-    setTradeState(chatId, contractAddress, splprice, splprice * (100 + settings.takeProfit) / 100, splprice * (100 - settings.stopLoss) / 100);
-    AddBuynumber(chatId.toString(), contractAddress);
-  } else {
-    botInstance.sendMessage(chatId, "Auto-buy failed.");
+    if (result.confirmed) {
+      let trx = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "";
+      botInstance.sendMessage(chatId, `Auto-buy successful: ${trx}`);
+      const splprice = await getPrice(contractAddress);
+      // TODO: Update SPL Price
+      botInstance.sendMessage(chatId, `Auto-sell Registered: ${contractAddress}, Current Price: ${splprice}, TakeProfit Price: ${(splprice * (100 + settings.takeProfit) / 100)}(${settings.takeProfit}%), StopLoss Price: ${splprice * (100 - settings.stopLoss) / 100}(${settings.stopLoss}%)`);
+      setTradeState(chatId, contractAddress, splprice, splprice * (100 + settings.takeProfit) / 100, splprice * (100 - settings.stopLoss) / 100);
+      AddBuynumber(chatId.toString(), contractAddress);
+    } else {
+      botInstance.sendMessage(chatId, "Auto-buy failed.");
+    }
+  } catch (error) {
+    logger.error(`autobuy error ${error}`, { chatId, settings, contractAddress, tradeSignal });
   }
 };
