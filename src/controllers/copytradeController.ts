@@ -8,6 +8,8 @@ import mongoose from "mongoose";
 import { logger } from "../util";
 import { Trade } from '../models/copyTradeModel';
 import { Chat } from "../models/chatModel";
+import { joinChannelByName } from "../scraper/manageGroups";
+import { dialogs } from "telegram/client";
 
 let tgClient: TelegramClient | null = null;
 
@@ -238,11 +240,21 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
         const chatDoc = await Chat.findOne({ username: signalChat });
         const chatCount = await Chat.countDocuments();
         if (chatDoc == null) {
-          //TODO
-          //try and join and add to DB          
-          logger.info(`chat not found. signalChat ${signalChat} ${chatCount}`);
-          //notify error
-          await notifyError(chatId, "Chat not found");
+          if (!tgClient) {
+            logger.error("Telegram client not available");
+            return;
+          }
+          try {
+            logger.info(`chat not found. signalChat ${signalChat} ${chatCount}`);
+            logger.info("join channel");
+            const dialogs = await tgClient.getDialogs({});
+            joinChannelByName(tgClient, signalChat, dialogs);
+          } catch (error) {
+            logger.error(`error ${error}`);
+            await notifyError(chatId, "can not join chat");
+          }
+          //TODO add to DB
+
         } else {
           const signalChatId = chatDoc.chat_id;
           logger.info("editcopytradesignal. chatid " + chatId + " signalChatId " + signalChatId);

@@ -69,7 +69,7 @@ export async function joinChannelByName(client: TelegramClient, name: string, di
     });
 
     if (alreadyJoined) {
-        logger.info(`⚠️ Already joined: ${channelName}`);
+        logger.info(`⚠️ Already joined: ${channelName} channelId ${channelId}`);
         return;
     }
     const MAX_RETRIES = 3;
