@@ -104,7 +104,7 @@ export const init = (client: TelegramClient) => {
 
         if (msg.text !== undefined && !msg.text.startsWith('/')) {
             const currentState = getState(chatId.toString());
-            logger.info(`currentState ${currentState}`)
+            logger.info(`currentState ${currentState.state}`)
             if (currentState) {
                 if (currentState.state == STATE.INPUT_TOKEN) {
                     removeState(chatId);
@@ -114,6 +114,8 @@ export const init = (client: TelegramClient) => {
                     buyController.buyXAmount(msg);
                 } else if (currentState.state == STATE.INPUT_PRIVATE_KEY) {
                     walletController.handlePrivateKey(msg);
+                } else if (currentState.state == STATE.INPUT_COPYTRADE) {
+                    copytradeController.handleInput(msg, currentState.data);
                 }
             } else {
                 // No active state: check if auto-buy is enabled and the message is a contract address.

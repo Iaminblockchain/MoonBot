@@ -258,67 +258,82 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
  */
 export function checkAutoBuy(msg: TelegramBot.Message) {
   const chatId = String(msg.chat.id);
-  const text = msg.text || "";
-  setAutotrade(chatId, text);
+  const contractAddress = msg.text || "";
+  const settings = autoBuySettings.get(chatId) as AutoBuySettings | undefined;
+
+  if (settings) {
+    triggerAutoBuy(chatId, contractAddress, settings);
+  }
 }
 
-export const setAutotrade = async (
+export const setAutotradeSignal = async (
   chatId: string,
   contractAddress: string,
   trade?: ITrade
 ) => {
-  logger.info(`setAutotrade ${chatId} ${contractAddress} ${trade}`);
-
-  if (!isValidAddress(contractAddress)) {
-    logger.error("invalid contractAddress", { contractAddress });
+  if (!isValidAddress(contractAddress) || !trade) {
+    logger.error("Invalid contract address or missing trade", { contractAddress, trade });
     return;
   }
 
-  logger.debug("chatId ", { chatId });
+  // TODO: make this dynamic
+  const settings: AutoBuySettings = {
+    enabled: trade.active,
+    amount: 0.001,
+    isPercentage: false,
+    maxSlippage: trade.maxSlippage,
+    takeProfit: trade.tp,
+    stopLoss: trade.sl,
+    repetitiveBuy: trade.repetitiveBuy,
+  };
 
-  if (!trade) {
-    logger.error("settings is null");
-    return;
-  }
-
-  logger.info("settings", { trade, chatId });
-
-  //TODO! fix this is broken
-  //const amount = Number(trade.amount);
-  //custom now
-  const amount = 0.001;
-  const active = trade.active;
-  const maxSlippage = trade.maxSlippage;
-
-  logger.info("amount", {amount});
-  logger.info("active", {active});
-  logger.info("maxSlippage", {maxSlippage});
-
-  const validsettings = active && amount && maxSlippage !== null;
-  logger.info("validsettings? ", {validsettings});
-
-  if (validsettings) {
-    logger.info("Auto-buy triggered", { contractAddress });
-
-    buyController.autoBuyContract(
-      chatId,
-      {
-        amount: amount,
-        isPercentage: false,
-        maxSlippage: trade.maxSlippage!,
-        takeProfit: trade.tp,
-        stopLoss: trade.sl,
-        repetitiveBuy: trade.repetitiveBuy,
-      },
-      contractAddress
-    );
-  } else {
-    logger.error("invalid settings");
-    if (!active) logger.error("not active");
-    if (!amount) logger.error("no amount set");
-    if (maxSlippage === null || maxSlippage === undefined) logger.error("no slippage");
-  }
+  triggerAutoBuy(chatId, contractAddress, settings);
 };
+
+function triggerAutoBuy(
+  chatId: string,
+  contractAddress: string,
+  settings: AutoBuySettings
+) {
+  const { enabled, amount, isPercentage, maxSlippage, takeProfit, stopLoss, repetitiveBuy } = settings;
+
+  if (!enabled) {
+    logger.error("Auto-buy not enabled", { chatId });
+    return;
+  }
+
+  if (!amount || amount <= 0) {
+    logger.error("Amount missing or zero", { chatId });
+    return;
+  }
+
+  if (maxSlippage === null || maxSlippage === undefined) {
+    logger.error("Max slippage not set", { chatId });
+    return;
+  }
+
+  if (!takeProfit || takeProfit <= 0) {
+    logger.error("TakeProfit must be greater than 0", { chatId });
+    return;
+  }
+
+  if (!stopLoss || stopLoss <= 0) {
+    logger.error("StopLoss must be greater than 0", { chatId });
+    return;
+  }
+
+  logger.info("Auto-buy triggered", { chatId, contractAddress, settings });
+
+  buyController.autoBuyContract(chatId, {
+    amount,
+    isPercentage,
+    maxSlippage,
+    takeProfit,
+    stopLoss,
+    repetitiveBuy,
+  }, contractAddress);
+}
+
 /**
  * (Optional) Allow external modules to update auto-buy settings.
  */

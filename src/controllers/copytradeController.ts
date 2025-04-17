@@ -3,12 +3,13 @@ import * as walletdb from "../models/walletModel";
 import * as copytradedb from "../models/copyTradeModel";
 import { botInstance, setState, STATE, removeState } from "../bot";
 import { TelegramClient } from "telegram";
-import { setAutotrade } from "./autoBuyController";
+import { setAutotradeSignal } from "./autoBuyController";
 import mongoose from "mongoose";
 import { logger } from "../util";
 import { Trade } from '../models/copyTradeModel';
 import { Chat } from "../models/chatModel";
 import { getQueue } from '../scraper/queue';
+import { notifySuccess, notifyError } from "../notify";
 
 let tgClient: TelegramClient | null = null;
 
@@ -16,21 +17,89 @@ export const setClient = (client: TelegramClient) => {
   tgClient = client;
 };
 
+type FieldKey =
+  | 'tag'
+  | 'signal'
+  | 'amount'
+  | 'slippage'
+  | 'rep'
+  | 'sl'
+  | 'tp';
 
-
-const notifySuccess = async (chatId: string, message: string) => {
-  const sent = await botInstance.sendMessage(chatId, `✅ ${message}`);
-  setTimeout(() => {
-    botInstance.deleteMessage(chatId, sent.message_id).catch(() => { });
-  }, 2000);
+interface InputCtx {
+  field: FieldKey;
+  tradeId: string;
+  replaceId: number;
 }
 
-const notifyError = async (chatId: string, message: string) => {
-  const sent = await botInstance.sendMessage(chatId, `❌ ${message}`);
-  setTimeout(() => {
-    botInstance.deleteMessage(chatId, sent.message_id).catch(() => { });
-  }, 2000);
+export const handleInput = async (
+  msg: TelegramBot.Message,
+  ctx: InputCtx
+) => {
+  const chatId = msg.chat.id.toString();
+  const text = (msg.text || '').trim();
+
+  if (!text) return;
+
+  try {
+    switch (ctx.field) {
+      case 'tag':
+        await copytradedb.updateTrade({ id: ctx.tradeId, tag: text });
+        break;
+      case 'signal':
+        await copytradedb.updateTrade({ id: ctx.tradeId, signal: text });
+        break;
+      case 'amount':
+        await copytradedb.updateTrade({ id: ctx.tradeId, amount: +text });
+        break;
+      case 'slippage':
+        await copytradedb.updateTrade({ id: ctx.tradeId, maxSlippage: +text });
+        break;
+      case 'rep':
+        await copytradedb.updateTrade({ id: ctx.tradeId, repetitiveBuy: +text });
+        break;
+      case 'sl':
+        await copytradedb.updateTrade({ id: ctx.tradeId, sl: +text });
+        break;
+      case 'tp':
+        await copytradedb.updateTrade({ id: ctx.tradeId, tp: +text });
+        break;
+    }
+
+    // refresh the inline‑keyboard
+    await editcopytradesignal(chatId, ctx.replaceId, ctx.tradeId);
+    await notifySuccess(chatId, 'Updated');
+  } catch (err) {
+    logger.error(err);
+    await notifyError(chatId, 'Update failed');
+  } finally {
+    removeState(chatId);
+  }
 };
+
+export const safeEditMessageText = async (
+  chatId: TelegramBot.ChatId,
+  messageId: number,
+  text: string,
+  opts: TelegramBot.EditMessageTextOptions
+) => {
+  try {
+    await botInstance.editMessageText(text, {
+      ...opts,
+      chat_id: chatId,
+      message_id: messageId
+    });
+  } catch (err: any) {
+    const desc = err?.response?.body?.description || '';
+    if (desc.includes('message to edit not found')) {
+      logger.warn(`editMessageText failed (not found) → sendMessage`, { chatId, messageId });
+      await botInstance.sendMessage(chatId, text, opts as any);
+    } else {
+      logger.error('editMessageText error', { err });
+    }
+  }
+};
+
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   logger.info("copytrade: handleCallBackQuery ", { query: query });
@@ -84,32 +153,6 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   } catch (error) { }
 };
 
-export const safeEditMessageText = async (
-  chatId: TelegramBot.ChatId,
-  messageId: number,
-  text: string,
-  opts: TelegramBot.EditMessageTextOptions
-) => {
-  try {
-    await botInstance.editMessageText(text, {
-      ...opts,
-      chat_id: chatId,
-      message_id: messageId
-    });
-  } catch (err: any) {
-    const errorCode = err?.response?.body?.error_code;
-    const desc = err?.response?.body?.description || '';
-
-    if (errorCode === 400 && desc.includes('message to edit not found')) {
-      logger.warn(`editMessageText failed (not found) sendMessage`, { chatId, messageId });
-      await botInstance.sendMessage(chatId, text, opts as any);
-    } else {
-      logger.error('editMessageText error', { err });
-    }
-  }
-};
-
-
 const showPositionPad = async (chatId: string, replaceId?: number) => {
   const signals = await copytradedb.getTradeByChatId(chatId);
   const wallet = await walletdb.getWalletByChatId(chatId);
@@ -122,7 +165,7 @@ You can also customize the buy amount, take profit, stop loss and more for every
   const signalKeyboard = signals.map((value: copytradedb.ITrade, index: number) => {
     return [
       {
-        text: ` ${value.active ? "🟢" : "🔴"} Signal ${index + 1} : ${value.tag}`,
+        text: ` ${value.active ? "🟢" : "🔴"} ${value.signal} : ${value.tag}`,
         command: "ct_edit_" + value.id,
       },
     ];
@@ -233,7 +276,7 @@ const editTagcopytradesignal = async (chatId: string, replaceId: number, dbId: s
     parse_mode: "HTML",
     reply_markup,
   });
-  //setState(chatId, STATE.INPUT_COPYTRADE);
+  setState(chatId, STATE.INPUT_COPYTRADE);
 
   botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
     botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
@@ -281,6 +324,7 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
             logger.info(`chat not found. signalChat ${signalChat} ${chatCount}`);
             logger.info("join channel");
             await getQueue().now('join-channel', { username: signalChat });
+            await notifySuccess(chatId, `Joined ${signalChat} successfully.`);
           } catch (error) {
             logger.error(`error ${error}`);
             await notifyError(chatId, "can not join chat");
@@ -302,45 +346,47 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
   });
 }
 
-const editBuyAmountcopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
-  const caption = `<b>Please type sol amount to buy token</b>\n\n`;
-  const reply_markup = {
-    force_reply: true,
-  };
-  const new_msg = await botInstance.sendMessage(chatId, caption, {
-    parse_mode: "HTML",
-    reply_markup,
-  });
-  botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
-    botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
-    botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
+type Spec<T> = {
+  label: string;
+  dbKey: keyof copytradedb.ITrade;
+  parse: (txt: string) => T;
+};
 
-    if (n_msg.text) {
-      await copytradedb.updateTrade({ id: new mongoose.Types.ObjectId(dbId), amount: parseFloat(n_msg.text) })
-      editcopytradesignal(chatId, replaceId, dbId);
-    }
-  });
-}
+const makeEditor =
+  <T>(spec: Spec<T>) =>
+    async (chatId: string, replaceId: number, dbId: string) => {
+      const ask = await botInstance.sendMessage(
+        chatId,
+        `<b>Please type ${spec.label}</b>\n\n`,
+        { parse_mode: "HTML", reply_markup: { force_reply: true } }
+      );
 
-const editSlippagecopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
-  const caption = `<b>Please type your max slippage for swap</b>\n\n`;
-  const reply_markup = {
-    force_reply: true,
-  };
-  const new_msg = await botInstance.sendMessage(chatId, caption, {
-    parse_mode: "HTML",
-    reply_markup,
-  });
-  botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
-    botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
-    botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
+      botInstance.onReplyToMessage(
+        ask.chat.id,
+        ask.message_id,
+        async (reply: TelegramBot.Message) => {
+          botInstance.deleteMessage(ask.chat.id, ask.message_id);
+          botInstance.deleteMessage(reply.chat.id, reply.message_id);
+          if (!reply.text) return;
 
-    if (n_msg.text) {
-      await copytradedb.updateTrade({ id: new mongoose.Types.ObjectId(dbId), maxSlippage: parseFloat(n_msg.text) })
-      editcopytradesignal(chatId, replaceId, dbId);
-    }
-  });
-}
+          await copytradedb.updateTrade({
+            id: new mongoose.Types.ObjectId(dbId),
+            [spec.dbKey]: spec.parse(reply.text)
+          });
+          editcopytradesignal(chatId, replaceId, dbId);
+        }
+      );
+    };
+
+export const editBuyAmountcopytradesignal = makeEditor({ label: "buy amount (SOL)", dbKey: "amount", parse: Number });
+export const editSlippagecopytradesignal = makeEditor({ label: "max slippage (%)", dbKey: "maxSlippage", parse: Number });
+
+//export const editTagcopytradesignal = makeEditor({ label: "tag name", dbKey: "tag", parse: s => s.trim() });
+// export const editSignalcopytradesignal = makeEditor({ label: "signal channel", dbKey: "signal", parse: s => s.trim() });
+// export const editreplicatecopytradesignal = makeEditor({ label: "replicate count", dbKey: "repetitiveBuy", parse: n => parseInt(n, 10) });
+// export const editStopLosscopytradesignal = makeEditor({ label: "stop‑loss (%)", dbKey: "sl", parse: Number });
+// export const editTakeProfitcopytradesignal = makeEditor({ label: "take‑profit (%)", dbKey: "tp", parse: Number });
+
 
 const editreplicatecopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
   const caption = `<b>Please type number of repetitive bought</b>\n\n`;
@@ -486,10 +532,11 @@ export const onSignal = async (chat_id: string, address: string) => {
     // trigger auto trade copytrade onSignal
     matchingTrades.forEach(trade => {
       logger.info("copytrade: set auto trade for", { id: trade.chatId, address, tradeId: trade._id });
-      setAutotrade(trade.chatId, address, trade);
+      setAutotradeSignal(trade.chatId, address, trade);
     });
   }
   catch (error) {
     logger.error("error onsignal", { chat_id, address });
   }
+
 };

@@ -171,6 +171,7 @@ const AddBuynumber = (chatId: string, contractAddress: string) => {
   }
 }
 
+
 export const autoBuyContract = async (
   chatId: string,
   settings: { amount: number; isPercentage: boolean; maxSlippage: number, takeProfit: number, repetitiveBuy: number, stopLoss: number },
