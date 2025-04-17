@@ -84,6 +84,32 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   } catch (error) { }
 };
 
+export const safeEditMessageText = async (
+  chatId: TelegramBot.ChatId,
+  messageId: number,
+  text: string,
+  opts: TelegramBot.EditMessageTextOptions
+) => {
+  try {
+    await botInstance.editMessageText(text, {
+      ...opts,
+      chat_id: chatId,
+      message_id: messageId
+    });
+  } catch (err: any) {
+    const errorCode = err?.response?.body?.error_code;
+    const desc = err?.response?.body?.description || '';
+
+    if (errorCode === 400 && desc.includes('message to edit not found')) {
+      logger.warn(`editMessageText failed (not found) sendMessage`, { chatId, messageId });
+      await botInstance.sendMessage(chatId, text, opts as any);
+    } else {
+      logger.error('editMessageText error', { err });
+    }
+  }
+};
+
+
 const showPositionPad = async (chatId: string, replaceId?: number) => {
   const signals = await copytradedb.getTradeByChatId(chatId);
   const wallet = await walletdb.getWalletByChatId(chatId);
@@ -118,13 +144,16 @@ You can also customize the buy amount, take profit, stop loss and more for every
   };
 
   if (replaceId) {
-    botInstance.editMessageText(caption, {
-      message_id: replaceId,
-      chat_id: chatId,
-      parse_mode: "HTML",
-      disable_web_page_preview: false,
-      reply_markup,
-    });
+    await safeEditMessageText(
+      chatId,
+      replaceId,
+      caption,
+      {
+        parse_mode: 'HTML',
+        disable_web_page_preview: false,
+        reply_markup
+      }
+    );
   } else {
     await botInstance.sendMessage(chatId, caption, {
       parse_mode: "HTML",
@@ -178,13 +207,16 @@ To manage your Copy Trade:
     ),
   };
 
-  botInstance.editMessageText(caption, {
-    message_id: replaceId,
-    chat_id: chatId,
-    parse_mode: "HTML",
-    disable_web_page_preview: false,
-    reply_markup,
-  });
+  await safeEditMessageText(
+    chatId,
+    replaceId,
+    caption,
+    {
+      parse_mode: 'HTML',
+      disable_web_page_preview: false,
+      reply_markup
+    }
+  );
 };
 
 const removecopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
