@@ -112,7 +112,8 @@ const runServices = async () => {
     }
 
     // check if we have joined the chats that are in DB
-    await joinChannelsDB(client);
+    // commented out to avoid flood wait on server start
+    // await joinChannelsDB(client);
 
     logger.info('start queue');
     initJoinQueue(MONGO_URI);
