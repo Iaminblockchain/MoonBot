@@ -172,9 +172,17 @@ const AddBuynumber = (chatId: string, contractAddress: string) => {
 }
 
 
+
 export const autoBuyContract = async (
   chatId: string,
-  settings: { amount: number; isPercentage: boolean; maxSlippage: number, takeProfit: number, repetitiveBuy: number, stopLoss: number },
+  settings: {
+    amount: number;
+    isPercentage: boolean;
+    maxSlippage: number;
+    takeProfit: number | null;
+    repetitiveBuy: number;
+    stopLoss: number | null;
+  },
   contractAddress: string,
   tradeSignal?: string
 ) => {
@@ -208,10 +216,11 @@ export const autoBuyContract = async (
     if (result.confirmed) {
       let trx = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "";
       botInstance.sendMessage(chatId, `${trade_type} successful: ${trx}`);
-      if (settings.takeProfit) {
+      if (settings.takeProfit != null && settings.stopLoss) {
         logger.info("set take profit");
         const splprice = await getPrice(contractAddress);
         // TODO: Update SPL Price
+        //TODO split TP and SL
         botInstance.sendMessage(chatId, `Auto-sell Registered: ${contractAddress}, Current Price: ${splprice}, TakeProfit Price: ${(splprice * (100 + settings.takeProfit) / 100)}(${settings.takeProfit}%), StopLoss Price: ${splprice * (100 - settings.stopLoss) / 100}(${settings.stopLoss}%)`);
         setTradeState(chatId, contractAddress, splprice, splprice * (100 + settings.takeProfit) / 100, splprice * (100 - settings.stopLoss) / 100);
         AddBuynumber(chatId.toString(), contractAddress);

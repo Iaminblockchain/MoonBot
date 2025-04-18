@@ -20,8 +20,8 @@ export interface AutoBuySettings {
   amount: number; // Either a fixed SOL value or a percentage value
   isPercentage: boolean; // True if the amount is a percentage of the balance
   maxSlippage: number | null; // Slippage percentage
-  takeProfit: number;
-  stopLoss: number;
+  takeProfit: number | null;
+  stopLoss: number | null;
   repetitiveBuy: number;
 }
 export const autoBuySettings = new Map<string, AutoBuySettings>();
@@ -46,8 +46,8 @@ function promptBuyAmount(chatId: string,) {
           amount: amountValue,
           isPercentage,
           maxSlippage: null,
-          takeProfit: 0,
-          stopLoss: 0,
+          takeProfit: null,
+          stopLoss: null,
           repetitiveBuy: 1,
         });
         // Now prompt for maximum slippage.
@@ -314,12 +314,12 @@ function triggerAutoBuy(
     return;
   }
 
-  if (takeProfit || takeProfit <= 0) {
+  if (takeProfit != null && takeProfit <= 0) {
     logger.error("TakeProfit must be greater than 0", { chatId });
     return;
   }
 
-  if (stopLoss || stopLoss <= 0) {
+  if (stopLoss != null && stopLoss <= 0) {
     logger.error("StopLoss must be greater than 0", { chatId });
     return;
   }
