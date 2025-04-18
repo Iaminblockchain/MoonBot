@@ -116,7 +116,20 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
       //   text: "hello?",
       //   show_alert: false,
       // });
-      editcopytradesignal(chatid_string, callbackMessage.message_id);
+      walletdb.getWalletByChatId(callbackMessage.chat.id)
+        .then(wallet => {
+          if (!wallet) {
+            return botInstance.sendMessage(
+              callbackMessage.chat.id,
+              "You need to set up your wallet first"
+            );
+          }
+          editcopytradesignal(chatid_string, callbackMessage.message_id);
+        })
+        .catch(err => {
+          logger.error("wallet lookup failed", err);
+          botInstance.sendMessage(chatid_string, "❌ Something went wrong.");
+        });
     } else if (callbackData.startsWith("ct_edit_")) {
       const data = callbackData.split("_");
       editcopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
@@ -187,16 +200,13 @@ You can also customize the buy amount, take profit, stop loss and more for every
   };
 
   if (replaceId) {
-    await safeEditMessageText(
-      chatId,
-      replaceId,
-      caption,
-      {
-        parse_mode: 'HTML',
-        disable_web_page_preview: false,
-        reply_markup
-      }
-    );
+    botInstance.editMessageText(caption, {
+      message_id: replaceId,
+      chat_id: chatId,
+      parse_mode: "HTML",
+      disable_web_page_preview: false,
+      reply_markup,
+    });
   } else {
     await botInstance.sendMessage(chatId, caption, {
       parse_mode: "HTML",
@@ -250,16 +260,13 @@ To manage your Copy Trade:
     ),
   };
 
-  await safeEditMessageText(
-    chatId,
-    replaceId,
-    caption,
-    {
-      parse_mode: 'HTML',
-      disable_web_page_preview: false,
-      reply_markup
-    }
-  );
+  botInstance.editMessageText(caption, {
+    message_id: replaceId,
+    chat_id: chatId,
+    parse_mode: "HTML",
+    disable_web_page_preview: false,
+    reply_markup,
+  });
 };
 
 const removecopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {

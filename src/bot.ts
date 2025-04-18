@@ -83,14 +83,14 @@ export const init = (client: TelegramClient) => {
     botInstance.setMyCommands(
         [
             { command: 'start', description: 'Start bot' },
-            { command: 'wallet', description: 'Manage wallet' },
+            // { command: 'wallet', description: 'Manage wallet' },
             { command: 'help', description: 'Show help' },
             { command: 'autobuy', description: 'Auto Buy settings' },
         ],
     );
 
     botInstance.onText(/\/start/, onStartCommand);
-    botInstance.onText(/\/wallet/, onWalletCommand);
+    // botInstance.onText(/\/wallet/, onWalletCommand);
     botInstance.onText(/\/help/, onHelpCommand);
     botInstance.onText(/\/autobuy/, autoBuyController.onAutoBuyCommand);
 
@@ -104,8 +104,8 @@ export const init = (client: TelegramClient) => {
 
         if (msg.text !== undefined && !msg.text.startsWith('/')) {
             const currentState = getState(chatId.toString());
-            logger.info(`currentState ${currentState.state}`)
             if (currentState) {
+                logger.info(`currentState ${currentState.state}`)
                 if (currentState.state == STATE.INPUT_TOKEN) {
                     removeState(chatId);
                     buyController.showBuyPad(msg);

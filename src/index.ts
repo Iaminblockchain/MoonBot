@@ -18,6 +18,7 @@ dotenv.config();
 
 export const ALLOWED_ORIGIN = retrieveEnvVariable("allowed_origin");
 export const SETUP_BOT = retrieveEnvVariable("setup_bot") === "true";
+export const SETUP_SCRAPE = retrieveEnvVariable("setup_scrape") === "true";
 export const TELEGRAM_BOT_TOKEN = retrieveEnvVariable("telegram_bot_token");
 export const MONGO_URI = retrieveEnvVariable("mongo_url");
 export const SOLANA_RPC_ENDPOINT = retrieveEnvVariable("solana_rpc_endpoint");
@@ -119,8 +120,12 @@ const runServices = async () => {
     initJoinQueue(MONGO_URI);
     await startJoinQueue();
 
-    logger.info('Initializing scrape script...');
-    await scrape(client);
+    if (SETUP_SCRAPE) {
+      logger.info('Initializing scrape script...');
+      await scrape(client);
+    } else {
+      logger.info("skip setting up scrape");
+    }
 
     if (SETUP_BOT) {
       logger.info('Starting TG bot...');

@@ -191,7 +191,10 @@ export const autoBuyContract = async (
       solAmount = (balance * settings.amount) / 100;
     }
     const buyNumber = getBuynumber(chatId.toString(), contractAddress);
-    if (buyNumber >= settings.repetitiveBuy) return;
+    if (buyNumber >= settings.repetitiveBuy) {
+      logger.info("max repeat reached");
+      return;
+    };
 
     const metaData = await solana.getTokenMetaData(SOLANA_CONNECTION, contractAddress)
     let trade_type = tradeSignal ? "CopyTrade buy" : "Auto-buy";
@@ -211,6 +214,7 @@ export const autoBuyContract = async (
       setTradeState(chatId, contractAddress, splprice, splprice * (100 + settings.takeProfit) / 100, splprice * (100 - settings.stopLoss) / 100);
       AddBuynumber(chatId.toString(), contractAddress);
     } else {
+      logger.error(`${trade_type} failed. result ${result}`)
       botInstance.sendMessage(chatId, `${trade_type} failed.`);
     }
   } catch (error) {

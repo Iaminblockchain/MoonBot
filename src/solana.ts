@@ -389,19 +389,23 @@ export const jupiter_swap = async (
   slippage: number = 500
 ) => {
   try {
+    logger.info(`jupiter_swap ${inputMint} ${outputMint} ${amount} ${swapMode}`);
     const feePayer = new PublicKey(FEE_COLLECTION_WALLET);
     let feeAmount = 0;
     const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
     const quoteUrl = `https://api.jup.ag/swap/v1/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${Math.floor(
       amount
     )}&slippageBps=${slippage}&swapMode=${swapMode}`;
+    logger.info("Fetching quote from Jupiter:", quoteUrl);
     const quoteResponse = await fetch(quoteUrl).then((res) => res.json());
     if (quoteResponse.error) throw new Error("Failed to fetch quote response");
+    logger.info("Quote response received", quoteResponse);
     if (inputMint == "So11111111111111111111111111111111111111112") {
       feeAmount = Math.floor(parseInt(quoteResponse.inAmount) / 100);
     } else {
       feeAmount = Math.floor(parseInt(quoteResponse.outAmount) / 100);
     }
+    logger.info("Calculated feeAmount:", feeAmount);
     const instructions = await fetch("https://api.jup.ag/swap/v1/swap-instructions", {
       method: "POST",
       headers: {
@@ -474,6 +478,7 @@ export const jupiter_swap = async (
     );
 
     const blockhash = (await SOLANA_CONNECTION.getLatestBlockhash()).blockhash;
+    logger.info("Fetched blockhash:", blockhash);
     let messageV0;
     if (whitelistedUsers.findIndex((user) => user.trim() == keypair.publicKey.toBase58()) >= 0) {
       messageV0 = new TransactionMessage({
@@ -505,11 +510,13 @@ export const jupiter_swap = async (
     }
     const transaction = new VersionedTransaction(messageV0);
     let latestBlockhash = await CONNECTION.getLatestBlockhash();
+    logger.info("Fetched latestBlockhash:", latestBlockhash);
     transaction.message.recentBlockhash = latestBlockhash.blockhash; // Ensure fresh blockhash
     transaction.sign([keypair]);
 
     let res;
     if (isJito) {
+      logger.info("submit jito");
       res = await jito_executeAndConfirm(
         CONNECTION,
         transaction,
@@ -518,10 +525,12 @@ export const jupiter_swap = async (
         JITO_TIP
       );
     } else {
+      logger.info("submit tx");
       res = await submitAndConfirm(transaction);
     }
 
     if (res.confirmed) {
+      logger.info("confirmed");
       return { confirmed: true, txSignature: res.signature };
     } else {
       logger.info("Transaction failed, retrying with new blockhash...");
