@@ -194,23 +194,24 @@ export const autoBuyContract = async (
     if (buyNumber >= settings.repetitiveBuy) return;
 
     const metaData = await solana.getTokenMetaData(SOLANA_CONNECTION, contractAddress)
+    let trade_type = tradeSignal ? "CopyTrade buy" : "Auto-buy";
     botInstance.sendMessage(
       chatId,
-      `Auto-buy: Sending buy transaction for Token ${metaData?.name}(${metaData?.symbol}) : ${contractAddress} with ${solAmount} SOL ${tradeSignal ? `from signal @${tradeSignal} ` : ''}(Max Slippage: ${settings.maxSlippage}%)`
+      `${trade_type}: Sending buy transaction for Token  ${metaData?.name}(${metaData?.symbol}) : ${contractAddress} with amount ${solAmount} SOL ${tradeSignal ? `from signal @${tradeSignal} ` : ''}(Max Slippage: ${settings.maxSlippage}%)`
     );
 
     let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, contractAddress, solAmount * 10 ** 9, "ExactIn", false, settings.maxSlippage * 100)
 
     if (result.confirmed) {
       let trx = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "";
-      botInstance.sendMessage(chatId, `Auto-buy successful: ${trx}`);
+      botInstance.sendMessage(chatId, `${trade_type} successful: ${trx}`);
       const splprice = await getPrice(contractAddress);
       // TODO: Update SPL Price
       botInstance.sendMessage(chatId, `Auto-sell Registered: ${contractAddress}, Current Price: ${splprice}, TakeProfit Price: ${(splprice * (100 + settings.takeProfit) / 100)}(${settings.takeProfit}%), StopLoss Price: ${splprice * (100 - settings.stopLoss) / 100}(${settings.stopLoss}%)`);
       setTradeState(chatId, contractAddress, splprice, splprice * (100 + settings.takeProfit) / 100, splprice * (100 - settings.stopLoss) / 100);
       AddBuynumber(chatId.toString(), contractAddress);
     } else {
-      botInstance.sendMessage(chatId, "Auto-buy failed.");
+      botInstance.sendMessage(chatId, `${trade_type} failed.`);
     }
   } catch (error) {
     logger.error(`autobuy error ${error}`, { chatId, settings, contractAddress, tradeSignal });

@@ -45,7 +45,7 @@ export function getQueue(): Agenda {
 
 export async function startJoinQueue() {
     await getQueue().start();
-    logger.info('📌 joinChannelQueue started');
+    logger.info('joinChannelQueue started');
 }
 
 export async function queueJoinChannel(username: string) {

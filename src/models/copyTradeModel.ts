@@ -6,7 +6,7 @@ export interface ITrade extends Document {
   tag: string | null;
   signal: string;
   signalChatId: string;
-  amount: string;
+  amount: number;
   maxSlippage: number;
   tp: number;
   sl: number;
@@ -21,8 +21,8 @@ const TradeSchema: Schema = new Schema({
   signalChatId: { type: String, default: null, nullable: true },
   amount: { type: Number, default: 0 },
   maxSlippage: { type: Number, default: 5 },
-  tp: { type: Number, default: 0 },
-  sl: { type: Number, default: 0 },
+  tp: { type: Number, default: null },
+  sl: { type: Number, default: null },
   repetitiveBuy: { type: Number, default: 1 },
   active: { type: Boolean, default: false },
 });

@@ -279,7 +279,7 @@ export const setAutotradeSignal = async (
   // TODO: make this dynamic
   const settings: AutoBuySettings = {
     enabled: trade.active,
-    amount: 0.001,
+    amount: trade.amount,
     isPercentage: false,
     maxSlippage: trade.maxSlippage,
     takeProfit: trade.tp,
@@ -287,13 +287,14 @@ export const setAutotradeSignal = async (
     repetitiveBuy: trade.repetitiveBuy,
   };
 
-  triggerAutoBuy(chatId, contractAddress, settings);
+  triggerAutoBuy(chatId, contractAddress, settings, trade.signal);
 };
 
 function triggerAutoBuy(
   chatId: string,
   contractAddress: string,
-  settings: AutoBuySettings
+  settings: AutoBuySettings,
+  signal?: string
 ) {
   const { enabled, amount, isPercentage, maxSlippage, takeProfit, stopLoss, repetitiveBuy } = settings;
 
@@ -322,7 +323,7 @@ function triggerAutoBuy(
     return;
   }
 
-  logger.info("Auto-buy triggered", { chatId, contractAddress, settings });
+  logger.info(`Auto-buy triggered ${signal}`, { chatId, contractAddress, settings });
 
   buyController.autoBuyContract(chatId, {
     amount,
@@ -331,7 +332,7 @@ function triggerAutoBuy(
     takeProfit,
     stopLoss,
     repetitiveBuy,
-  }, contractAddress);
+  }, contractAddress, signal);
 }
 
 /**
