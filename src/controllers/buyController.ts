@@ -208,11 +208,15 @@ export const autoBuyContract = async (
     if (result.confirmed) {
       let trx = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "";
       botInstance.sendMessage(chatId, `${trade_type} successful: ${trx}`);
-      const splprice = await getPrice(contractAddress);
-      // TODO: Update SPL Price
-      botInstance.sendMessage(chatId, `Auto-sell Registered: ${contractAddress}, Current Price: ${splprice}, TakeProfit Price: ${(splprice * (100 + settings.takeProfit) / 100)}(${settings.takeProfit}%), StopLoss Price: ${splprice * (100 - settings.stopLoss) / 100}(${settings.stopLoss}%)`);
-      setTradeState(chatId, contractAddress, splprice, splprice * (100 + settings.takeProfit) / 100, splprice * (100 - settings.stopLoss) / 100);
-      AddBuynumber(chatId.toString(), contractAddress);
+      if (settings.takeProfit) {
+        logger.info("set take profit");
+        const splprice = await getPrice(contractAddress);
+        // TODO: Update SPL Price
+        botInstance.sendMessage(chatId, `Auto-sell Registered: ${contractAddress}, Current Price: ${splprice}, TakeProfit Price: ${(splprice * (100 + settings.takeProfit) / 100)}(${settings.takeProfit}%), StopLoss Price: ${splprice * (100 - settings.stopLoss) / 100}(${settings.stopLoss}%)`);
+        setTradeState(chatId, contractAddress, splprice, splprice * (100 + settings.takeProfit) / 100, splprice * (100 - settings.stopLoss) / 100);
+        AddBuynumber(chatId.toString(), contractAddress);
+      }
+
     } else {
       logger.error(`${trade_type} failed. result ${result}`)
       botInstance.sendMessage(chatId, `${trade_type} failed.`);

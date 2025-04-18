@@ -304,6 +304,7 @@ function triggerAutoBuy(
   }
 
   if (!amount || amount <= 0) {
+    //TODO inform user
     logger.error("Amount missing or zero", { chatId });
     return;
   }
@@ -313,12 +314,12 @@ function triggerAutoBuy(
     return;
   }
 
-  if (!takeProfit || takeProfit <= 0) {
+  if (takeProfit || takeProfit <= 0) {
     logger.error("TakeProfit must be greater than 0", { chatId });
     return;
   }
 
-  if (!stopLoss || stopLoss <= 0) {
+  if (stopLoss || stopLoss <= 0) {
     logger.error("StopLoss must be greater than 0", { chatId });
     return;
   }

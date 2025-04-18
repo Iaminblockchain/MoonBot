@@ -148,7 +148,7 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
         const contractAddresses = messageText.match(PUMP_FUN_CA_REGEX) || [];
         if (contractAddresses.length > 0) {
             const contractAddress = contractAddresses[0] || '';
-            logger.info("Detected contract address", {
+            logger.info(`Detected contract address ${contractAddress} from ${chat_username}`, {
                 contractAddress: contractAddress,
                 chatId: chat_id_str,
                 chat_username: chat_username

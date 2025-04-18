@@ -474,9 +474,12 @@ const editCopyTradeKeyboard = (params: copytradedb.ITrade) => {
       },
     ],
     [
-      { text: `Stop Loss : ${params.sl}%`, command: `ct_stl_${String(params._id)}` },
       {
-        text: `Take Profit : ${params.tp}%`,
+        text: `Stop Loss : ${params.sl == null ? "❌" : params.sl + "%"}`,
+        command: `ct_stl_${String(params._id)}`
+      },
+      {
+        text: `Take Profit : ${params.tp == null ? "❌" : params.tp + "%"}`,
         command: `ct_tpr_${String(params._id)}`,
       },
     ],
