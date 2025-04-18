@@ -1,7 +1,10 @@
 import winston from "winston";
 import { Logtail } from "@logtail/node";
 import { LogtailTransport } from "@logtail/winston";
-import { LOGTAIL_TOKEN, LOGTAIL_ENDPOINT } from "./index";
+import { retrieveEnvVariable } from "./config";
+
+const LOGTAIL_TOKEN = retrieveEnvVariable("logtail_token");
+const LOGTAIL_ENDPOINT = retrieveEnvVariable("logtail_endpoint");
 
 const logtail = new Logtail(LOGTAIL_TOKEN, {
     endpoint: LOGTAIL_ENDPOINT
