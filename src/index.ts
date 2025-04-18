@@ -28,6 +28,8 @@ export const TELEGRAM_API_ID = Number(retrieveEnvVariable("telegram_api_id"));
 export const TELEGRAM_API_HASH = retrieveEnvVariable("telegram_api_hash");
 export const TELEGRAM_STRING_SESSION = retrieveEnvVariable("telegram_string_session");
 export const FEE_COLLECTION_WALLET = retrieveEnvVariable("fee_collection_wallet");
+export const LOGTAIL_TOKEN = retrieveEnvVariable("logtail_token");
+export const LOGTAIL_ENDPOINT = retrieveEnvVariable("logtail_endpoint");
 
 
 export const SOLANA_CONNECTION = new Connection(SOLANA_RPC_ENDPOINT, {

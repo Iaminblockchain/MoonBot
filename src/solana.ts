@@ -525,15 +525,15 @@ export const jupiter_swap = async (
         JITO_TIP
       );
     } else {
-      logger.info("submit tx");
+      logger.info("Solana: submit tx");
       res = await submitAndConfirm(transaction);
     }
 
     if (res.confirmed) {
-      logger.info("confirmed");
+      logger.info("Solana: confirmed");
       return { confirmed: true, txSignature: res.signature };
     } else {
-      logger.info("Transaction failed, retrying with new blockhash...");
+      logger.info("Solana: Transaction failed, retrying with new blockhash...");
 
       latestBlockhash = await CONNECTION.getLatestBlockhash("processed");
       transaction.message.recentBlockhash = latestBlockhash.blockhash;
