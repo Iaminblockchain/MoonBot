@@ -321,32 +321,28 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
       logger.info(`copytrade: signalChat ${signalChat}`, { target_group: signalChat });
       try {
         const chatDoc = await Chat.findOne({ username: signalChat });
-        const chatCount = await Chat.countDocuments();
-        if (chatDoc == null) {
-          if (!tgClient) {
-            logger.error("Telegram client not available");
-            return;
-          }
-          try {
-            logger.info(`chat not found. signalChat ${signalChat} ${chatCount}`);
-            logger.info("join channel");
-            await getQueue().now('join-channel', { username: signalChat });
-            await notifySuccess(chatId, `Joined ${signalChat} successfully.`);
-          } catch (error) {
-            logger.error(`error ${error}`);
-            await notifyError(chatId, "can not join chat");
-          }
 
-        } else {
-          const signalChatId = chatDoc.chat_id;
-          logger.info("editcopytradesignal. chatid " + chatId + " signalChatId " + signalChatId);
-          await copytradedb.updateTrade({ id: new mongoose.Types.ObjectId(dbId), signal: signalChat, signalChatId: signalChatId })
-          editcopytradesignal(chatId, replaceId, dbId);
-          await notifySuccess(chatId, "Group updated");
-          removeState(chatId);
+        // join the channel if it’s new
+        if (!chatDoc) {
+          if (!tgClient) throw new Error("Telegram client not available");
+
+          await getQueue().now("join-channel", { username: signalChat });
+          await notifySuccess(chatId, `Joined ${signalChat} successfully.`);
         }
+
+        await copytradedb.updateTrade({
+          id: new mongoose.Types.ObjectId(dbId),
+          signal: signalChat,
+          signalChatId: chatDoc?.chat_id,
+        });
+
+        await editcopytradesignal(chatId, replaceId, dbId);
+        await notifySuccess(chatId, chatDoc ? "Group updated" : "Group added");
+
       } catch (error) {
         logger.error(error);
+      } finally {
+        removeState(chatId);
       }
 
     }
