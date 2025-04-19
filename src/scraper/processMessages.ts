@@ -103,22 +103,30 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
         //first check that the message sender is a user
         if (!(event.message.sender instanceof Api.User)) {
             //skipping non-user message
+            logger.info("Skipping message, sender was not an instance of Api.User")
             return;
         }
 
         const messageText = event.message.text || "";
         if (messageText == "") {
+            logger.info("Skipping message, message was empty")
             return;
         }
 
         //not using event.message.senderId;        
         const chatid = event.message.chatId;
         logger.info(`prev chatid: ${chatid}`)
-        if (!chatid) return;
+        if (!chatid) {
+            logger.info("Skipping message, event.message.chatId doesn't exist")
+            return;
+        }
+
+        if (!event.client) {
+            logger.info("Skipping message, event.client doesn't exist")
+            return;
+        }
 
         let chat_id_str = String(chatid);
-
-        if (!chatid || !event.client) return;
 
         //convert id
         chat_id_str = convertChatIdToMTProto(chat_id_str);
