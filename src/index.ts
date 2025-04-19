@@ -116,7 +116,7 @@ const runServices = async () => {
     // await joinChannelsDB(client);
 
     logger.info('start queue');
-    initJoinQueue(MONGO_URI);
+    initJoinQueue(client, MONGO_URI);
     await startJoinQueue();
 
     if (SETUP_SCRAPE) {

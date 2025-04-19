@@ -77,29 +77,27 @@ export const handleInput = async (
   }
 };
 
-export const safeEditMessageText = async (
-  chatId: TelegramBot.ChatId,
-  messageId: number,
+const lastMessageId = new Map<string, number>();
+
+export const editText = async (
+  chatId: string,
   text: string,
-  opts: TelegramBot.EditMessageTextOptions
-) => {
+  opts: TelegramBot.EditMessageTextOptions = {}
+): Promise<number> => {
+  const msgId = lastMessageId.get(chatId);
   try {
-    await botInstance.editMessageText(text, {
-      ...opts,
-      chat_id: chatId,
-      message_id: messageId
-    });
-  } catch (err: any) {
-    const desc = err?.response?.body?.description || '';
-    if (desc.includes('message to edit not found')) {
-      logger.warn(`editMessageText failed (not found) → sendMessage`, { chatId, messageId });
-      await botInstance.sendMessage(chatId, text, opts as any);
-    } else {
-      logger.error('editMessageText error', { err });
+    if (msgId) {
+      await botInstance.editMessageText(text, { chat_id: chatId, message_id: msgId, ...opts });
+      return msgId;
     }
+    throw new Error();
+  } catch (_) {
+    const { message_id } = await botInstance.sendMessage(chatId, text, opts);
+    lastMessageId.set(chatId, message_id);
+    // store updated
+    return message_id;
   }
 };
-
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   logger.info("copytrade: handleCallBackQuery ", { query: query });
@@ -117,14 +115,16 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
       //   show_alert: false,
       // });
       walletdb.getWalletByChatId(callbackMessage.chat.id)
-        .then(wallet => {
+        .then(async wallet => {
           if (!wallet) {
-            return botInstance.sendMessage(
+            await botInstance.sendMessage(
               callbackMessage.chat.id,
               "You need to set up your wallet first"
             );
+            return;
           }
-          editcopytradesignal(chatid_string, callbackMessage.message_id);
+
+          await editcopytradesignal(chatid_string, callbackMessage.message_id);
         })
         .catch(err => {
           logger.error("wallet lookup failed", err);
@@ -199,21 +199,13 @@ You can also customize the buy amount, take profit, stop loss and more for every
     ),
   };
 
-  if (replaceId) {
-    botInstance.editMessageText(caption, {
-      message_id: replaceId,
-      chat_id: chatId,
-      parse_mode: "HTML",
-      disable_web_page_preview: false,
-      reply_markup,
-    });
-  } else {
-    await botInstance.sendMessage(chatId, caption, {
-      parse_mode: "HTML",
-      disable_web_page_preview: false,
-      reply_markup,
-    });
-  }
+
+  await editText(chatId, caption, {
+    parse_mode: "HTML",
+    disable_web_page_preview: false,
+    reply_markup,
+  });
+
 };
 
 const editcopytradesignal = async (
@@ -260,9 +252,7 @@ To manage your Copy Trade:
     ),
   };
 
-  botInstance.editMessageText(caption, {
-    message_id: replaceId,
-    chat_id: chatId,
+  await editText(chatId, caption, {
     parse_mode: "HTML",
     disable_web_page_preview: false,
     reply_markup,
@@ -376,7 +366,7 @@ const makeEditor =
             id: new mongoose.Types.ObjectId(dbId),
             [spec.dbKey]: spec.parse(reply.text)
           });
-          editcopytradesignal(chatId, replaceId, dbId);
+          await editcopytradesignal(chatId, replaceId, dbId);
         }
       );
     };

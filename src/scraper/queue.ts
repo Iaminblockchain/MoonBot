@@ -1,19 +1,18 @@
 import Agenda, { Job } from 'agenda';
-import { getTgClient } from './scraper';
 import { joinChannelByName } from '../scraper/manageGroups';
 import { logger } from '../util';
 import { Chat } from '../models/chatModel';
 import { processMessages } from './processMessages';
 import { NewMessage } from 'telegram/events';
+import { TelegramClient } from "telegram";
 
 let agendaInstance: Agenda | null = null;
 
-export function initJoinQueue(mongoUri: string) {
+export function initJoinQueue(client: TelegramClient, mongoUri: string) {
     agendaInstance = new Agenda({ db: { address: mongoUri, collection: 'joinChannelQueue' } });
 
     agendaInstance.define('join-channel', async (job: Job<{ username: string }>) => {
         const { username } = job.attrs.data;
-        const client = await getTgClient();
         const dialogs = await client.getDialogs({});
         logger.info(`🎯 Processing join for: ${username}`);
 
