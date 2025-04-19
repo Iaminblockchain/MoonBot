@@ -100,10 +100,13 @@ export async function contractFound(
 
 export async function processMessages(event: NewMessageEvent): Promise<void> {
     try {
-        //first check that the message sender is a user
-        if (!(event.message.sender instanceof Api.User)) {
-            //skipping non-user message
-            logger.info("Skipping message, sender was not an instance of Api.User")
+        // First check that the message sender is a Api.User or Api.Channel
+        // users that send a message in their own channel take on the chat id of the channel.
+        // We ignore Api.Chat because users in a Chat will be an Api.User sender.
+        const sender = event.message.sender;
+        if (!(sender instanceof Api.User || sender instanceof Api.Channel)) {
+            const senderType = sender ? sender.className : "undefined";
+            logger.info("Skipping message, sender was not an instance of Api.User or Api.Channel", { senderType: senderType });
             return;
         }
 
