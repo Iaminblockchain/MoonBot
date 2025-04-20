@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { botInstance, closeMessage } from "../bot";
-import { isValidAddress } from "../solana";
+import { isValidAddress } from "../solana/util";
 import * as buyController from "./buyController";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,

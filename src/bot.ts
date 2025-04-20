@@ -1,6 +1,6 @@
 import { TELEGRAM_BOT_TOKEN } from '.';
 import TelegramBot from 'node-telegram-bot-api';
-import * as solana from './solana';
+import * as solana from './solana/trade';
 import * as walletDb from './models/walletModel';
 import * as buyController from './controllers/buyController';
 import * as sellController from './controllers/sellController';
@@ -13,6 +13,7 @@ import * as helpController from './controllers/helpController';
 import * as copytradeController from './controllers/copytradeController';
 import { TelegramClient } from "telegram";
 import { logger } from './util';
+import { getSolBalance, getPublicKey } from './solana/util';
 
 import cron from "node-cron";
 export let botInstance: any;
@@ -250,8 +251,8 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
     if (!wallet) {
         walletInfo = "You currently have no wallet. To start trading, create or import a wallet and deposit SOL to your wallet";
     } else {
-        const balance = await solana.getSolBalance(wallet.privateKey);
-        const publicKey = solana.getPublicKey(wallet.privateKey);
+        const balance = await getSolBalance(wallet.privateKey);
+        const publicKey = getPublicKey(wallet.privateKey);
         walletInfo = `Address: <code>${publicKey}</code> \nBalance: ${balance} SOL`;
     }
 

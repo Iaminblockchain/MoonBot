@@ -1,8 +1,9 @@
 import TelegramBot, { CallbackQuery } from "node-telegram-bot-api";
 import * as walletdb from '../models/walletModel';
-import * as solana from '../solana';
+import * as solana from '../solana/trade';
 import { botInstance, getChatIdandMessageId, setState, getState, switchMenu, STATE } from "../bot";
 import { logger } from "../util";
+import { getPublicKey, createWallet, getSolBalance } from "../solana/util"
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     try {
@@ -10,7 +11,7 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
         if (data == "walletController_start") {
             walletManageStart(query);
         } else if (data == "walletController_create") {
-            createWallet(query);
+            createWalletCall(query);
         } else if (data == "walletController_import") {
             importWallet(query);
         } else if (data == 'walletController_refresh') {
@@ -54,8 +55,8 @@ const getWalletInfoAndButtons = async (chatId: TelegramBot.ChatId) => {
             ];
             return { title, buttons };
         } else {
-            const address = solana.getPublicKey(wallet?.privateKey!);
-            const balance = await solana.getSolBalance(wallet.privateKey);
+            const address = getPublicKey(wallet?.privateKey!);
+            const balance = await getSolBalance(wallet.privateKey);
             const title = `<b>Your Wallet:</b>\n\nAddress: <code>${address}</code>\nBalance:<b> ${balance}</b> SOL\n\nTap to copy the address and send SOL to deposit.`;
             const buttons = [
                 [
@@ -74,12 +75,12 @@ const getWalletInfoAndButtons = async (chatId: TelegramBot.ChatId) => {
     }
 }
 
-const createWallet = async (query: TelegramBot.CallbackQuery) => {
+const createWalletCall = async (query: TelegramBot.CallbackQuery) => {
     try {
         const chatId = query.message?.chat.id;
         const messageId = query.message?.message_id;
         const wallet = await walletdb.getWalletByChatId(chatId!);
-        const { publicKey, privateKey } = solana.createWallet();
+        const { publicKey, privateKey } = createWallet();
         await walletdb.createWallet(chatId!, privateKey);
         const walletinfo = await getWalletInfoAndButtons(chatId!);
         if (walletinfo) {

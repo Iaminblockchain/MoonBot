@@ -1,10 +1,12 @@
 import TelegramBot, { CallbackQuery } from "node-telegram-bot-api";
 import * as walletdb from '../models/walletModel';
-import * as solana from '../solana';
+import * as solana from '../solana/trade';
 import { botInstance, getChatIdandMessageId, setState, getState, switchMenu, STATE } from "../bot";
 import { getPublicKeyinFormat } from "./sellController";
 import { SOLANA_CONNECTION } from "..";
 import { logger } from "../util";
+import { sendSPLtokens, getTokenInfofromMint, getTokenMetaData } from "../solana/token";
+import { getSolBalance, isValidAddress } from "../solana/util";
 
 type WithdrawSettingType = {
   amount?: number;
@@ -91,7 +93,7 @@ const withdrawStart = async (chatId: string, replaceId?: number) => {
       tokenList += `${index + 1} : ${token.name}(${token.symbol}): ${token.balance} ${token.symbol}\n`
     ]);
 
-    const balance = await solana.getSolBalance(wallet.privateKey);
+    const balance = await getSolBalance(wallet.privateKey);
 
     const caption = `<b>Select a token to withdraw\n\n</b>0 : Native Sol (${balance}sol)\n` + tokenList;
 
@@ -151,11 +153,11 @@ const withdrawPad = async (chatId: string, replaceId: number, tokenAddress: stri
     let metaData: any;
     if (!isNativeSol) {
       const publicKey = getPublicKeyinFormat(wallet.privateKey);
-      const tokenInfo = await solana.getTokenInfofromMint(publicKey, tokenAddress)
-      metaData = await solana.getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
+      const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress)
+      metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
       caption = `<b>Withdraw ${metaData?.name}(${metaData?.symbol})\n\n</b>Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}`;
     } else {
-      const solBalance = await solana.getSolBalance(wallet.privateKey);
+      const solBalance = await getSolBalance(wallet.privateKey);
       caption = `<b>Withdraw native Sol token\n\n</b>Balance: ${solBalance}(sol)`;
     }
     const withdrawSettingToken = getWithdrawSetting(chatId, tokenAddress);
@@ -269,7 +271,7 @@ const sendWithdraw = async (chatId: string, queryId: string, tokenAddress: strin
       botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
 
       if (n_msg.text) {
-        if (!solana.isValidAddress(n_msg.text)) {
+        if (!isValidAddress(n_msg.text)) {
           await botInstance.sendMessage(chatId, '⚠️ Please input correct wallet address.', {
             parse_mode: "HTML"
           })
@@ -277,7 +279,7 @@ const sendWithdraw = async (chatId: string, queryId: string, tokenAddress: strin
         }
         let result: any;
         if (tokenAddress != "sol") {
-          result = await solana.sendSPLtokens(chatId, tokenAddress, n_msg.text, withdrawsetting.amount!, withdrawsetting.isPercentage!)
+          result = await sendSPLtokens(chatId, tokenAddress, n_msg.text, withdrawsetting.amount!, withdrawsetting.isPercentage!)
         }
         else {
           result = await solana.sendNativeSol(chatId, n_msg.text, withdrawsetting.amount!, withdrawsetting.isPercentage!)

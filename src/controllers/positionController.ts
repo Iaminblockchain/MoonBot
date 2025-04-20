@@ -3,7 +3,8 @@ import { botInstance } from "../bot";
 import { getWalletByChatId } from "../models/walletModel";
 import { getPublicKeyinFormat } from "./sellController";
 import { SOLANA_CONNECTION } from "..";
-import { getAllTokensWithBalance, getTokenInfofromMint, getTokenMetaData, jupiter_swap, swapToken, WSOL_ADDRESS } from "../solana";
+import { getAllTokensWithBalance, jupiter_swap, swapToken, WSOL_ADDRESS } from "../solana/trade";
+import { getTokenInfofromMint, getTokenMetaData } from "../solana/token";
 import { getPrice } from "./autoBuyController";
 import { logger } from "../util";
 

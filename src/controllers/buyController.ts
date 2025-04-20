@@ -3,11 +3,13 @@ import { botInstance, switchMenu, getChatIdandMessageId, setState, STATE, setDel
 import { SOLANA_CONNECTION } from "..";
 import * as walletdb from '../models/walletModel';
 import * as tradedb from '../models/tradeModel';
-import * as solana from '../solana';
+import * as solana from '../solana/trade';
 import { getPrice } from "./autoBuyController";
 const { PublicKey } = require('@solana/web3.js'); // Import PublicKey
 import { logger } from "../util";
 import { transcode } from "buffer";
+import { getSolBalance, getPublicKey } from "../solana/util";
+import { getTokenMetaData } from "../solana/token";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   try {
@@ -33,7 +35,7 @@ const onClickHalfBuy = async (query: TelegramBot.CallbackQuery) => {
   const trade = await tradedb.getTradeByChatId(chatId!);
   if (wallet && trade) {
     const privateKey = wallet.privateKey;
-    const publicKey = solana.getPublicKey(privateKey);
+    const publicKey = getPublicKey(privateKey);
     botInstance.sendMessage(chatId!, 'Sending buy transaction');
     let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, 0.5, "ExactIn", false);
     if (result.confirmed) {
@@ -54,7 +56,7 @@ const onClickOneBuy = async (query: TelegramBot.CallbackQuery) => {
   const trade = await tradedb.getTradeByChatId(chatId!);
   if (wallet && trade) {
     const privateKey = wallet.privateKey;
-    const publicKey = solana.getPublicKey(privateKey);
+    const publicKey = getPublicKey(privateKey);
     botInstance.sendMessage(chatId!, 'Sending buy transaction');
     let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, 1, "ExactIn", false);
     if (result.confirmed) {
@@ -83,7 +85,7 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
   const trade = await tradedb.getTradeByChatId(chatId!);
   if (wallet && trade) {
     const privateKey = wallet.privateKey;
-    const publicKey = solana.getPublicKey(privateKey);
+    const publicKey = getPublicKey(privateKey);
     botInstance.sendMessage(chatId!, 'Sending buy transaction');
     logger.info("outmint:", { tokenAddress: trade.tokenAddress });
     let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, parseInt((amount * 10 ** 9).toString()), "ExactIn", false);
@@ -104,9 +106,9 @@ export const showBuyPad = async (message: TelegramBot.Message) => {
     const chatId = message.chat.id;
     const messageId = message.message_id;
     const tokenAddress = message.text;
-    const metaData = await solana.getTokenMetaData(SOLANA_CONNECTION, tokenAddress!);
+    const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress!);
     const wallet = await walletdb.getWalletByChatId(chatId);
-    const balance = await solana.getSolBalance(wallet!.privateKey);
+    const balance = await getSolBalance(wallet!.privateKey);
     const title = `<b>Buy</b> ${metaData!.symbol} - (${metaData!.name})\n<code>${tokenAddress}</code>\n\nBalance: ${balance} SOL`
     const buttons = [
       [
@@ -195,7 +197,7 @@ export const autoBuyContract = async (
     logger.info("run auto buy", { settings: settings, contractAddress: contractAddress, chatId: chatId });
     let solAmount = settings.amount;
     if (settings.isPercentage) {
-      const balance = await solana.getSolBalance(wallet.privateKey);
+      const balance = await getSolBalance(wallet.privateKey);
       solAmount = (balance * settings.amount) / 100;
     }
     const buyNumber = getBuynumber(chatId.toString(), contractAddress);
@@ -204,7 +206,7 @@ export const autoBuyContract = async (
       return;
     };
 
-    const metaData = await solana.getTokenMetaData(SOLANA_CONNECTION, contractAddress)
+    const metaData = await getTokenMetaData(SOLANA_CONNECTION, contractAddress)
     let trade_type = tradeSignal ? "CopyTrade buy" : "Auto-buy";
     botInstance.sendMessage(
       chatId,

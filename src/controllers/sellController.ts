@@ -3,13 +3,14 @@ import { botInstance, switchMenu, getChatIdandMessageId, setState, STATE, setDel
 import { SOLANA_CONNECTION } from '..';
 import * as walletdb from '../models/walletModel';
 import * as tradedb from '../models/tradeModel';
-import * as solana from '../solana';
+import * as solana from '../solana/trade';
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 const { PublicKey } = require('@solana/web3.js'); // Import PublicKey
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { autoBuySettings, getPrice, getSPLBalance } from "./autoBuyController";
 import { logger } from "../util";
+import { getTokenMetaData } from "../solana/token";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   try {
@@ -160,17 +161,6 @@ export const getPublicKeyinFormat = (privateKey: string) => {
   return keypair.publicKey;
 };
 
-export const getKeypair = (privateKey: string) => {
-  // Decode the base58 private key into Uint8Array
-  const secretKeyUint8Array = new Uint8Array(bs58.decode(privateKey));
-
-  // Create a Keypair from the secret key
-  const keypair = Keypair.fromSecretKey(secretKeyUint8Array);
-
-  // Return the public key as a string
-  return keypair;
-};
-
 export const showSellPad = async (query: TelegramBot.CallbackQuery) => {
   try {
     const { chatId } = getChatIdandMessageId(query);
@@ -248,6 +238,7 @@ export const onClickSellWithToken = async (query: TelegramBot.CallbackQuery) => 
   }
 }
 
+//run through each signal and check if sell is triggered
 export const autoSellHandler = () => {
   trade.forEach(async (value, key) => {
     value.map(async (info: TRADE) => {
@@ -265,7 +256,7 @@ export const autoSellHandler = () => {
           let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, info.contractAddress, solana.WSOL_ADDRESS, splAmount, "ExactIn", false)
 
           if (result.confirmed) {
-            const metadata = await solana.getTokenMetaData(SOLANA_CONNECTION, info.contractAddress);
+            const metadata = await getTokenMetaData(SOLANA_CONNECTION, info.contractAddress);
             if (price > info.targetPrice) {
               botInstance.sendMessage(key, `Auto-Sell Token : You successfully sold ${metadata?.name}(${metadata?.symbol}) : ${info.contractAddress} at Price: $${price} for a ${((price / info.startPrice - 1) * 100).toFixed(1)}% gain `);
             } else if (price < info.lowPrice) {
