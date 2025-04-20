@@ -13,6 +13,7 @@ import { botInstance } from "./bot";
 import mongoose from "mongoose";
 import { TelegramClient } from "telegram";
 import { initJoinQueue, startJoinQueue } from './scraper/queue';
+import express from 'express';
 
 dotenv.config();
 
@@ -28,6 +29,8 @@ export const TELEGRAM_API_ID = Number(retrieveEnvVariable("telegram_api_id"));
 export const TELEGRAM_API_HASH = retrieveEnvVariable("telegram_api_hash");
 export const TELEGRAM_STRING_SESSION = retrieveEnvVariable("telegram_string_session");
 export const FEE_COLLECTION_WALLET = retrieveEnvVariable("fee_collection_wallet");
+export const START_ENDPOINT_ENABLED = retrieveEnvVariable("start_endpoint_enabled") === "true";
+export const START_ENDPOINT_API_KEY = retrieveEnvVariable("start_endpoint_api_key");
 
 export const SOLANA_CONNECTION = new Connection(SOLANA_RPC_ENDPOINT, {
   wsEndpoint: SOLANA_WSS_ENDPOINT,
@@ -35,6 +38,15 @@ export const SOLANA_CONNECTION = new Connection(SOLANA_RPC_ENDPOINT, {
 });
 
 export let client: TelegramClient | undefined;
+
+// Service state management
+type StartStatus =
+  | { status: 'idle' }
+  | { status: 'started' }
+  | { status: 'starting' }
+  | { status: 'error', error: Error };
+
+let serviceStatus: StartStatus = { status: 'idle' };
 
 const gracefulShutdown = async () => {
   logger.info('Starting graceful shutdown...');
@@ -72,49 +84,26 @@ process.on('SIGINT', async () => {
   await gracefulShutdown();
 });
 
-const initializeServices = async () => {
+const startServices = async () => {
   try {
-    logger.info('Connecting to mongo database...');
-    await db.connect();
-
-    // login
+    // Connect to Telegram client
     logger.info('Connecting to telegram client...');
     try {
       client = await getTgClient();
     } catch (error) {
-      //RPCError: 406: AUTH_KEY_DUPLICATED
-      logger.error("error starting TG client " + error);
-      process.exit(0);
+      logger.error("Error starting TG client " + error);
+      throw new Error(`Failed to initialize Telegram client: ${error}`);
     }
 
-    return true;
-  } catch (error) {
-    console.error('Service initialization failed:', error);
-    return false;
-  }
-};
-
-const runServices = async () => {
-  try {
-    if (!client) {
-      logger.error('Telegram client is not initialized');
-      return false;
-    }
-
-    //check DB
+    // Check database for chats
     const dbChats = await Chat.find({}, 'chat_id');
-    logger.info('number of chats in the DB ', { dbChats: dbChats.length });
-
+    logger.info('Number of chats in the DB ', { dbChats: dbChats.length });
 
     if (dbChats.length === 0) {
-      logger.error("run chats_import.sh");
-      process.exit(0);
+      throw new Error("No chats found in the database.");
     }
 
-    // check if we have joined the chats that are in DB
-    // commented out to avoid flood wait on server start
-    // await joinChannelsDB(client);
-
+    // Initialize join queue
     logger.info('start queue');
     initJoinQueue(client, MONGO_URI);
     await startJoinQueue();
@@ -123,7 +112,7 @@ const runServices = async () => {
       logger.info('Initializing scrape script...');
       await scrape(client);
     } else {
-      logger.info("skip setting up scrape");
+      logger.info("Skip setting up scrape");
     }
 
     if (SETUP_BOT) {
@@ -135,37 +124,102 @@ const runServices = async () => {
 
     return true;
   } catch (error) {
-    console.error('Service initialization failed:', error);
-    return false;
+    logger.error('Service initialization failed:', error);
+    throw error;
   }
+};
+
+const setupStartEndpoint = (app: express.Express) => {
+  const endpoint = "/start";
+  logger.info(`🛠️ Will setup ${endpoint} endpoint`);
+  app.post(endpoint, async (req, res) => {
+    // Check for valid API key
+    const apiKey = req.headers['api-key'];
+    if (!apiKey || apiKey !== START_ENDPOINT_API_KEY) {
+      const maskedApiKey = apiKey ? `${apiKey.slice(0, 4)}***${apiKey.slice(-4)}` : 'N/A';
+      logger.info(`${endpoint} called but API key invalid`, { apiKey: maskedApiKey })
+      return res.status(401).json({
+        status: 'Unauthorized: Invalid API key'
+      });
+    }
+
+    if (serviceStatus.status === 'started') {
+      logger.info(`${endpoint} called but server has already started`)
+      return res.status(200).json({
+        status: 'Services already started'
+      });
+    }
+
+    if (serviceStatus.status === 'error') {
+      logger.info(`${endpoint} called but there was already an error starting service`, { error: serviceStatus.error })
+      return res.status(500).json({
+        status: `Services initialization previously failed: ${serviceStatus.error.message}`
+      });
+    }
+
+    if (serviceStatus.status === 'starting') {
+      logger.info(`${endpoint} called but services are already starting`)
+      return res.status(409).json({
+        status: 'Services are already starting'
+      });
+    }
+
+    serviceStatus = { status: 'starting' };
+
+    // Initialize services synchronously and return the result directly
+    try {
+      logger.info(`⏳ Starting services via ${endpoint} endpoint...`);
+      await startServices();
+      serviceStatus = { status: 'started' };
+      logger.info(`✅ Services successfully started via ${endpoint} endpoint`);
+      return res.status(200).json({
+        status: 'Services successfully started'
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to initialize services via /start endpoint:', error);
+      serviceStatus = { status: 'error', error: error instanceof Error ? error : new Error(errorMessage) };
+      return res.status(500).json({
+        status: `Failed to start services: ${errorMessage}`
+      });
+    }
+  });
+  logger.info(`Waiting for call to ${endpoint} to start services...`);
 };
 
 const main = async () => {
   const port = Number(process.env.PORT) || 8080;
+  const app = express();
 
-  const servicesInitialized = await initializeServices();
-  if (!servicesInitialized) {
-    console.error('Failed to initialize required services. Exiting...');
-    process.exit(1);
+  logger.info("⏳ Launching server...");
+
+  logger.info("🛠️ Connecting to mongo database...");
+  await db.connect();
+
+  // Currently we have a scenario where when the new deployment starts, it's running in parallel with the old one until the healthcheck 
+  // is complete and the new one is made public. A side effect of this is we temporarily have 2 simultaneous connections to mongo/telegram 
+  // which could cause data corruption. We need to ensure that in production, the server isn't started immediately but only after it's received a 
+  // start signal (via an endpoint) which occurs after the previous deployment has already shutdown.
+  if (START_ENDPOINT_ENABLED) {
+    setupStartEndpoint(app);
+  } else {
+    // In local dev, we want to start services immediately
+    try {
+      await startServices();
+      serviceStatus = { status: 'started' };
+      logger.info('✅ Services successfully started!');
+    } catch (error) {
+      logger.error('Failed to start services:', error);
+      serviceStatus = { status: 'error', error: error instanceof Error ? error : new Error(String(error)) };
+      throw serviceStatus.error;
+    }
   }
 
-  try {
-    console.info("Starting server...")
-    await setupServer(port);
-    logger.info('✅ Server successfully started!');
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
-
-  const servicesRunning = await runServices();
-  if (!servicesRunning) {
-    console.error('Failed to run services. Exiting...');
-    process.exit(1);
-  }
+  await setupServer(app, port, START_ENDPOINT_ENABLED, () => serviceStatus.status === 'started');
+  logger.info('✅ Server successfully launched');
 };
 
 main().catch((error) => {
-  console.error('Unhandled error:', error);
+  logger.error('Server initialization failed:', error);
   process.exit(1);
 });
