@@ -9,6 +9,7 @@ import {
 import { PublicKey } from "@solana/web3.js";
 import { SOLANA_CONNECTION } from "..";
 import { ITrade } from "../models/copyTradeModel";
+import { notifySuccess, notifyError } from "../notify";
 import { logger } from "../util";
 
 // In-memory storage for auto-buy settings per chat.
@@ -301,22 +302,29 @@ function triggerAutoBuy(
   }
 
   if (!amount || amount <= 0) {
-    //TODO inform user
+    notifyError(chatId, "Autobuy: Amount missing or zero")
+      .catch(err => logger.error("Failed to notify user", { chatId, err }));
     logger.error("Amount missing or zero", { chatId });
     return;
   }
 
   if (maxSlippage === null || maxSlippage === undefined) {
+    notifyError(chatId, "Max slippage not set")
+      .catch(err => logger.error("Failed to notify user", { chatId, err }));
     logger.error("Max slippage not set", { chatId });
     return;
   }
 
   if (takeProfit != null && takeProfit <= 0) {
+    notifyError(chatId, "TakeProfit must be greater than 0")
+      .catch(err => logger.error("Failed to notify user", { chatId, err }));
     logger.error("TakeProfit must be greater than 0", { chatId });
     return;
   }
 
   if (stopLoss != null && stopLoss <= 0) {
+    notifyError(chatId, "StopLoss must be greater than 0")
+      .catch(err => logger.error("Failed to notify user", { chatId, err }));
     logger.error("StopLoss must be greater than 0", { chatId });
     return;
   }

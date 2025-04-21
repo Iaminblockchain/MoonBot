@@ -366,60 +366,26 @@ export const editBuyAmountcopytradesignal = makeEditor({ label: "buy amount (SOL
 export const editSlippagecopytradesignal = makeEditor({ label: "max slippage (%)", dbKey: "maxSlippage", parse: Number });
 export const editreplicatecopytradesignal = makeEditor({ label: "replicate count", dbKey: "repetitiveBuy", parse: n => parseInt(n, 10) });
 
-//export const editTagcopytradesignal = makeEditor({ label: "tag name", dbKey: "tag", parse: s => s.trim() });
-// export const editSignalcopytradesignal = makeEditor({ label: "signal channel", dbKey: "signal", parse: s => s.trim() });
-// export const editStopLosscopytradesignal = makeEditor({ label: "stop‑loss (%)", dbKey: "sl", parse: Number });
-// export const editTakeProfitcopytradesignal = makeEditor({ label: "take‑profit (%)", dbKey: "tp", parse: Number });
 
+export const editStopLosscopytradesignal = makeEditor({
+  label: "stop‑loss (%)",
+  dbKey: "sl",
+  parse: (txt) => {
+    const num = parseFloat(txt);
+    if (isNaN(num) || num < 0) throw new Error("Invalid stop-loss");
+    return num;
+  }
+});
 
-const editStopLosscopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
-  const caption = `<b>Please type stop loss percentage</b>\n\n`;
-  const reply_markup = {
-    force_reply: true,
-  };
-  const new_msg = await botInstance.sendMessage(chatId, caption, {
-    parse_mode: "HTML",
-    reply_markup,
-  });
-  botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
-    botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
-    botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
-
-    if (n_msg.text) {
-      const input = parseFloat(n_msg.text);
-      if (isNaN(input) || input < 0) {
-        await botInstance.sendMessage(chatId, "❌ Invalid input. SL must be a number. Try again.");
-        return editStopLosscopytradesignal(chatId, replaceId, dbId);
-      }
-      await copytradedb.updateTrade({ id: new mongoose.Types.ObjectId(dbId), sl: parseFloat(copytradedb.extractAddress(n_msg.text)) })
-      editcopytradesignal(chatId, replaceId, dbId);
-    }
-  });
-}
-
-const editTakeProfitcopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
-  const caption = `<b>Please type take profit percentage</b>\n\n`;
-  const reply_markup = {
-    force_reply: true,
-  };
-  const new_msg = await botInstance.sendMessage(chatId, caption, {
-    parse_mode: "HTML",
-    reply_markup,
-  });
-  botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
-    botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
-    botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
-
-    const input = parseFloat(n_msg.text);
-    if (isNaN(input) || input <= 0) {
-      await botInstance.sendMessage(chatId, "❌ Invalid input. TP must be a positive number (e.g., 50). Try again.");
-      return editTakeProfitcopytradesignal(chatId, replaceId, dbId);
-    }
-
-    await copytradedb.updateTrade({ id: new mongoose.Types.ObjectId(dbId), tp: parseFloat(copytradedb.extractAddress(n_msg.text)) })
-    editcopytradesignal(chatId, replaceId, dbId);
-  });
-}
+export const editTakeProfitcopytradesignal = makeEditor({
+  label: "take‑profit (%)",
+  dbKey: "tp",
+  parse: (txt) => {
+    const num = parseFloat(txt);
+    if (isNaN(num) || num <= 0) throw new Error("Invalid take-profit");
+    return num;
+  }
+});
 
 const editActivitycopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
 
