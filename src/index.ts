@@ -139,7 +139,7 @@ const setupStartEndpoint = (app: express.Express) => {
       const maskedApiKey = apiKey ? `${apiKey.slice(0, 4)}***${apiKey.slice(-4)}` : 'N/A';
       logger.info(`${endpoint} called but API key invalid`, { apiKey: maskedApiKey })
       return res.status(401).json({
-        status: 'Unauthorized: Invalid API key'
+        status: 'Unauthorized'
       });
     }
 
