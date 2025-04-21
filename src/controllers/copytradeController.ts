@@ -68,7 +68,7 @@ export const handleInput = async (
 
     // refresh the inline‑keyboard
     await editcopytradesignal(chatId, ctx.replaceId, ctx.tradeId);
-    await notifySuccess(chatId, 'Updated');
+    //await notifySuccess(chatId, 'Updated');
   } catch (err) {
     logger.error(err);
     await notifyError(chatId, 'Update failed');
@@ -100,70 +100,63 @@ export const editText = async (
 };
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
-  logger.info("copytrade: handleCallBackQuery ", { query: query });
+  logger.info("copytrade: handleCallBackQuery", { query });
+
   const { data: callbackData, message: callbackMessage } = query;
-  logger.info("copytrade: callbackData ", { callbackData: callbackData });
+  logger.info("copytrade: callbackData", { callbackData });
+
   if (!callbackData || !callbackMessage) return;
+  const chatid = String(callbackMessage.chat.id);
+  const msgId = callbackMessage.message_id;
+
   try {
-    let chatid_string = String(callbackMessage.chat.id);
-    if (callbackData == "ct_start") {
-      showPositionPad(chatid_string);
-    } else if (callbackData == "ct_add_signal") {
-      // botInstance.answerCallbackQuery({
-      //   callback_query_id: query.id,
-      //   text: "hello?",
-      //   show_alert: false,
-      // });
-      walletdb.getWalletByChatId(callbackMessage.chat.id)
-        .then(async wallet => {
+    if (callbackData === "ct_start") {
+      return showPositionPad(chatid);
+    }
+
+    if (callbackData === "ct_add_signal") {
+      return walletdb.getWalletByChatId(callbackMessage.chat.id)
+        .then(async (wallet) => {
           if (!wallet) {
-            await botInstance.sendMessage(
-              callbackMessage.chat.id,
-              "You need to set up your wallet first"
-            );
+            await botInstance.sendMessage(chatid, "You need to set up your wallet first");
             return;
           }
-
-          await editcopytradesignal(chatid_string, callbackMessage.message_id);
+          const newTrade = await copytradedb.addTrade(chatid);
+          if (newTrade) {
+            return editcopytradesignal(chatid, msgId, String(newTrade._id));
+          }
         })
         .catch(err => {
           logger.error("wallet lookup failed", err);
-          botInstance.sendMessage(chatid_string, "❌ Something went wrong.");
+          botInstance.sendMessage(chatid, "❌ Something went wrong.");
         });
-    } else if (callbackData.startsWith("ct_edit_")) {
-      const data = callbackData.split("_");
-      editcopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
-    } else if (callbackData.startsWith("ct_del_")) {
-      const data = callbackData.split("_");
-      removecopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
-    } else if (callbackData.startsWith("ct_tag_")) {
-      const data = callbackData.split("_");
-      editTagcopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
-    } else if (callbackData.startsWith("ct_sig_")) {
-      const data = callbackData.split("_");
-      editSignalcopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
-    } else if (callbackData.startsWith("ct_buya_")) {
-      const data = callbackData.split("_");
-      editBuyAmountcopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
-    } else if (callbackData.startsWith("ct_sli_")) {
-      const data = callbackData.split("_");
-      editSlippagecopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
-    } else if (callbackData.startsWith("ct_rep_")) {
-      const data = callbackData.split("_");
-      editreplicatecopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
-    } else if (callbackData.startsWith("ct_stl_")) {
-      const data = callbackData.split("_");
-      editStopLosscopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
-    } else if (callbackData.startsWith("ct_tpr_")) {
-      const data = callbackData.split("_");
-      editTakeProfitcopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
-    } else if (callbackData.startsWith("ct_act_")) {
-      const data = callbackData.split("_");
-      editActivitycopytradesignal(chatid_string, callbackMessage.message_id, data[2]);
-    } else if (callbackData == "ct_back") {
-      showPositionPad(chatid_string, callbackMessage.message_id);
     }
-  } catch (error) { }
+
+    if (callbackData === "ct_back") {
+      return showPositionPad(chatid, msgId);
+    }
+
+    const actionMap: Record<string, Function> = {
+      ct_edit: editcopytradesignal,
+      ct_del: removecopytradesignal,
+      ct_tag: editTagcopytradesignal,
+      ct_sig: editSignalcopytradesignal,
+      ct_buya: editBuyAmountcopytradesignal,
+      ct_sli: editSlippagecopytradesignal,
+      ct_rep: editreplicatecopytradesignal,
+      ct_stl: editStopLosscopytradesignal,
+      ct_tpr: editTakeProfitcopytradesignal,
+      ct_act: editActivitycopytradesignal,
+    };
+
+    const [prefix, key, value] = callbackData.split("_");
+    const fn = actionMap[`${prefix}_${key}`];
+    if (fn) {
+      return fn(chatid, msgId, value);
+    }
+  } catch (error) {
+    logger.error("callback error", error);
+  }
 };
 
 const showPositionPad = async (chatId: string, replaceId?: number) => {
@@ -227,16 +220,14 @@ To manage your Copy Trade:
 - Delete a Copy Trade by clicking the “Delete” button`;
   logger.info("editing copytradesignal");
   let trade;
-  if (dbId) {
-    logger.info("got db id");
-    trade = await copytradedb.findTrade({ _id: new mongoose.Types.ObjectId(dbId) });
-    logger.info(trade);
-  } else {
-    logger.info("no db id");
-
-    //find chat with 
-    trade = await copytradedb.addTrade(chatId);
+  if (!dbId) {
+    logger.error("editcopytradesignal called without dbId", { chatId });
+    return;
   }
+
+  trade = await copytradedb.findTrade({ _id: new mongoose.Types.ObjectId(dbId) });
+  logger.info(trade);
+
   if (!trade) {
     logger.error("No Copy Trade signal Error", { dbId: dbId, chatId: chatId })
     return;

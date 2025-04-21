@@ -1,5 +1,6 @@
 import mongoose, { Schema, model, Document } from "mongoose";
 import TelegramBot from "node-telegram-bot-api";
+import { logger } from "../util";
 
 export interface ITrade extends Document {
   chatId: string;
@@ -36,7 +37,7 @@ export const addTrade = async (chatId: TelegramBot.ChatId) => {
     const trade = await Trade.create({ chatId });
     return trade;
   } catch (error) {
-    console.log("Add Copy Trade Error", error);
+    logger.error("Add Copy Trade Error", error);
   }
 };
 
@@ -45,18 +46,19 @@ export const removeTrade = async (props: any) => {
     await Trade.findOneAndDelete(props);
     return true;
   } catch (error) {
-    console.log("Add Copy Trade Error", error);
+    logger.error("Remove Copy Trade Error", error);
     return false;
   }
 };
 
 export const updateTrade = async (props: any) => {
   try {
+    logger.info("updateTrade " + props);
     const { id } = props;
     let copytrade = await Trade.findByIdAndUpdate(id, props);
     return copytrade;
   } catch (error) {
-    console.log("Add Copy Trade Error", error);
+    logger.error("Update Copy Trade Error", error);
   }
 };
 
@@ -74,7 +76,7 @@ export const findTrade = async (props: any) => {
     let copytrade = await Trade.findOne(props);
     return copytrade;
   } catch (error) {
-    console.log("Add Copy Trade Error", error);
+    logger.error("Find Copy Trade Error", error);
   }
 };
 
@@ -83,7 +85,7 @@ export const getTradeByChatId = async (chatId: TelegramBot.ChatId) => {
     const copytrade = await Trade.find({ chatId });
     return copytrade;
   } catch (error) {
-    console.log("Error", error);
+    logger.error("Error", error);
     return [];
   }
 };
@@ -95,7 +97,7 @@ export const getChatIdByChannel = async (sig: string) => {
     const chatIds = tradesWithSignal.map((trade) => trade.chatId);
     return chatIds;
   } catch (error) {
-    console.log("Error", error);
+    logger.error("Error", error);
     return [];
   }
 };
@@ -106,7 +108,7 @@ export const getAllActiveChannels = async () => {
     const signals = tradesWithSignal.map((trade) => trade.signal);
     return signals;
   } catch (error) {
-    console.log("Error", error);
+    logger.error("Error", error);
     return [];
   }
 };
