@@ -1,13 +1,73 @@
 //scraper listening to predefined groups
 
-import { TelegramClient } from "telegram";
+import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { NewMessage } from "telegram/events";
 import { TELEGRAM_STRING_SESSION, TELEGRAM_API_ID, TELEGRAM_API_HASH } from "../index";
 import { logger } from '../util';
 import { Chat } from "../models/chatModel";
 import { processMessages } from "./processMessages";
+import type { NewMessageEvent } from "telegram/events/NewMessage";
 
+export let lastUpdateTimestamp = Date.now();
+
+// https://trello.com/c/4VaLJ7N8
+// There are some circumstances that messages from telegram aren't emitted to us and we require manually polling.
+// This has been reported multiple times:
+// https://github.com/gram-js/gramjs/issues/575
+// https://github.com/gram-js/gramjs/issues/280
+// https://github.com/gram-js/gramjs/issues/654
+// https://github.com/gram-js/gramjs/issues/561
+// https://github.com/gram-js/gramjs/issues/494
+// https://github.com/gram-js/gramjs/issues/682
+// https://github.com/LonamiWebs/Telethon/issues/4345
+// Telegram has written a guide on it here: https://core.telegram.org/api/updates  which specifies implementing requirements in the Recovering gaps section.
+// `updates.getDifference (common/secret state)` is needed to get the latest updates in specific cases.
+export function startUpdateFallback(client: TelegramClient): void {
+  setInterval(async () => {
+    const now = Date.now();
+    if (now - lastUpdateTimestamp > 60 * 1000) {
+      const internalClient = client as any;
+      const state = internalClient._updates?.state;
+      if (!state) {
+        logger.warn("No state found for updates.getDifference call.");
+        return;
+      }
+
+      try {
+        //TODO need testing and review
+        logger.info(`Calling updates.getDifference due to inactivity`);
+        const result = await client.invoke(
+          new Api.updates.GetDifference({
+            pts: state.pts,
+            date: state.date,
+            qts: state.qts,
+          })
+        );
+
+        //maybe need to address updateChannelTooLong
+
+        if ("newMessages" in result && Array.isArray(result.newMessages)) {
+          for (const msg of result.newMessages) {
+            if (msg instanceof Api.Message) {
+              const event = {
+                message: msg,
+                originalUpdate: result,
+              } as any as NewMessageEvent;
+
+              await processMessages(event);
+              lastUpdateTimestamp = Date.now();
+            } else {
+              logger.error("unknown update type");
+            }
+          }
+        }
+      } catch (err) {
+        logger.error("Error in getDifference", err);
+      }
+    }
+  }, 60_000);
+}
 // Listen to channels in the DB
 async function listenChats(client: TelegramClient): Promise<void> {
   const all_chats = await Chat.find({}, 'chat_id');
@@ -79,6 +139,8 @@ export async function scrape(client: TelegramClient): Promise<void> {
 
     // Listen to channels defined in DB
     await listenChats(client);
+    // start fallback in case we don't receive messages
+    startUpdateFallback(client);
 
   } catch (e) {
     console.error(`Error starting client: ${e}`);

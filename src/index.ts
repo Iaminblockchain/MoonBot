@@ -7,7 +7,6 @@ import * as bot from "./bot";
 import { logger } from "./util";
 import { setupServer } from "./server";
 import { getTgClient } from "./scraper/scraper";
-import { joinChannelsDB } from "./scraper/manageGroups";
 import { Chat } from "./models/chatModel";
 import { botInstance } from "./bot";
 import mongoose from "mongoose";
