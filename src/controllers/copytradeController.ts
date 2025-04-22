@@ -46,9 +46,15 @@ export const handleInput = async (
       case 'tag':
         await copytradedb.updateTrade({ id: ctx.tradeId, tag: text });
         break;
-      case 'signal':
-        await copytradedb.updateTrade({ id: ctx.tradeId, signal: text });
+      case 'signal': {
+        const { signal, chatId: signalChatId } = await resolveSignalAndChatId(text);
+        await copytradedb.updateTrade({
+          id: ctx.tradeId,
+          signal,
+          signalChatId,
+        });
         break;
+      }
       case 'amount':
         await copytradedb.updateTrade({ id: ctx.tradeId, amount: +text });
         break;
@@ -78,6 +84,22 @@ export const handleInput = async (
 };
 
 const lastMessageId = new Map<string, number>();
+
+// Normalize signal input, ensure chat exists, and return { signal, chatId }.
+async function resolveSignalAndChatId(signalInput: string): Promise<{ signal: string, chatId: number | string }> {
+  const signal = parseSignalInput(signalInput);
+  let chatDoc = await Chat.findOne({ username: signal });
+  if (!chatDoc) {
+    // Attempt to join the channel
+    await getQueue().now("join-channel", { username: signal });
+    // Wait for join to take effect, then re-fetch
+    chatDoc = await Chat.findOne({ username: signal });
+  }
+  if (!chatDoc || !chatDoc.chat_id) {
+    throw new Error(`Could not resolve chat for signal "${signal}"`);
+  }
+  return { signal, chatId: chatDoc.chat_id };
+}
 
 export const editText = async (
   chatId: string,
@@ -201,6 +223,19 @@ You can also customize the buy amount, take profit, stop loss and more for every
 
 };
 
+// strip t.me/ or https://t.me/ and leading/trailing symbols
+function parseSignalInput(input: string): string {
+  return input
+    .trim()
+    // strip t.me/ or https://t.me/
+    .replace(/^(?:https?:\/\/)?t\.me\//i, '')
+    // strip any leading @
+    .replace(/^@/, '')
+    // strip any trailing slash
+    .replace(/\/$/, '');
+}
+
+
 const editcopytradesignal = async (
   chatId: string,
   replaceId: number,
@@ -296,36 +331,21 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
     botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
 
     if (n_msg.text) {
-
-      let signalChat = n_msg.text;
-      setState(chatId, STATE.INPUT_COPYTRADE);
-      logger.info(`copytrade: signalChat ${signalChat}`, { target_group: signalChat });
       try {
-        const chatDoc = await Chat.findOne({ username: signalChat });
-
-        // join the channel if it’s new
-        if (!chatDoc) {
-          if (!tgClient) throw new Error("Telegram client not available");
-
-          await getQueue().now("join-channel", { username: signalChat });
-          await notifySuccess(chatId, `Joined ${signalChat} successfully.`);
-        }
-
+        const { signal, chatId: signalChatId } = await resolveSignalAndChatId(n_msg.text);
         await copytradedb.updateTrade({
           id: new mongoose.Types.ObjectId(dbId),
-          signal: signalChat,
-          signalChatId: chatDoc?.chat_id,
+          signal,
+          signalChatId,
         });
-
         await editcopytradesignal(chatId, replaceId, dbId);
-        await notifySuccess(chatId, chatDoc ? "Group updated" : "Group added");
-
+        await notifySuccess(chatId, "Group updated");
       } catch (error) {
         logger.error(error);
+        await notifyError(chatId, "Failed to update group");
       } finally {
         removeState(chatId);
       }
-
     }
   });
 }

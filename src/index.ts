@@ -13,6 +13,7 @@ import mongoose from "mongoose";
 import { TelegramClient } from "telegram";
 import { initJoinQueue, startJoinQueue } from './scraper/queue';
 import express from 'express';
+import { lastUpdateTimestamp } from './scraper/scraper';
 
 dotenv.config();
 

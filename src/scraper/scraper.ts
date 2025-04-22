@@ -11,6 +11,9 @@ import type { NewMessageEvent } from "telegram/events/NewMessage";
 
 export let lastUpdateTimestamp = Date.now();
 
+// per‑channel pts for GetChannelDifference
+const channelPts = new Map<bigint, number>();
+
 // https://trello.com/c/4VaLJ7N8
 // There are some circumstances that messages from telegram aren't emitted to us and we require manually polling.
 // This has been reported multiple times:
@@ -23,21 +26,25 @@ export let lastUpdateTimestamp = Date.now();
 // https://github.com/LonamiWebs/Telethon/issues/4345
 // Telegram has written a guide on it here: https://core.telegram.org/api/updates  which specifies implementing requirements in the Recovering gaps section.
 // `updates.getDifference (common/secret state)` is needed to get the latest updates in specific cases.
+
+//if we haven't received a message in some time trigger update
 export function startUpdateFallback(client: TelegramClient): void {
   setInterval(async () => {
     const now = Date.now();
     if (now - lastUpdateTimestamp > 60 * 1000) {
-      const internalClient = client as any;
-      const state = internalClient._updates?.state;
-      if (!state) {
-        logger.warn("No state found for updates.getDifference call.");
+      //const internalClient = client as any;
+      //ensures client has a valid update state before calling getDifference
+      let state: Api.updates.State;
+      try {
+        state = await client.invoke(new Api.updates.GetState());
+      } catch (error) {
+        logger.error("error getting state");
         return;
       }
 
       try {
-        //TODO need testing and review
-        logger.info(`Calling updates.getDifference due to inactivity`);
-        const result = await client.invoke(
+        logger.info(`Calling getDifference due to inactivity`);
+        const diff = await client.invoke(
           new Api.updates.GetDifference({
             pts: state.pts,
             date: state.date,
@@ -45,14 +52,12 @@ export function startUpdateFallback(client: TelegramClient): void {
           })
         );
 
-        //maybe need to address updateChannelTooLong
-
-        if ("newMessages" in result && Array.isArray(result.newMessages)) {
-          for (const msg of result.newMessages) {
+        if ("newMessages" in diff && Array.isArray(diff.newMessages)) {
+          for (const msg of diff.newMessages) {
             if (msg instanceof Api.Message) {
               const event = {
                 message: msg,
-                originalUpdate: result,
+                originalUpdate: diff,
               } as any as NewMessageEvent;
 
               await processMessages(event);
@@ -62,12 +67,32 @@ export function startUpdateFallback(client: TelegramClient): void {
             }
           }
         }
+
+        if ("otherUpdates" in diff && Array.isArray(diff.otherUpdates)) {
+          for (const upd of diff.otherUpdates) {
+            if (upd instanceof Api.UpdateChannelTooLong) {
+              const chanId = BigInt(upd.channelId.toString());
+              const chanPts = channelPts.get(chanId) ?? 0;
+
+              logger.info(`Channel ${chanId} too long—calling getChannelDifference`, { pts: chanPts });
+              const channel = await client.getEntity(upd.channelId);
+              await client.invoke(new Api.updates.GetChannelDifference({
+                channel,
+                filter: new Api.ChannelMessagesFilterEmpty(),
+                pts: chanPts,
+              }));
+            }
+          }
+        }
+
+
       } catch (err) {
         logger.error("Error in getDifference", err);
       }
     }
   }, 60_000);
 }
+
 // Listen to channels in the DB
 async function listenChats(client: TelegramClient): Promise<void> {
   const all_chats = await Chat.find({}, 'chat_id');
@@ -78,7 +103,7 @@ async function listenChats(client: TelegramClient): Promise<void> {
     .map(chat => Number(chat.chat_id))
     .filter(id => !isNaN(id));
 
-  logger.info(`Parsed chat IDs`, { ids: allChatIds });
+  logger.debug(`Parsed chat IDs`, { ids: allChatIds });
 
   if (allChatIds.length > 0) {
     client.addEventHandler(
