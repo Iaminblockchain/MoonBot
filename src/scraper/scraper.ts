@@ -32,13 +32,14 @@ export function startUpdateFallback(client: TelegramClient): void {
   setInterval(async () => {
     const now = Date.now();
     if (now - lastUpdateTimestamp > 60 * 1000) {
-      //const internalClient = client as any;
       //ensures client has a valid update state before calling getDifference
-      let state: Api.updates.State;
-      try {
-        state = await client.invoke(new Api.updates.GetState());
-      } catch (error) {
-        logger.error("error getting state");
+
+      const internalClient = client as any;
+      //see https://core.telegram.org/type/updates.State
+      const state = internalClient._updates?.state;
+
+      if (!state) {
+        logger.error("No state found for getDifference call.");
         return;
       }
 
