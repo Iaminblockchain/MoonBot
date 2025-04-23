@@ -15,6 +15,7 @@ let totalCAFound = 0;
 let totalMessagesRead = 0;
 
 const trackedContracts: Set<string> = new Set();
+const groupContractsMap: Record<string, Set<string>> = {};
 
 async function trackPerformance(contractAddress: string, entry_price: string): Promise<void> {
     if (trackedContracts.has(contractAddress)) return;
@@ -60,6 +61,11 @@ export async function contractFound(
     logger.info("process: contract found ", { contractAddress, chat_id_str, chat_username });
 
     totalCAFound += 1;
+
+    if (!groupContractsMap[chat_username]) {
+        groupContractsMap[chat_username] = new Set();
+    }
+    groupContractsMap[chat_username].add(contractAddress);
 
     //Track the performance
 
@@ -154,6 +160,17 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
             totalMessages: totalMessagesRead,
             totalContractAddressesFound: totalCAFound
         });
+
+        //every 10 messages log contracts per group
+        if (totalMessagesRead % 10 == 0) {
+            const summary: Record<string, string[]> = {};
+            for (const [group, contracts] of Object.entries(groupContractsMap)) {
+                summary[group] = Array.from(contracts);
+            }
+            logger.info("1-minute contract summary", { summary });
+        }
+
+
 
         // Detect contract address
         const contractAddresses = messageText.match(PUMP_FUN_CA_REGEX) || [];

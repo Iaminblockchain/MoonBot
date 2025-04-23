@@ -7,12 +7,13 @@ import { TELEGRAM_STRING_SESSION, TELEGRAM_API_ID, TELEGRAM_API_HASH } from "../
 import { logger } from '../util';
 import { Chat } from "../models/chatModel";
 import { processMessages } from "./processMessages";
-import type { NewMessageEvent } from "telegram/events/NewMessage";
-
+import { NewMessageEvent } from "telegram/events/NewMessage";
 export let lastUpdateTimestamp = Date.now();
 
 // per‑channel pts for GetChannelDifference
 const channelPts = new Map<bigint, number>();
+// a symbol‐key to store state on the client without colliding
+const STATE_HOLDER = Symbol("updatesStateHolder");
 
 // https://trello.com/c/4VaLJ7N8
 // There are some circumstances that messages from telegram aren't emitted to us and we require manually polling.
@@ -27,69 +28,84 @@ const channelPts = new Map<bigint, number>();
 // Telegram has written a guide on it here: https://core.telegram.org/api/updates  which specifies implementing requirements in the Recovering gaps section.
 // `updates.getDifference (common/secret state)` is needed to get the latest updates in specific cases.
 
-//if we haven't received a message in some time trigger update
+async function initializeUpdateState(client: TelegramClient) {
+  const initState = await client.invoke(new Api.updates.GetState());
+  ; (client as any)[STATE_HOLDER] = { state: initState as Api.updates.State };
+  logger.info("Fetched initial updates.State", initState);
+}
+
+
+// Every minute of silence, run GetDifference against our stored state
+// If the state is ever missing, log & skip.
 export function startUpdateFallback(client: TelegramClient): void {
+  if (!(client as any)[STATE_HOLDER]) {
+    logger.error("Cannot start fallback—no initial updates.State. Did you call getTgClient()?");
+    return;
+  }
+
   setInterval(async () => {
-    const now = Date.now();
-    if (now - lastUpdateTimestamp > 60 * 1000) {
-      //ensures client has a valid update state before calling getDifference
+    const holder = (client as any)[STATE_HOLDER] as { state: Api.updates.State } | undefined;
+    if (!holder) {
+      logger.warn("Missing updates State, skipping getDifference");
+      return;
+    }
 
-      const internalClient = client as any;
-      //see https://core.telegram.org/type/updates.State
-      const state = internalClient._updates?.state;
+    const { pts, date, qts } = holder.state;
+    if (Date.now() - lastUpdateTimestamp <= 60_000) return;
 
-      if (!state) {
-        logger.error("No state found for getDifference call.");
-        return;
-      }
+    try {
+      logger.info("Calling GetDifference due to inactivity", { pts, date, qts });
+      const diff = await client.invoke(
+        new Api.updates.GetDifference({ pts, date, qts })
+      );
 
-      try {
-        logger.info(`Calling getDifference due to inactivity`);
-        const diff = await client.invoke(
-          new Api.updates.GetDifference({
-            pts: state.pts,
-            date: state.date,
-            qts: state.qts,
-          })
-        );
+      // ─── handle newMessages ───────────────────────
+      if ("newMessages" in diff && Array.isArray(diff.newMessages)) {
+        // We are now sure diff is Difference or DifferenceSlice (never Empty)
+        const fullDiff = diff as Api.updates.Difference | Api.updates.DifferenceSlice;
 
-        if ("newMessages" in diff && Array.isArray(diff.newMessages)) {
-          for (const msg of diff.newMessages) {
-            if (msg instanceof Api.Message) {
-              const event = {
-                message: msg,
-                originalUpdate: diff,
-              } as any as NewMessageEvent;
-
-              await processMessages(event);
-              lastUpdateTimestamp = Date.now();
-            } else {
-              logger.error("unknown update type");
-            }
+        for (const msg of fullDiff.newMessages) {
+          if (msg instanceof Api.Message) {
+            // Re‑wrap the raw message in a NewMessageEvent
+            const ev = new NewMessageEvent(
+              msg,
+              fullDiff as unknown as Api.TypeUpdates
+            );
+            ev._setClient(client);
+            await processMessages(ev);
+            lastUpdateTimestamp = Date.now();
           }
         }
+      }
 
-        if ("otherUpdates" in diff && Array.isArray(diff.otherUpdates)) {
-          for (const upd of diff.otherUpdates) {
-            if (upd instanceof Api.UpdateChannelTooLong) {
-              const chanId = BigInt(upd.channelId.toString());
-              const chanPts = channelPts.get(chanId) ?? 0;
+      // ─── handle channel‐too‐long ──────────────────
+      if (Array.isArray((diff as any).otherUpdates)) {
+        for (const upd of (diff as any).otherUpdates) {
+          if (upd instanceof Api.UpdateChannelTooLong) {
+            const chanId = BigInt(upd.channelId.toString());
+            const ptsForChan = channelPts.get(chanId) ?? 0;
+            logger.info(`Channel ${chanId} too long—getChannelDifference`, { ptsForChan });
 
-              logger.info(`Channel ${chanId} too long—calling getChannelDifference`, { pts: chanPts });
-              const channel = await client.getEntity(upd.channelId);
-              await client.invoke(new Api.updates.GetChannelDifference({
-                channel,
-                filter: new Api.ChannelMessagesFilterEmpty(),
-                pts: chanPts,
-              }));
-            }
+            const channel = await client.getEntity(upd.channelId);
+            await client.invoke(new Api.updates.GetChannelDifference({
+              channel,
+              filter: new Api.ChannelMessagesFilterEmpty(),
+              pts: ptsForChan,
+            }));
           }
         }
-
-
-      } catch (err) {
-        logger.error("Error in getDifference", err);
       }
+
+      // ─── update stored state ──────────────────────
+      const newState = (diff as any).state || (diff as any).intermediate_state;
+      if (newState) {
+        holder.state = newState;
+      } else {
+        // fallback if we got differenceTooLong, etc.
+        await initializeUpdateState(client);
+      }
+    } catch (err) {
+      logger.error("Error in getDifference", err);
     }
   }, 60_000);
 }

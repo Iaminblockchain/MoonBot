@@ -24,49 +24,70 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
       onClickXBuy(query);
     }
   } catch (error) {
-
+    logger.error("handleCallBackQuery error", { error });
   }
-
 }
 
 const onClickHalfBuy = async (query: TelegramBot.CallbackQuery) => {
-  const { chatId, messageId } = getChatIdandMessageId(query);
-  const wallet = await walletdb.getWalletByChatId(chatId!);
-  const trade = await tradedb.getTradeByChatId(chatId!);
-  if (wallet && trade) {
-    const privateKey = wallet.privateKey;
-    const publicKey = getPublicKey(privateKey);
-    botInstance.sendMessage(chatId!, 'Sending buy transaction');
-    let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, 0.5, "ExactIn", false);
-    if (result.confirmed) {
-      let trx = null;
-      if (result.txSignature) {
-        trx = `http://solscan.io/tx/${result.txSignature}`
+  try {
+    const { chatId, messageId } = getChatIdandMessageId(query);
+    const wallet = await walletdb.getWalletByChatId(chatId!);
+    const trade = await tradedb.getTradeByChatId(chatId!);
+    if (wallet && trade) {
+      const privateKey = wallet.privateKey;
+      const publicKey = getPublicKey(privateKey);
+      botInstance.sendMessage(chatId!, 'Sending buy transaction');
+      let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, 0.5, "ExactIn", false);
+      if (result.confirmed) {
+        let trx = null;
+        if (result.txSignature) {
+          trx = `http://solscan.io/tx/${result.txSignature}`
+        }
+        botInstance.sendMessage(chatId!, `Buy successfully: ${trx}`);
+      } else {
+        botInstance.sendMessage(chatId!, 'Buy failed');
       }
-      botInstance.sendMessage(chatId!, `Buy successfully: ${trx}`);
+    }
+  } catch (error: any) {
+    logger.error("onClickHalfBuy error", { error });
+    const { chatId } = getChatIdandMessageId(query);
+    const msg = error.message?.toLowerCase() || "";
+    if (msg.includes("insufficient") || msg.includes("balance")) {
+      botInstance.sendMessage(chatId, "Buy failed: insufficient balance");
     } else {
-      botInstance.sendMessage(chatId!, 'Buy failed');
+      botInstance.sendMessage(chatId, "Buy failed due to error");
     }
   }
 }
 
 const onClickOneBuy = async (query: TelegramBot.CallbackQuery) => {
-  const { chatId, messageId } = getChatIdandMessageId(query);
-  const wallet = await walletdb.getWalletByChatId(chatId!);
-  const trade = await tradedb.getTradeByChatId(chatId!);
-  if (wallet && trade) {
-    const privateKey = wallet.privateKey;
-    const publicKey = getPublicKey(privateKey);
-    botInstance.sendMessage(chatId!, 'Sending buy transaction');
-    let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, 1, "ExactIn", false);
-    if (result.confirmed) {
-      let trx = null;
-      if (result.txSignature) {
-        trx = `http://solscan.io/tx/${result.txSignature}`
+  try {
+    const { chatId, messageId } = getChatIdandMessageId(query);
+    const wallet = await walletdb.getWalletByChatId(chatId!);
+    const trade = await tradedb.getTradeByChatId(chatId!);
+    if (wallet && trade) {
+      const privateKey = wallet.privateKey;
+      const publicKey = getPublicKey(privateKey);
+      botInstance.sendMessage(chatId!, 'Sending buy transaction');
+      let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, 1, "ExactIn", false);
+      if (result.confirmed) {
+        let trx = null;
+        if (result.txSignature) {
+          trx = `http://solscan.io/tx/${result.txSignature}`
+        }
+        botInstance.sendMessage(chatId!, `Buy successfully: ${trx}`);
+      } else {
+        botInstance.sendMessage(chatId!, 'Buy failed');
       }
-      botInstance.sendMessage(chatId!, `Buy successfully: ${trx}`);
+    }
+  } catch (error: any) {
+    logger.error("onClickOneBuy error", { error });
+    const { chatId } = getChatIdandMessageId(query);
+    const msg = error.message?.toLowerCase() || "";
+    if (msg.includes("insufficient") || msg.includes("balance")) {
+      botInstance.sendMessage(chatId, "Buy failed: insufficient balance");
     } else {
-      botInstance.sendMessage(chatId!, 'Buy failed');
+      botInstance.sendMessage(chatId, "Buy failed due to error");
     }
   }
 }
@@ -78,25 +99,36 @@ const onClickXBuy = (query: TelegramBot.CallbackQuery) => {
 }
 
 export const buyXAmount = async (message: TelegramBot.Message) => {
-  const chatId = message.chat.id;
-  const messageId = message.message_id;
-  const amount = parseFloat(message.text!);
-  const wallet = await walletdb.getWalletByChatId(chatId!);
-  const trade = await tradedb.getTradeByChatId(chatId!);
-  if (wallet && trade) {
-    const privateKey = wallet.privateKey;
-    const publicKey = getPublicKey(privateKey);
-    botInstance.sendMessage(chatId!, 'Sending buy transaction');
-    logger.info("outmint:", { tokenAddress: trade.tokenAddress });
-    let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, parseInt((amount * 10 ** 9).toString()), "ExactIn", false);
-    if (result.confirmed) {
-      let trx = null;
-      if (result.txSignature) {
-        trx = `http://solscan.io/tx/${result.txSignature}`
+  try {
+    const chatId = message.chat.id;
+    const messageId = message.message_id;
+    const amount = parseFloat(message.text!);
+    const wallet = await walletdb.getWalletByChatId(chatId!);
+    const trade = await tradedb.getTradeByChatId(chatId!);
+    if (wallet && trade) {
+      const privateKey = wallet.privateKey;
+      const publicKey = getPublicKey(privateKey);
+      botInstance.sendMessage(chatId!, 'Sending buy transaction');
+      logger.info("outmint:", { tokenAddress: trade.tokenAddress });
+      let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, parseInt((amount * 10 ** 9).toString()), "ExactIn", false);
+      if (result.confirmed) {
+        let trx = null;
+        if (result.txSignature) {
+          trx = `http://solscan.io/tx/${result.txSignature}`
+        }
+        botInstance.sendMessage(chatId!, `Buy successfully: ${trx}`);
+      } else {
+        botInstance.sendMessage(chatId!, 'Buy failed');
       }
-      botInstance.sendMessage(chatId!, `Buy successfully: ${trx}`);
+    }
+  } catch (error: any) {
+    logger.error("buyXAmount error", { error });
+    const chatId = message.chat.id;
+    const msg = error.message?.toLowerCase() || "";
+    if (msg.includes("insufficient") || msg.includes("balance")) {
+      botInstance.sendMessage(chatId, "Buy failed: insufficient balance");
     } else {
-      botInstance.sendMessage(chatId!, 'Buy failed');
+      botInstance.sendMessage(chatId, "Buy failed due to error");
     }
   }
 }
@@ -124,11 +156,11 @@ export const showBuyPad = async (message: TelegramBot.Message) => {
     logger.info("buy token address: ", { manualBuyTokenAddress: tokenAddress })
     tradedb.createTrade(chatId, tokenAddress!);
     botInstance.deleteMessage(chatId, getDeleteMessageId(chatId));
-
   } catch (error) {
-
+    logger.error("showBuyPad error", { error });
+    const chatId = message.chat.id;
+    botInstance.sendMessage(chatId, "Failed to display buy options");
   }
-
 }
 
 const onBuyControlStart = async (query: TelegramBot.CallbackQuery) => {
@@ -195,9 +227,9 @@ export const autoBuyContract = async (
       return;
     }
     logger.info("run auto buy", { settings: settings, contractAddress: contractAddress, chatId: chatId });
+    const balance = await getSolBalance(wallet.privateKey);
     let solAmount = settings.amount;
     if (settings.isPercentage) {
-      const balance = await getSolBalance(wallet.privateKey);
       solAmount = (balance * settings.amount) / 100;
     }
     const buyNumber = getBuynumber(chatId.toString(), contractAddress);
