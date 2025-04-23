@@ -83,25 +83,15 @@ export function startUpdateFallback(client: TelegramClient): void {
         for (const upd of (diff as any).otherUpdates) {
           if (upd instanceof Api.UpdateChannelTooLong) {
             const chanId = BigInt(upd.channelId.toString());
-            // grab the pts it gives you (falling back to whatever you’d stored)
-            const startPts = typeof upd.pts === "number"
-              ? upd.pts
-              : (channelPts.get(chanId) ?? 0);
+            const ptsForChan = channelPts.get(chanId) ?? 0;
+            logger.info(`Channel ${chanId} too long—getChannelDifference`, { ptsForChan });
 
             const channel = await client.getEntity(upd.channelId);
-            const chanDiff = await client.invoke(
-              new Api.updates.GetChannelDifference({
-                channel,
-                filter: new Api.ChannelMessagesFilterEmpty(),
-                pts: startPts,
-              })
-            );
-
-            // process chanDiff.new_messages or chanDiff.other_updates
-            // then store the new pts so next time you have a non-zero default:
-            if ("pts" in chanDiff) {
-              channelPts.set(chanId, (chanDiff as any).pts);
-            }
+            await client.invoke(new Api.updates.GetChannelDifference({
+              channel,
+              filter: new Api.ChannelMessagesFilterEmpty(),
+              pts: ptsForChan,
+            }));
           }
         }
       }
@@ -188,7 +178,6 @@ export async function checkJoined(client: TelegramClient, name: string): Promise
 export async function scrape(client: TelegramClient): Promise<void> {
   logger.info("start monitor and scrape chats");
   try {
-    await initializeUpdateState(client);
 
     // Listen to channels defined in DB
     await listenChats(client);
