@@ -1,14 +1,12 @@
 import TelegramBot from "node-telegram-bot-api";
-import { botInstance, switchMenu, getChatIdandMessageId, setState, STATE, setDeleteMessageId, getDeleteMessageId, trade, setTradeState } from "../bot";
+import { botInstance, getChatIdandMessageId, setState, STATE, setDeleteMessageId, getDeleteMessageId, trade, setTradeState } from "../bot";
 import { SOLANA_CONNECTION } from "..";
 import * as walletdb from '../models/walletModel';
 import * as tradedb from '../models/tradeModel';
 import * as solana from '../solana/trade';
 import { getPrice } from "./autoBuyController";
-const { PublicKey } = require('@solana/web3.js'); // Import PublicKey
 import { logger } from "../util";
-import { transcode } from "buffer";
-import { getSolBalance, getPublicKey } from "../solana/util";
+import { getSolBalance } from "../solana/util";
 import { getTokenMetaData } from "../solana/token";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
@@ -28,72 +26,58 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   }
 }
 
-const onClickHalfBuy = async (query: TelegramBot.CallbackQuery) => {
+const onClickBuy = async (
+  query: TelegramBot.CallbackQuery,
+  amountSol: number
+): Promise<void> => {
+  const { chatId } = getChatIdandMessageId(query);
   try {
-    const { chatId, messageId } = getChatIdandMessageId(query);
     const wallet = await walletdb.getWalletByChatId(chatId!);
     const trade = await tradedb.getTradeByChatId(chatId!);
-    if (wallet && trade) {
-      const privateKey = wallet.privateKey;
-      const publicKey = getPublicKey(privateKey);
-      botInstance.sendMessage(chatId!, 'Sending buy transaction');
-      let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, 0.5, "ExactIn", false);
-      if (result.confirmed) {
-        let trx = null;
-        if (result.txSignature) {
-          trx = `http://solscan.io/tx/${result.txSignature}`
-        }
-        botInstance.sendMessage(chatId!, `Buy successfully: ${trx}`);
-      } else {
-        botInstance.sendMessage(chatId!, 'Buy failed');
-      }
+    if (!wallet || !trade) {
+      logger.warn('onClickBuy skipped: missing wallet or trade', { chatId });
+      return;
     }
-  } catch (error: any) {
-    logger.error("onClickHalfBuy error", { error });
-    const { chatId } = getChatIdandMessageId(query);
-    const msg = error.message?.toLowerCase() || "";
-    if (msg.includes("insufficient") || msg.includes("balance")) {
-      botInstance.sendMessage(chatId, "Buy failed: insufficient balance");
-    } else {
-      botInstance.sendMessage(chatId, "Buy failed due to error");
-    }
-  }
-}
 
-const onClickOneBuy = async (query: TelegramBot.CallbackQuery) => {
-  try {
-    const { chatId, messageId } = getChatIdandMessageId(query);
-    const wallet = await walletdb.getWalletByChatId(chatId!);
-    const trade = await tradedb.getTradeByChatId(chatId!);
-    if (wallet && trade) {
-      const privateKey = wallet.privateKey;
-      const publicKey = getPublicKey(privateKey);
-      botInstance.sendMessage(chatId!, 'Sending buy transaction');
-      let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, 1, "ExactIn", false);
-      if (result.confirmed) {
-        let trx = null;
-        if (result.txSignature) {
-          trx = `http://solscan.io/tx/${result.txSignature}`
-        }
-        botInstance.sendMessage(chatId!, `Buy successfully: ${trx}`);
-      } else {
-        botInstance.sendMessage(chatId!, 'Buy failed');
-      }
+    logger.info('onClickBuy initiated', { chatId, amountSol, token: trade.tokenAddress });
+    await botInstance.sendMessage(chatId!, 'Sending buy transaction');
+
+    const lamports = amountSol * 10 ** 9;
+    logger.info("call jupyter swap");
+    const result = await solana.jupiter_swap(
+      SOLANA_CONNECTION,
+      wallet.privateKey,
+      solana.WSOL_ADDRESS,
+      trade.tokenAddress,
+      lamports,
+      'ExactIn',
+      false
+    );
+
+    if (result.confirmed) {
+      const trxLink = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : 'N/A';
+      logger.info('onClickBuy success', { chatId, txSignature: result.txSignature });
+      await botInstance.sendMessage(chatId!, `Buy successful: ${trxLink}`);
+    } else {
+      logger.error('onClickBuy failed: not confirmed', { chatId, result });
+      await botInstance.sendMessage(chatId!, 'Buy failed');
     }
   } catch (error: any) {
-    logger.error("onClickOneBuy error", { error });
-    const { chatId } = getChatIdandMessageId(query);
-    const msg = error.message?.toLowerCase() || "";
-    if (msg.includes("insufficient") || msg.includes("balance")) {
-      botInstance.sendMessage(chatId, "Buy failed: insufficient balance");
-    } else {
-      botInstance.sendMessage(chatId, "Buy failed due to error");
-    }
+    logger.error('onClickBuy error', { error, chatId });
+    const msg = (error.message || '').toLowerCase();
+    const reply = msg.includes('insufficient') || msg.includes('balance')
+      ? 'Buy failed: insufficient balance'
+      : 'Buy failed due to error';
+    await botInstance.sendMessage(chatId!, reply);
   }
-}
+};
+
+// Specific handlers using the generic function
+export const onClickHalfBuy = (query: TelegramBot.CallbackQuery) => onClickBuy(query, 0.5);
+export const onClickOneBuy = (query: TelegramBot.CallbackQuery) => onClickBuy(query, 1);
 
 const onClickXBuy = (query: TelegramBot.CallbackQuery) => {
-  const { chatId, messageId } = getChatIdandMessageId(query);
+  const { chatId } = getChatIdandMessageId(query);
   setState(chatId!, STATE.INPUT_BUY_AMOUNT);
   botInstance.sendMessage(chatId!, 'Input buy amount');
 }
@@ -101,23 +85,24 @@ const onClickXBuy = (query: TelegramBot.CallbackQuery) => {
 export const buyXAmount = async (message: TelegramBot.Message) => {
   try {
     const chatId = message.chat.id;
-    const messageId = message.message_id;
+
     const amount = parseFloat(message.text!);
     const wallet = await walletdb.getWalletByChatId(chatId!);
     const trade = await tradedb.getTradeByChatId(chatId!);
     if (wallet && trade) {
-      const privateKey = wallet.privateKey;
-      const publicKey = getPublicKey(privateKey);
       botInstance.sendMessage(chatId!, 'Sending buy transaction');
-      logger.info("outmint:", { tokenAddress: trade.tokenAddress });
+      logger.info("Sending buy transaction:", { tokenAddress: trade.tokenAddress });
+
       let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, parseInt((amount * 10 ** 9).toString()), "ExactIn", false);
       if (result.confirmed) {
+        logger.info(`confirmed ${result}`);
         let trx = null;
         if (result.txSignature) {
           trx = `http://solscan.io/tx/${result.txSignature}`
         }
         botInstance.sendMessage(chatId!, `Buy successfully: ${trx}`);
       } else {
+        logger.error(`buy failed ${result}`);
         botInstance.sendMessage(chatId!, 'Buy failed');
       }
     }
@@ -136,7 +121,6 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
 export const showBuyPad = async (message: TelegramBot.Message) => {
   try {
     const chatId = message.chat.id;
-    const messageId = message.message_id;
     const tokenAddress = message.text;
     const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress!);
     const wallet = await walletdb.getWalletByChatId(chatId);
@@ -205,8 +189,6 @@ const AddBuynumber = (chatId: string, contractAddress: string) => {
   }
 }
 
-
-
 export const autoBuyContract = async (
   chatId: string,
   settings: {
@@ -232,6 +214,15 @@ export const autoBuyContract = async (
     if (settings.isPercentage) {
       solAmount = (balance * settings.amount) / 100;
     }
+    if (solAmount > balance) {
+      logger.error('Insufficient SOL balance', { chatId, balance, required: solAmount });
+      botInstance.sendMessage(
+        chatId,
+        `❌ Insufficient SOL balance: you have ${balance.toFixed(6)} SOL but need ${solAmount.toFixed(6)} SOL.`
+      );
+      return;
+    }
+
     const buyNumber = getBuynumber(chatId.toString(), contractAddress);
     if (buyNumber >= settings.repetitiveBuy) {
       logger.info("max repeat reached");
@@ -240,6 +231,7 @@ export const autoBuyContract = async (
 
     const metaData = await getTokenMetaData(SOLANA_CONNECTION, contractAddress)
     let trade_type = tradeSignal ? "CopyTrade buy" : "Auto-buy";
+    logger.info(`${trade_type}: Sending buy transaction for Token  ${metaData?.name}(${metaData?.symbol}) : ${contractAddress} with amount ${solAmount} SOL ${tradeSignal ? `from signal @${tradeSignal} ` : ''}(Max Slippage: ${settings.maxSlippage}%)`)
     botInstance.sendMessage(
       chatId,
       `${trade_type}: Sending buy transaction for Token  ${metaData?.name}(${metaData?.symbol}) : ${contractAddress} with amount ${solAmount} SOL ${tradeSignal ? `from signal @${tradeSignal} ` : ''}(Max Slippage: ${settings.maxSlippage}%)`
@@ -256,6 +248,7 @@ export const autoBuyContract = async (
         // TODO: Update SPL Price
         //TODO split TP and SL
         botInstance.sendMessage(chatId, `Auto-sell Registered: ${contractAddress}, Current Price: ${splprice}, TakeProfit Price: ${(splprice * (100 + settings.takeProfit) / 100)}(${settings.takeProfit}%), StopLoss Price: ${splprice * (100 - settings.stopLoss) / 100}(${settings.stopLoss}%)`);
+        //set SL and TP in DB which will be queried
         setTradeState(chatId, contractAddress, splprice, splprice * (100 + settings.takeProfit) / 100, splprice * (100 - settings.stopLoss) / 100);
         AddBuynumber(chatId.toString(), contractAddress);
       }

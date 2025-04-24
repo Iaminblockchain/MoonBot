@@ -31,96 +31,73 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   } catch (error) {
 
   }
-
 }
 
-const onClick25Sell = async (query: TelegramBot.CallbackQuery) => {
-  const { chatId, messageId } = getChatIdandMessageId(query);
+// Generic sell handler: sells a fraction of the user's token balance.
+const onClickSell = async (
+  query: TelegramBot.CallbackQuery,
+  fraction: number,
+  wrapUnwrapSOL: boolean = false
+): Promise<void> => {
+  const { chatId } = getChatIdandMessageId(query);
+  logger.info('onClickSell called', { chatId, fraction, wrapUnwrapSOL });
+
   const wallet = await walletdb.getWalletByChatId(chatId!);
-  if (wallet && query && query.data) {
-    const privateKey = wallet.privateKey;
-    const keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
-
-    let queryData = query.data.split("_");
-    var tokenAddress = queryData[2];
-    const tokenATA = getAssociatedTokenAddressSync(new PublicKey(tokenAddress), keypair.publicKey);
-    const tokenBalance = await SOLANA_CONNECTION.getTokenAccountBalance(tokenATA);
-    solana.jupiter_swap(SOLANA_CONNECTION, privateKey, tokenAddress, solana.WSOL_ADDRESS, 0.25 * Number(tokenBalance.value.amount), "ExactIn", true).then((result) => {
-      if (result.confirmed) {
-        botInstance.sendMessage(chatId!, 'Sell successfully');
-      } else {
-        botInstance.sendMessage(chatId!, 'Sell failed');
-      }
-    });
-    botInstance.sendMessage(chatId!, 'Sending sell transaction');
+  if (!wallet || !query.data) {
+    logger.warn('Wallet or query data missing', { chatId });
+    return;
   }
-}
 
-const onClick50Sell = async (query: TelegramBot.CallbackQuery) => {
-  const { chatId, messageId } = getChatIdandMessageId(query);
-  const wallet = await walletdb.getWalletByChatId(chatId!);
-  if (wallet && query && query.data) {
-    const privateKey = wallet.privateKey;
-    const keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
+  const privateKey = wallet.privateKey;
+  const keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
+  const [, , tokenAddress] = query.data.split('_');
 
-    let queryData = query.data.split("_");
-    var tokenAddress = queryData[2];
-    const tokenATA = getAssociatedTokenAddressSync(new PublicKey(tokenAddress), keypair.publicKey);
-    const tokenBalance = await SOLANA_CONNECTION.getTokenAccountBalance(tokenATA);
-    solana.jupiter_swap(SOLANA_CONNECTION, privateKey, tokenAddress, solana.WSOL_ADDRESS, 0.5 * Number(tokenBalance.value.amount), "ExactIn").then((result) => {
-      if (result.confirmed) {
-        botInstance.sendMessage(chatId!, 'Sell successfully');
-      } else {
-        botInstance.sendMessage(chatId!, 'Sell failed');
-      }
-    });
-    botInstance.sendMessage(chatId!, 'Sending sell transaction');
+  const tokenATA = getAssociatedTokenAddressSync(
+    new PublicKey(tokenAddress),
+    keypair.publicKey
+  );
+  const tokenBalance = await SOLANA_CONNECTION.getTokenAccountBalance(tokenATA);
+  const amountToSell = fraction * Number(tokenBalance.value.amount);
+
+  logger.info('Preparing to send transaction', { tokenAddress, amountToSell });
+  await botInstance.sendMessage(chatId!, 'Sending sell transaction');
+
+  try {
+    const result = await solana.jupiter_swap(
+      SOLANA_CONNECTION,
+      privateKey,
+      tokenAddress,
+      solana.WSOL_ADDRESS,
+      amountToSell,
+      'ExactIn',
+      wrapUnwrapSOL
+    );
+    logger.info('Sell transaction result', { confirmed: result.confirmed });
+    const message = result.confirmed ? 'Sell successfully' : 'Sell failed';
+    await botInstance.sendMessage(chatId!, message);
+  } catch (error: any) {
+    logger.error('Sell error', { error });
+    await botInstance.sendMessage(chatId!, `Sell error: ${error.message}`);
   }
-}
+};
 
-const onClick75Sell = async (query: TelegramBot.CallbackQuery) => {
-  const { chatId, messageId } = getChatIdandMessageId(query);
-  const wallet = await walletdb.getWalletByChatId(chatId!);
-  if (wallet && query && query.data) {
-    const privateKey = wallet.privateKey;
-    const keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
+// Specific percentage handlers:
+export const onClick25Sell = async (
+  query: TelegramBot.CallbackQuery
+): Promise<void> => onClickSell(query, 0.25, true);
 
-    let queryData = query.data.split("_");
-    var tokenAddress = queryData[2];
-    const tokenATA = getAssociatedTokenAddressSync(new PublicKey(tokenAddress), keypair.publicKey);
-    const tokenBalance = await SOLANA_CONNECTION.getTokenAccountBalance(tokenATA);
-    solana.jupiter_swap(SOLANA_CONNECTION, privateKey, tokenAddress, solana.WSOL_ADDRESS, 0.75 * Number(tokenBalance.value.amount), "ExactIn").then((result) => {
-      if (result.confirmed) {
-        botInstance.sendMessage(chatId!, 'Sell successfully');
-      } else {
-        botInstance.sendMessage(chatId!, 'Sell failed');
-      }
-    });
-    botInstance.sendMessage(chatId!, 'Sending sell transaction');
-  }
-}
+export const onClick50Sell = async (
+  query: TelegramBot.CallbackQuery
+): Promise<void> => onClickSell(query, 0.5);
 
-const onClick100Sell = async (query: TelegramBot.CallbackQuery) => {
-  const { chatId, messageId } = getChatIdandMessageId(query);
-  const wallet = await walletdb.getWalletByChatId(chatId!);
-  if (wallet && query && query.data) {
-    const privateKey = wallet.privateKey;
-    const keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
+export const onClick75Sell = async (
+  query: TelegramBot.CallbackQuery
+): Promise<void> => onClickSell(query, 0.75);
 
-    let queryData = query.data.split("_");
-    var tokenAddress = queryData[2];
-    const tokenATA = getAssociatedTokenAddressSync(new PublicKey(tokenAddress), keypair.publicKey);
-    const tokenBalance = await SOLANA_CONNECTION.getTokenAccountBalance(tokenATA);
-    solana.jupiter_swap(SOLANA_CONNECTION, privateKey, tokenAddress, solana.WSOL_ADDRESS, Number(tokenBalance.value.amount), "ExactIn").then((result) => {
-      if (result.confirmed) {
-        botInstance.sendMessage(chatId!, 'Sell successfully');
-      } else {
-        botInstance.sendMessage(chatId!, 'Sell failed');
-      }
-    });
-    botInstance.sendMessage(chatId!, 'Sending sell transaction');
-  }
-}
+export const onClick100Sell = async (
+  query: TelegramBot.CallbackQuery
+): Promise<void> => onClickSell(query, 1);
+
 
 // export const showSellPad = async (query: TelegramBot.CallbackQuery) => {
 //     try {
@@ -240,11 +217,13 @@ export const onClickSellWithToken = async (query: TelegramBot.CallbackQuery) => 
 
 //run through each signal and check if sell is triggered
 export const autoSellHandler = () => {
+  logger.info('Running autoSellHandler');
   trade.forEach(async (value, key) => {
     value.map(async (info: TRADE) => {
       try {
         const price = await getPrice(info.contractAddress);
         // botInstance.sendMessage(key!, `Auto-sell Check: ${info.contractAddress}, Current Price: ${price}, Target Price: ${info.targetPrice}`);
+        logger.debug('Auto-sell check', { chatId: key, address: info.contractAddress, price });
         if (price > info.targetPrice || price < info.lowPrice) {
           const wallet = await walletdb.getWalletByChatId(key);
           if (!wallet) return;
