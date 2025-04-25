@@ -1,0 +1,24 @@
+name: Console Log Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-console-logs:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for console logging statements
+        run: |
+          if grep -r "console\." --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" .; then
+            echo "::error::Found console logging statements. Please use winston logger instead."
+            exit 1
+          fi 
