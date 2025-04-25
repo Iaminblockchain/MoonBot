@@ -4,12 +4,12 @@
   "main": "index.js",
   "scripts": {
     "start": "ts-node-dev src/index.ts",
-    "login-telegram": "ts-node-dev src/loginTelegram.ts",
-    "dropchats": "ts-node-dev src/scraper/dropchats.ts",
-    "showdb": "ts-node-dev src/util/showDB.ts",
-    "joinchannel": "ts-node-dev src/util/joinByName.ts",
-    "export": "ts-node-dev src/util/export.ts",
-    "joinchatsdb": "ts-node-dev src/util/joinChatsFromDB.ts",
+    "login-telegram": "ts-node-dev util/loginTelegram.ts",
+    "dropchats": "ts-node-dev util/dropchats.ts",
+    "showdb": "ts-node-dev util/showDB.ts",
+    "joinchannel": "ts-node-dev util/joinByName.ts",
+    "export": "ts-node-dev util/export.ts",
+    "joinchatsdb": "ts-node-dev util/joinChatsFromDB.ts",
     "build": "tsc --noEmit"
   },
   "keywords": [],

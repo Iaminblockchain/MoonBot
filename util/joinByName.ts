@@ -3,9 +3,9 @@
 import { Api, TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
 import readline from "readline";
-import { retrieveEnvVariable } from "../config";
-import { logger } from "../util";
-import { joinChannelByName } from "../scraper/manageGroups";
+import { retrieveEnvVariable } from '../src/config';
+import { logger } from './util';
+import { joinChannelByName } from '../src/scraper/manageGroups';
 
 export const TELEGRAM_API_ID = Number(retrieveEnvVariable("telegram_api_id"));
 export const TELEGRAM_API_HASH = retrieveEnvVariable("telegram_api_hash");

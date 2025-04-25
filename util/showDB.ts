@@ -1,16 +1,16 @@
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { Api } from "telegram";
-import { retrieveEnvVariable } from "../config";
-import { logger } from "../util";
+import { retrieveEnvVariable } from '../src/config';
+import { logger } from './util';
 import mongoose from 'mongoose';
-import { TELEGRAM_STRING_SESSION, TELEGRAM_API_ID, TELEGRAM_API_HASH } from "../index";
-import { Trade, getTradeByChatId } from '../models/copyTradeModel';
+import { TELEGRAM_STRING_SESSION, TELEGRAM_API_ID, TELEGRAM_API_HASH } from '../src/index';
+import { Trade, getTradeByChatId } from '../src/models/copyTradeModel';
 
 
 const MONGO_URI = retrieveEnvVariable("mongo_url");
-import { Chat } from '../models/chatModel';
-import { Call } from '../models/callModel';
+import { Chat } from '../src/models/chatModel';
+import { Call } from '../src/models/callModel';
 
 const session = new StringSession(TELEGRAM_STRING_SESSION);
 //const session = new StringSession('');

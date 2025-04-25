@@ -3,9 +3,9 @@
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
 import mongoose from "mongoose";
-import { retrieveEnvVariable } from "../config";
-import { logger } from "../util";
-import { joinChannelsDB } from "../scraper/manageGroups";
+import { retrieveEnvVariable } from '../src/config';
+import { logger } from './util';
+import { joinChannelsDB } from '../src/scraper/manageGroups';
 
 const TELEGRAM_API_ID = Number(retrieveEnvVariable("telegram_api_id"));
 const TELEGRAM_API_HASH = retrieveEnvVariable("telegram_api_hash");

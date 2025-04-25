@@ -1,8 +1,8 @@
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { Api } from "telegram";
-import { logger } from "../util";
-import { retrieveEnvVariable } from "../config";
+import { logger } from './util';
+import { retrieveEnvVariable } from '../src/config';
 import * as fs from "fs";
 import * as path from "path";
 

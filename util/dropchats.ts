@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
-import { Chat } from '../models/chatModel';
-import { logger } from '../util';
-import { retrieveEnvVariable } from '../config';
+import { Chat } from '../src/models/chatModel';
+import { logger } from './util';
+import { retrieveEnvVariable } from '../src/config';
 const MONGO_URI = retrieveEnvVariable("mongo_url");
 
 export async function dropAllChannels() {
