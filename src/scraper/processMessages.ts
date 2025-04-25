@@ -155,7 +155,13 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
         if (sender instanceof Api.Channel) {
             title = sender.title;
         } else if (sender instanceof Api.User && event.message.chat instanceof Api.Chat) {
-            title = event.message.chat.title
+            logger.info("Message was sent from an Api.Chat")
+            if (event.message.chat) {
+                logger.info("Message chat title found")
+                title = event.message.chat?.title || null;
+            } else {
+                logger.info("event.message.chat.title doesn't exist")
+            }
         } else {
             logger.warning("Unable to get title of message source (wasn't a Channel or Chat)")
         }
