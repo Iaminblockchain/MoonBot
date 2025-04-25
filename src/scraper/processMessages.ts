@@ -147,8 +147,15 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
 
         const chat_username = chatDoc?.username || "N/A";
 
+        // Get the channel display name if the sender is a channel
+        let channelTitle = null;
+        if (sender instanceof Api.Channel) {
+            channelTitle = sender.title
+        }
+
         // Log message info
         logger.info(`Incoming message ${chat_username}`, {
+            title: channelTitle,
             messageText: messageText,
             chatId: chat_id_str,
             chat_username: chat_username
