@@ -122,10 +122,10 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
             return;
         }
 
-        //not using event.message.senderId;        
-        const chatid = event.message.chatId;
-        logger.info(`prev chatid: ${chatid}`)
-        if (!chatid) {
+        // Not using event.message.senderId;        
+        const chatId = event.message.chatId;
+        logger.info(`Original chatId: ${chatId}`)
+        if (!chatId) {
             logger.info("Skipping message, event.message.chatId doesn't exist")
             return;
         }
@@ -135,17 +135,19 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
             return;
         }
 
-        let chat_id_str = String(chatid);
+        // Convert chatId to BOT Chat Id format
+        let chatIdConverted = String(chatId);
+        chatIdConverted = convertChatIdToMTProto(chatIdConverted);
 
-        //convert id
-        chat_id_str = convertChatIdToMTProto(chat_id_str);
+        logger.info(`Converted chatId ${chatIdConverted}`);
 
-        logger.info(`chat_id_str ${chat_id_str}`);
-
-        // Query database for the chat username info
-        const chatDoc = await Chat.findOne({ chat_id: chat_id_str });
-
-        const chat_username = chatDoc?.username || "N/A";
+        // Get direct channel username if available
+        let channelUsername = null;
+        if (sender instanceof Api.Channel) {
+            channelUsername = sender.username || null;
+        } else {
+            logger.info(`sender was not an Api.Channel therefore no username exists`)
+        }
 
         // Either Channel title or Chat title
         let title: String | null = null;
@@ -159,12 +161,20 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
         }
 
         // Log message info
-        logger.info(`Incoming message ${chat_username}`, {
+        logger.info(`Incoming message ${channelUsername}`, {
             title: title,
             messageText: messageText,
-            chatId: chat_id_str,
-            chat_username: chat_username
+            chatIdConverted: chatIdConverted,
+            chatId: chatId,
+            chatUsername: channelUsername
         });
+
+        // Query database for the chat username info
+        logger.info(`Will search Chats for chatIdConverted`, { chatIdConverted: chatIdConverted })
+        const chatDoc = await Chat.findOne({ chat_id: chatIdConverted });
+        const chatUsername = chatDoc?.username || "N/A";
+        logger.info(`Found chat username in Chats`, { chatUsername: chatUsername })
+
 
         // Update stats
         totalMessagesRead++;
@@ -182,18 +192,16 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
             logger.info("1-minute contract summary", { summary });
         }
 
-
-
         // Detect contract address
         const contractAddresses = messageText.match(PUMP_FUN_CA_REGEX) || [];
         if (contractAddresses.length > 0) {
             const contractAddress = contractAddresses[0] || '';
-            logger.info(`Detected contract address ${contractAddress} from ${chat_username}`, {
+            logger.info(`Detected contract address ${contractAddress} from ${chatUsername}`, {
                 contractAddress: contractAddress,
-                chatId: chat_id_str,
-                chat_username: chat_username
+                chatId: chatIdConverted,
+                chat_username: chatUsername
             });
-            await contractFound(contractAddress, chat_id_str, chat_username);
+            await contractFound(contractAddress, chatIdConverted, chatUsername);
         }
     } catch (e) {
         logger.error("Error processing message", { error: e });
