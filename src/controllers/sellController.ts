@@ -166,7 +166,7 @@ export const showSellPad = async (query: TelegramBot.CallbackQuery) => {
 
     botInstance.sendMessage(chatId!, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: 'HTML' });
   } catch (error) {
-    console.error("Error in showSellPad:", error);
+    logger.error("Error in showSellPad:", error);
     botInstance.sendMessage(query.message!.chat.id, "❌ Failed to fetch wallet tokens.");
   }
 };

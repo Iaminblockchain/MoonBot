@@ -454,7 +454,7 @@ export const getAllTokensWithBalance = async (
 
     return tokenBalances;
   } catch (error) {
-    console.error("Error fetching wallet tokens:", error);
+    logger.error("Error fetching wallet tokens:", error);
     return [];
   }
 };

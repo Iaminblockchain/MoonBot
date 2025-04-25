@@ -8,7 +8,7 @@ const {
 
 // Function to get pool keys by providing the pool's AMM ID
 const getPoolKeysByPoolId = async (ammId, connection) => {
-    console.log(`Getting pool keys for ${ammId}`);  // Log the pool ID being queried
+    logger.info(`Getting pool keys for ${ammId}`);  // Log the pool ID being queried
     
     // Fetch the account information for the given AMM ID
     const ammAccount = await connection.getAccountInfo(new PublicKey(ammId));

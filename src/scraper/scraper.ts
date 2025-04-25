@@ -97,6 +97,6 @@ export async function scrape(client: TelegramClient): Promise<void> {
     await listenChats(client);
     startGetDialogsPoll(client);
   } catch (e) {
-    console.error(`Error starting client: ${e}`);
+    logger.error(`Error starting client: ${e}`);
   }
 }

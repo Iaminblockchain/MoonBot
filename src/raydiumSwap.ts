@@ -14,7 +14,7 @@ import {
 import { Wallet } from '@coral-xyz/anchor'
 import bs58 from 'bs58'
 import * as config from './config';
-
+import { logger } from './util';
 /**
  * Class representing a Raydium Swap operation.
  */
@@ -74,7 +74,7 @@ class RaydiumSwap {
 }
 
 async getSwapTransaction(toToken: any, amount: any, poolKeys: any, maxLamports = 100000, useVersionedTransaction = true, fixedSide:any = 'in') {
-  console.log(`toToken: ${toToken}\namount: ${amount}\npoolKeys: ${poolKeys}\nmaxLamports: ${maxLamports}\nuseVersionedTransaction: ${useVersionedTransaction}\nfixedSide: ${fixedSide}`)
+  logger.info(`toToken: ${toToken}\namount: ${amount}\npoolKeys: ${poolKeys}\nmaxLamports: ${maxLamports}\nuseVersionedTransaction: ${useVersionedTransaction}\nfixedSide: ${fixedSide}`)
     const directionIn = poolKeys.quoteMint.toString() == toToken;
     const { minAmountOut, amountIn } = await this.calcAmountOut(poolKeys, amount, directionIn);
 

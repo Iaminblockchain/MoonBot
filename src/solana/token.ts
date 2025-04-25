@@ -113,7 +113,7 @@ export const getTokenBalance = async (
         const balance = tokenAccount;
         return balance;
     } catch (error) {
-        console.error("Error fetching token balance:", error);
+        logger.error("Error fetching token balance:", error);
         return null;
     }
 };
@@ -126,7 +126,7 @@ export const getTokenInfofromMint = async (wallet: PublicKey, tokenAddress: stri
         logger.info("info: ", { info })
         return info.value;
     } catch (error) {
-        console.error("Error fetching token balance:", error);
+        logger.error("Error fetching token balance:", error);
         return null;
     }
 }

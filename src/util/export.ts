@@ -53,7 +53,7 @@ async function exportUserChannels(): Promise<void> {
 
     const filePath = path.join(__dirname, "../../data/NEW_channels.json");
     fs.writeFileSync(filePath, JSON.stringify(channels, null, 2));
-    console.log(`✅ Saved channel list to ${filePath}. Number of channels: ${channels.length}`);
+    logger.info(`✅ Saved channel list to ${filePath}. Number of channels: ${channels.length}`);
 
     process.exit(0);
 }

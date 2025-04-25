@@ -33,7 +33,7 @@ async function getTokenAddressFromTokenAccount(tokenAccountAddress: string) {
 
         return mintAddress.toBase58();
     } catch (error) {
-        console.error("Error fetching token address:", error);
+        logger.error("Error fetching token address:", error);
     }
 }
 

@@ -2,6 +2,7 @@ import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
 import promptSync from "prompt-sync";
 import { retrieveEnvVariable } from "./config";
+import { logger } from "./util";
 
 const prompt = promptSync({ sigint: true });
 
@@ -25,13 +26,13 @@ async function loginTelegram(): Promise<void> {
           phoneNumber: async () => prompt("Phone number? "),
           password: async () => prompt("Password? "),
           phoneCode: async () => prompt("Code? "),
-          onError: (err) => console.log(err),
+          onError: (err) => { logger.error(err); },
         }
       );
-      console.log("Session string:", client.session.save());
+      logger.info("Session string:", client.session.save());
     }
   } catch (e) {
-    console.error(`Error starting client: ${e}`);
+    logger.error(`Error starting client: ${e}`);
   }
 }
 

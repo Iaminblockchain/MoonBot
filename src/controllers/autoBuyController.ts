@@ -182,12 +182,12 @@ function promptBuyAmount(chatId: string,) {
             });
           })
           .catch((err: any) =>
-            console.error("Error sending slippage prompt:", err)
+            logger.error("Error sending slippage prompt:", err)
           );
       });
     })
     .catch((err: any) =>
-      console.error("Error sending buy amount prompt:", err)
+      logger.error("Error sending buy amount prompt:", err)
     );
 }
 

@@ -7,8 +7,8 @@ const {
 // Creating an asynchronous function to fetch market accounts based on the provided base and quote tokens
 const fetchMarketAccounts = async (connection, base, quote, commitment) => {
     try {
-          console.log("~~basee", base);
-          console.log("quote", quote);
+          logger.info("~~basee", base);
+          logger.info("quote", quote);
  //const baseMint = new PublicKey(base);
      // const quoteMint = new PublicKey(quote);
         // Fetching program accounts from the blockchain using the connection object and the provided parameters
@@ -45,7 +45,7 @@ const fetchMarketAccounts = async (connection, base, quote, commitment) => {
         return obj;
     } catch (error) {
         // Catch any errors during the fetch process and log them
-        console.log(`fetchMarketAccounts`, error);
+        logger.error(`fetchMarketAccounts`, error);
     } 
 }
 

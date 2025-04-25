@@ -67,7 +67,7 @@ export const getAllTrades = async () => {
     try {
         return await Trade.find({}).sort({ _id: -1 });
     } catch (error) {
-        console.log("Error fetching all trades", error);
+        logger.error("Error fetching all trades", error);
         return [];
     }
 };
@@ -80,6 +80,6 @@ export const getAllTrades = async () => {
 
     const allTrades = await getAllTrades();
     allTrades.forEach(trade => {
-        console.log(`ChatID: ${trade.chatId}, Signal: ${trade.signal}`);
+        logger.info(`ChatID: ${trade.chatId}, Signal: ${trade.signal}`);
     });
 })();
