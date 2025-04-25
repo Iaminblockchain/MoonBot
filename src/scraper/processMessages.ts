@@ -150,7 +150,7 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
         }
 
         // Either Channel title or Chat title
-        let title: String | null = null;
+        let title: string | null = null;
 
         if (sender instanceof Api.Channel) {
             title = sender.title;
