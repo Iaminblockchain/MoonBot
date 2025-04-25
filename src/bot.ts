@@ -16,6 +16,7 @@ import { logger } from './util';
 import { getSolBalance, getPublicKey } from './solana/util';
 
 import cron from "node-cron";
+import { helpText } from './util/constants';
 export let botInstance: any;
 
 export const enum STATE {
@@ -237,6 +238,18 @@ const onWalletCommand = (msg: TelegramBot.Message) => {
 
 const onHelpCommand = (msg: TelegramBot.Message) => {
     // Implement help command handling if needed.
+    const chatId = msg.chat.id;
+      const message = helpText;
+    
+      botInstance.sendMessage(chatId!, message, {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: 'Close', callback_data: "close" }
+            ]
+          ]
+        }, parse_mode: 'HTML'
+      });
 };
 
 const backToStart = async (query: TelegramBot.CallbackQuery) => {
