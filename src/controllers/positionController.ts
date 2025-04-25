@@ -6,7 +6,7 @@ import { SOLANA_CONNECTION } from "..";
 import { getAllTokensWithBalance, jupiter_swap, swapToken, WSOL_ADDRESS } from "../solana/trade";
 import { getTokenInfofromMint, getTokenMetaData } from "../solana/token";
 import { getPrice } from "./autoBuyController";
-import { logger } from "../util";
+import { logger } from "../logger";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     try {

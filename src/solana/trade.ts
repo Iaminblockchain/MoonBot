@@ -25,7 +25,7 @@ import swap from "../swap";
 import { FEE_COLLECTION_WALLET, JITO_TIP, SOLANA_CONNECTION } from "..";
 import { getWalletByChatId } from "../models/walletModel";
 import { getKeypair } from "./util";
-import { logger } from "../util";
+import { logger } from "../logger";
 import { getTokenMetaData } from "./token";
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";

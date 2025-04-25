@@ -20,7 +20,7 @@ import {
 
 import { Metaplex } from "@metaplex-foundation/js";
 import { SOLANA_CONNECTION } from "..";
-import { logger } from "../util";
+import { logger } from "../logger";
 import { getWalletByChatId } from "../models/walletModel";
 import { submitAndConfirm } from "./trade";
 import { getKeypair } from "./util";

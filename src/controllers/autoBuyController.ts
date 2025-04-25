@@ -10,7 +10,7 @@ import { PublicKey } from "@solana/web3.js";
 import { SOLANA_CONNECTION } from "..";
 import { ITrade } from "../models/copyTradeModel";
 import { notifySuccess, notifyError } from "../notify";
-import { logger } from "../util";
+import { logger } from "../logger";
 
 // In-memory storage for auto-buy settings per chat.
 export interface AutoBuySettings {

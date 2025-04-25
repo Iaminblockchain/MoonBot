@@ -1,7 +1,7 @@
 import RaydiumSwap from './raydiumSwap';
 import { Transaction, VersionedTransaction } from '@solana/web3.js';
 import { SOLANA_RPC_ENDPOINT } from '.';
-import { logger } from './util';
+import { logger } from './logger';
 
 // import 'dotenv/config';
 // import { swapConfig } from './swapConfig'; // Import the configuration

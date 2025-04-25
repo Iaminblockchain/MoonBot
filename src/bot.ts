@@ -12,7 +12,7 @@ import * as autoBuyController from './controllers/autoBuyController';
 import * as helpController from './controllers/helpController';
 import * as copytradeController from './controllers/copytradeController';
 import { TelegramClient } from "telegram";
-import { logger } from './util';
+import { logger } from './logger';
 import { getSolBalance, getPublicKey } from './solana/util';
 
 import cron from "node-cron";

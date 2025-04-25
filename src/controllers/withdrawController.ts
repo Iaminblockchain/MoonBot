@@ -4,7 +4,7 @@ import * as solana from '../solana/trade';
 import { botInstance, getChatIdandMessageId, setState, getState, switchMenu, STATE } from "../bot";
 import { getPublicKeyinFormat } from "./sellController";
 import { SOLANA_CONNECTION } from "..";
-import { logger } from "../util";
+import { logger } from "../logger";
 import { sendSPLtokens, getTokenInfofromMint, getTokenMetaData } from "../solana/token";
 import { getSolBalance, isValidAddress } from "../solana/util";
 

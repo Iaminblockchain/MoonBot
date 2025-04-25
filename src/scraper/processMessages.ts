@@ -1,7 +1,7 @@
 import { ICall, Call } from "../models/callModel";
 import { IChat, Chat } from "../models/chatModel";
 import { NewMessageEvent } from "telegram/events";
-import { logger } from '../util';
+import { logger } from '../logger';
 import { v4 as uuidv4 } from 'uuid';
 import { getTokenPrice } from "../getPrice";
 import { onSignal } from '../controllers/copytradeController';

@@ -14,7 +14,7 @@ import {
 import { Wallet } from '@coral-xyz/anchor'
 import bs58 from 'bs58'
 import * as config from './config';
-import { logger } from './util';
+import { logger } from './logger';
 /**
  * Class representing a Raydium Swap operation.
  */

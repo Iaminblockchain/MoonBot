@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { MONGO_URI } from '.';
-import { logger } from './util';
+import { logger } from './logger';
 
 export const connect = async () => {
     try {

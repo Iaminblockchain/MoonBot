@@ -2,7 +2,7 @@ import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { NewMessage } from "telegram/events";
 import { TELEGRAM_STRING_SESSION, TELEGRAM_API_ID, TELEGRAM_API_HASH } from "../index";
-import { logger } from '../util';
+import { logger } from '../logger';
 import { Chat } from "../models/chatModel";
 import { processMessages } from "./processMessages";
 import { NewMessageEvent } from "telegram/events/NewMessage";

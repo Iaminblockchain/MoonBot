@@ -1,6 +1,6 @@
 // manage groups
 import { Api, TelegramClient } from "telegram";
-import { logger } from '../util';
+import { logger } from '../logger';
 import { Dialog } from "telegram/tl/custom/dialog";
 import { Chat } from "../models/chatModel";
 import { getTgClient } from "./scraper";

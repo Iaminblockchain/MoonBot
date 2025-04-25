@@ -1,6 +1,6 @@
 import mongoose, { Schema, model, Document } from "mongoose";
 import TelegramBot from "node-telegram-bot-api";
-import { logger } from "../util";
+import { logger } from "../logger";
 
 export interface ITrade extends Document {
   chatId: string;

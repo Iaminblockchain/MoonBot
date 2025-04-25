@@ -1,5 +1,5 @@
 import * as dotenv from "dotenv";
-import { logger } from "./util";
+import { logger } from "./logger";
 dotenv.config();
 
 export const retrieveEnvVariable = (variableName: string) => {

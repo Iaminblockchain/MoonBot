@@ -9,7 +9,7 @@ import bs58 from "bs58";
 const { PublicKey } = require('@solana/web3.js'); // Import PublicKey
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { autoBuySettings, getPrice, getSPLBalance } from "./autoBuyController";
-import { logger } from "../util";
+import { logger } from "../logger";
 import { getTokenMetaData } from "../solana/token";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {

@@ -1,6 +1,6 @@
 import Agenda, { Job } from 'agenda';
 import { joinChannelByName } from '../scraper/manageGroups';
-import { logger } from '../util';
+import { logger } from '../logger';
 import { Chat } from '../models/chatModel';
 import { processMessages } from './processMessages';
 import { NewMessage } from 'telegram/events';

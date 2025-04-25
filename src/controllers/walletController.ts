@@ -2,7 +2,7 @@ import TelegramBot, { CallbackQuery } from "node-telegram-bot-api";
 import * as walletdb from '../models/walletModel';
 import * as solana from '../solana/trade';
 import { botInstance, getChatIdandMessageId, setState, getState, switchMenu, STATE } from "../bot";
-import { logger } from "../util";
+import { logger } from "../logger";
 import { getPublicKey, createWallet, getSolBalance } from "../solana/util"
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {

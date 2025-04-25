@@ -1,6 +1,5 @@
-
 const axios = require('axios');
-import { logger } from './util';
+import { logger } from './logger';
 
 export async function getTokenPrice(
     ids: string,

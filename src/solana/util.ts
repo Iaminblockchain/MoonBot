@@ -4,7 +4,7 @@ import {
     PublicKey,
 } from "@solana/web3.js";
 import { SOLANA_CONNECTION } from "..";
-import { logger } from "../util";
+import { logger } from "../logger";
 
 const jito_Validators = [
     "DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh",

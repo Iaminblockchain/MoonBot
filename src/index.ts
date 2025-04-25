@@ -4,7 +4,7 @@ import * as dotenv from "dotenv";
 import { Connection } from "@solana/web3.js";
 import { scrape } from "./scraper/scraper";
 import * as bot from "./bot";
-import { logger } from "./util";
+import { logger } from "./logger";
 import { setupServer } from "./server";
 import { getTgClient } from "./scraper/scraper";
 import { Chat } from "./models/chatModel";

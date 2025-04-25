@@ -15,7 +15,7 @@ import {
     createTransferInstruction,
     getAssociatedTokenAddress,
 } from "@solana/spl-token";
-import { logger } from "../util";
+import { logger } from "../logger";
 
 import { FEE_COLLECTION_WALLET, JITO_TIP, SOLANA_CONNECTION } from "..";
 

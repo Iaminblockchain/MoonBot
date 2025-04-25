@@ -1,5 +1,5 @@
 import express from 'express';
-import { logger } from './util';
+import { logger } from './logger';
 import { Chat } from './models/chatModel';
 import { Call } from './models/callModel';
 import cors from 'cors';

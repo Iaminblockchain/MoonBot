@@ -5,7 +5,7 @@ import { botInstance, setState, STATE, removeState } from "../bot";
 import { TelegramClient } from "telegram";
 import { setAutotradeSignal } from "./autoBuyController";
 import mongoose from "mongoose";
-import { logger } from "../util";
+import { logger } from "../logger";
 import { Trade } from '../models/copyTradeModel';
 import { Chat } from "../models/chatModel";
 import { getQueue } from '../scraper/queue';
