@@ -57,7 +57,8 @@ const onClickBuy = async (
     if (result.confirmed) {
       const trxLink = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : 'N/A';
       logger.info('onClickBuy success', { chatId, txSignature: result.txSignature });
-      await botInstance.sendMessage(chatId!, `Buy successful: ${trxLink}`);
+      const msg = await getBuySuccessMessage(trxLink, trade.tokenAddress, amountSol);
+        botInstance.sendMessage(chatId!, msg);
     } else {
       logger.error('onClickBuy failed: not confirmed', { chatId, result });
       await botInstance.sendMessage(chatId!, 'Buy failed');
@@ -96,11 +97,12 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
       let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, solana.WSOL_ADDRESS, trade.tokenAddress, parseInt((amount * 10 ** 9).toString()), "ExactIn", false);
       if (result.confirmed) {
         logger.info(`confirmed ${result}`);
-        let trx = null;
+        let trx = "";
         if (result.txSignature) {
           trx = `http://solscan.io/tx/${result.txSignature}`
         }
-        botInstance.sendMessage(chatId!, `Buy successfully: ${trx}`);
+        const msg = await getBuySuccessMessage(trx, trade.tokenAddress, amount);
+        botInstance.sendMessage(chatId!, msg);
       } else {
         logger.error(`buy failed ${result}`);
         botInstance.sendMessage(chatId!, 'Buy failed');
@@ -241,7 +243,8 @@ export const autoBuyContract = async (
 
     if (result.confirmed) {
       let trx = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "";
-      botInstance.sendMessage(chatId, `${trade_type} successful: ${trx}`);
+      const msg = await getBuySuccessMessage(trx, contractAddress, solAmount, trade_type, tradeSignal, settings);
+      botInstance.sendMessage(chatId, msg);
       if (settings.takeProfit != null && settings.stopLoss) {
         logger.info("set take profit");
         const splprice = await getPrice(contractAddress);
@@ -261,3 +264,29 @@ export const autoBuyContract = async (
     logger.error(`autobuy error ${error}`, { chatId, settings, contractAddress, tradeSignal });
   }
 };
+
+
+const getBuySuccessMessage = async (
+  trx: string,
+  tokenAddress: string,
+  solAmount: number,
+  trade_type?: string,
+  tradeSignal?: string,
+  settings?: {
+    amount: number;
+    isPercentage: boolean;
+    maxSlippage: number;
+    takeProfit: number | null;
+    repetitiveBuy: number;
+    stopLoss: number | null;
+  },
+) => {
+  const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
+  if (!trade_type) {
+    return `Buy successful: ${trx}\nTicker: ${metaData?.symbol}\nBuy Amount: ${solAmount} SOL`;
+  } else if (settings) {
+    return `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource:${tradeSignal ? `$@{tradeSignal}` : ""}\nTake profit:${settings!.takeProfit}%, Stop loss:${settings!.stopLoss}%`
+  } else {
+    return `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource:${tradeSignal ? `$@{tradeSignal}` : ""}`
+  }
+}
