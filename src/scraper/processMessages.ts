@@ -147,15 +147,20 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
 
         const chat_username = chatDoc?.username || "N/A";
 
-        // Get the channel display name if the sender is a channel
-        let channelTitle = null;
+        // Either Channel title or Chat title
+        let title: String | null = null;
+
         if (sender instanceof Api.Channel) {
-            channelTitle = sender.title
+            title = sender.title;
+        } else if (sender instanceof Api.User && event.message.chat instanceof Api.Chat) {
+            title = event.message.chat.title
+        } else {
+            logger.warning("Unable to get title of message source (wasn't a Channel or Chat)")
         }
 
         // Log message info
         logger.info(`Incoming message ${chat_username}`, {
-            title: channelTitle,
+            title: title,
             messageText: messageText,
             chatId: chat_id_str,
             chat_username: chat_username
