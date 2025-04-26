@@ -2,8 +2,6 @@ import Agenda, { Job } from 'agenda';
 import { joinChannelByName } from '../scraper/manageGroups';
 import { logger } from '../logger';
 import { Chat } from '../models/chatModel';
-import { processMessages } from './processMessages';
-import { NewMessage } from 'telegram/events';
 import { TelegramClient } from "telegram";
 
 let agendaInstance: Agenda | null = null;
@@ -25,12 +23,6 @@ export function initJoinQueue(client: TelegramClient, mongoUri: string) {
                 { upsert: true }
             );
             logger.info(`Chat ${username} saved to DB with id ${id}`);
-
-            //listen to events from the chat
-            client.addEventHandler(
-                processMessages,
-                new NewMessage({ chats: [id] })
-            );
         } else {
             logger.warn(`⚠️ Failed to join or save chat: ${username}`);
         }
