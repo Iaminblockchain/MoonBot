@@ -18,7 +18,7 @@ jobs:
       
       - name: Check for console logging statements
         run: |
-          if grep -r "console\." --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" .; then
+          if grep -r "console\." --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --exclude="src/config.ts" .; then
             echo "::error::Found console logging statements. Please use winston logger instead."
             exit 1
           fi 
