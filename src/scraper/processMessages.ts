@@ -124,7 +124,7 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
 
         // Not using event.message.senderId;        
         const chatId = event.message.chatId;
-        logger.info(`Original chatId: ${chatId}`)
+
         if (!chatId) {
             logger.info("Skipping message, event.message.chatId doesn't exist")
             return;
@@ -139,31 +139,46 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
         let chatIdConverted = String(chatId);
         chatIdConverted = convertChatIdToMTProto(chatIdConverted);
 
-        logger.info(`Converted chatId ${chatIdConverted}`);
-
         // Get direct channel username if available
         let channelUsername = null;
         if (sender instanceof Api.Channel) {
             channelUsername = sender.username || null;
+        } else if (event.message.chat instanceof Api.Channel) {
+            channelUsername = event.message.chat.username || null;
         } else {
-            logger.info(`sender was not an Api.Channel therefore no username exists`)
+            logger.info(`No username available (sender is not a Channel and chat is not a Channel/Supergroup)`)
         }
 
         // Either Channel title or Chat title
         let title: string | null = null;
-
-        if (sender instanceof Api.Channel) {
-            title = sender.title;
-        } else if (sender instanceof Api.User && event.message.chat instanceof Api.Chat) {
-            logger.info("Message was sent from an Api.Chat")
-            if (event.message.chat) {
-                logger.info("Message chat title found")
-                title = event.message.chat?.title || null;
+        try {
+            if (sender instanceof Api.Channel) {
+                logger.debug("Message was sent from an Api.Channel")
+                title = sender.title;
+            } else if (event.message.chat instanceof Api.Chat) {
+                logger.debug("Message was sent from a Chat/Group")
+                title = event.message.chat.title || null;
+            } else if (event.message.chat instanceof Api.Channel) {
+                logger.debug("Message was sent from a Supergroup")
+                title = event.message.chat.title || null;
             } else {
-                logger.info("event.message.chat.title doesn't exist")
+                logger.warn("Unable to get title of message source", {
+                    senderType: sender?.constructor?.name,
+                    chatType: event.message.chat?.constructor?.name,
+                    messageId: event.message.id,
+                    chatId: event.message.chatId
+                });
             }
-        } else {
-            logger.warning("Unable to get title of message source (wasn't a Channel or Chat)")
+        } catch (error) {
+            logger.error("Error extracting title from message", {
+                error: error instanceof Error ? error.message : String(error),
+                errorType: error?.constructor?.name,
+                senderType: sender?.constructor?.name,
+                chatType: event.message.chat?.constructor?.name,
+                messageId: event.message.id,
+                chatId: event.message.chatId
+            });
+            title = null;
         }
 
         // Log message info
@@ -176,11 +191,9 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
         });
 
         // Query database for the chat username info
-        logger.info(`Will search Chats for chatIdConverted`, { chatIdConverted: chatIdConverted })
         const chatDoc = await Chat.findOne({ chat_id: chatIdConverted });
+        // TODO: Don't use "N/A" as a default value
         const chatUsername = chatDoc?.username || "N/A";
-        logger.info(`Found chat username in Chats`, { chatUsername: chatUsername })
-
 
         // Update stats
         totalMessagesRead++;
