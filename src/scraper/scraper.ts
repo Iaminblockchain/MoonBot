@@ -20,10 +20,10 @@ import { processMessages } from "./processMessages";
 // - One user from one of the above issues said they had success with calling getDialogs (https://github.com/gram-js/gramjs/issues/654#issuecomment-2029487203) periodically
 // - Another said calling getMe (https://github.com/gram-js/gramjs/issues/494#issuecomment-1593398280) periodically worked
 // 
-// We will try reconnecting every 30 minutes
+// We will try reconnecting every 25 minutes
 // https://github.com/gram-js/gramjs/issues/682#issuecomment-2169838423
 function restartConnectionPeriodically(client: TelegramClient): void {
-  const minutes = 30;
+  const minutes = 25;
   logger.info(`Will reconnect to Telegram every ${minutes} minutes`);
   setInterval(async () => {
     logger.info(`${minutes} minutes passed, reconnecting to Telegram...`);
