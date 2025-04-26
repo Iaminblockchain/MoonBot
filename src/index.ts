@@ -56,30 +56,38 @@ const gracefulShutdown = async () => {
       await client.disconnect();
       logger.info('Telegram client disconnected');
     }
+  } catch (error) {
+    logger.error('Error shutting down client', error);
+  }
 
+  try {
     // Stop Telegram bot if it exists
     if (botInstance) {
       await botInstance.stopPolling();
       logger.info('Telegram bot polling stopped');
     }
+  } catch (error) {
+    logger.error('Error shutting down botInstance', error);
+  }
 
+  try {
     // Close MongoDB connection
     if (mongoose.connection.readyState === 1) {
       await mongoose.connection.close();
       logger.info('MongoDB connection closed');
     }
-
-    logger.info('Graceful shutdown completed');
-    process.exit(0);
   } catch (error) {
-    logger.error('Error during graceful shutdown:', error);
-    process.exit(1);
+    logger.error('Error shutting down mongoose:', error);
   }
+
+  logger.info('Graceful shutdown completed');
+  process.exit(0);
 };
 
 // Graceful shutdown
-process.on('SIGINT', async () => {
-  logger.info('SIGINT received');
+// https://docs.digitalocean.com/products/app-platform/how-to/configure-termination/
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM received');
   await gracefulShutdown();
 });
 
