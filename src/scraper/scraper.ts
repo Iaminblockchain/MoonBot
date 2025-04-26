@@ -23,11 +23,16 @@ import { processMessages } from "./processMessages";
 // We will try reconnecting every 25 minutes
 // https://github.com/gram-js/gramjs/issues/682#issuecomment-2169838423
 function restartConnectionPeriodically(client: TelegramClient): void {
-  const minutes = 25;
+  const minutes = 1;
   logger.info(`Will reconnect to Telegram every ${minutes} minutes`);
   setInterval(async () => {
     logger.info(`${minutes} minutes passed, reconnecting to Telegram...`);
-    client._sender?.reconnect();
+    try {
+      await client.getMe();
+      logger.info(`Did reconnect to Telegram`);
+    } catch (error) {
+      logger.error(`Error reconnecting to Telegram: ${error}`);
+    }
   }, 1000 * 60 * minutes);
 }
 
@@ -45,6 +50,8 @@ export async function getTgClient(): Promise<TelegramClient> {
       connectionRetries: 5,
     });
     await client.connect();
+    const me = await client.getMe();
+    logger.info(`Telegram client connected as ${me.username}`)
 
     if (!(await client.checkAuthorization())) {
       logger.error("We can't login to the Telegram account. Please check config again.");
