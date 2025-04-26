@@ -20,16 +20,15 @@ import { processMessages } from "./processMessages";
 // - One user from one of the above issues said they had success with calling getDialogs (https://github.com/gram-js/gramjs/issues/654#issuecomment-2029487203) periodically
 // - Another said calling getMe (https://github.com/gram-js/gramjs/issues/494#issuecomment-1593398280) periodically worked
 // 
-// We will try Poll getDialogs every minute to keep connection alive
-function startGetDialogsPoll(client: TelegramClient): void {
+// We will try reconnecting every 30 minutes
+// https://github.com/gram-js/gramjs/issues/682#issuecomment-2169838423
+function restartConnectionPeriodically(client: TelegramClient): void {
+  const minutes = 30;
+  logger.info(`Will reconnect to Telegram every ${minutes} minutes`);
   setInterval(async () => {
-    try {
-      await client.getDialogs({});
-      logger.debug("Polled getDialogs to keep connection alive");
-    } catch (err) {
-      logger.error("Error polling getDialogs", err);
-    }
-  }, 60_000);
+    logger.info(`${minutes} minutes passed, reconnecting to Telegram...`);
+    client._sender?.reconnect();
+  }, 1000 * 60 * minutes);
 }
 
 async function listenChats(client: TelegramClient): Promise<void> {
@@ -60,10 +59,10 @@ export async function getTgClient(): Promise<TelegramClient> {
 }
 
 export async function scrape(client: TelegramClient): Promise<void> {
-  logger.info("start monitor and scrape chats");
+  logger.info("Start monitor and scrape chats");
   try {
     await listenChats(client);
-    startGetDialogsPoll(client);
+    restartConnectionPeriodically(client);
   } catch (e) {
     logger.error(`Error starting client: ${e}`);
   }
