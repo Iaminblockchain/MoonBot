@@ -133,7 +133,14 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
 
   try {
     if (callbackData === "ct_start") {
-      return showPositionPad(chatid);
+      return walletdb.getWalletByChatId(callbackMessage.chat.id)
+        .then(async (wallet) => {
+          if (!wallet) {
+            await botInstance.sendMessage(chatid, "You need to set up your wallet first");
+            return;
+          }
+          return showPositionPad(chatid);
+        });
     }
 
     if (callbackData === "ct_add_signal") {
