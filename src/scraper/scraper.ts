@@ -21,7 +21,7 @@ export async function getTgClient(): Promise<TelegramClient> {
     await client.connect();
     // Necessary to immediately call this after connecting, otherwise messages may not be received.
     const me = await client.getMe();
-    logger.info(`Telegram client connected as ${me.username}`)
+    logger.info(`Telegram client connected as ${me.firstName}`)
 
     if (!(await client.checkAuthorization())) {
       logger.error("We can't login to the Telegram account. Please check config again.");
