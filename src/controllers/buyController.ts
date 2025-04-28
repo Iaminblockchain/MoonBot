@@ -58,7 +58,7 @@ const onClickBuy = async (
       const trxLink = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : 'N/A';
       logger.info('onClickBuy success', { chatId, txSignature: result.txSignature });
       const msg = await getBuySuccessMessage(trxLink, trade.tokenAddress, amountSol);
-        botInstance.sendMessage(chatId!, msg);
+      botInstance.sendMessage(chatId!, msg);
     } else {
       logger.error('onClickBuy failed: not confirmed', { chatId, result });
       await botInstance.sendMessage(chatId!, 'Buy failed');
@@ -285,8 +285,8 @@ const getBuySuccessMessage = async (
   if (!trade_type) {
     return `Buy successful: ${trx}\nTicker: ${metaData?.symbol}\nBuy Amount: ${solAmount} SOL`;
   } else if (settings) {
-    return `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource:${tradeSignal ? `$@{tradeSignal}` : ""}\nTake profit:${settings!.takeProfit}%, Stop loss:${settings!.stopLoss}%`
+    return `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource: ${tradeSignal ? tradeSignal : ""}\nTake profit:${settings!.takeProfit}%, Stop loss:${settings!.stopLoss}%`
   } else {
-    return `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource:${tradeSignal ? `$@{tradeSignal}` : ""}`
+    return `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource: ${tradeSignal ? tradeSignal : ""}`
   }
 }
