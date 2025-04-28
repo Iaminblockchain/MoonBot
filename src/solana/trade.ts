@@ -27,6 +27,9 @@ import { getWalletByChatId } from "../models/walletModel";
 import { getKeypair } from "./util";
 import { logger } from "../logger";
 import { getTokenMetaData } from "./token";
+import { getStatusTxnRetry } from "./txhelpers";
+
+import { getTxInfoMetrics } from "./txhelpers";
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
@@ -209,6 +212,43 @@ async function getSwapInstructions(
   };
 }
 
+const MAX_ATTEMPTS = 3;
+
+async function sendWithRetries(
+  connection: Connection,
+  payer: Keypair,
+  instructions: TransactionInstruction[],
+  lookupTables: AddressLookupTableAccount[],
+  useJito: boolean
+): Promise<{ confirmed: boolean; signature: string | null }> {
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("processed");
+    const messageV0 = new TransactionMessage({
+      payerKey: payer.publicKey,
+      recentBlockhash: blockhash,
+      instructions,
+    }).compileToV0Message(lookupTables);
+    const tx = new VersionedTransaction(messageV0);
+    tx.sign([payer]);
+
+    // call Jito or RPC
+    const raw = useJito
+      ? await jito_executeAndConfirm(connection, tx, payer, { blockhash, lastValidBlockHeight }, JITO_TIP)
+      : await submitAndConfirm(tx);
+
+    // normalize signature to string|null
+    const confirmed = raw.confirmed;
+    const signature = raw.signature ?? null;
+
+    if (confirmed) {
+      return { confirmed, signature };
+    }
+
+    logger.info(`Attempt ${attempt} failed, retrying…`);
+  }
+
+  return { confirmed: false, signature: null };
+}
 
 export const jupiter_swap = async (
   CONNECTION: Connection,
@@ -223,9 +263,7 @@ export const jupiter_swap = async (
   try {
     logger.info(`jupiter_swap ${inputMint} ${outputMint} ${amount} ${swapMode}`);
     const feePayer = new PublicKey(FEE_COLLECTION_WALLET);
-    let feeAmount = 0;
     const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
-
     const quoteUrl = `https://api.jup.ag/swap/v1/quote`
       + `?inputMint=${inputMint}`
       + `&outputMint=${outputMint}`
@@ -237,11 +275,10 @@ export const jupiter_swap = async (
     const quoteResponse = await fetch(quoteUrl).then((res) => res.json());
     if (quoteResponse.error) throw new Error("Failed to fetch quote response");
     logger.info("Quote response received", quoteResponse);
-    if (inputMint == "So11111111111111111111111111111111111111112") {
-      feeAmount = Math.floor(parseInt(quoteResponse.inAmount) / 100);
-    } else {
-      feeAmount = Math.floor(parseInt(quoteResponse.outAmount) / 100);
-    }
+
+    const feeAmount = inputMint === WSOL_ADDRESS
+      ? Math.floor(parseInt(quoteResponse.inAmount) / 100)
+      : Math.floor(parseInt(quoteResponse.outAmount) / 100);
     logger.info("Calculated feeAmount:", feeAmount);
 
     const { instructions, addressLookupTableAccounts } = await getSwapInstructions(
@@ -258,66 +295,56 @@ export const jupiter_swap = async (
         })
       );
     }
-    const { blockhash } = await SOLANA_CONNECTION.getLatestBlockhash();
-    let latestBlockhash = await CONNECTION.getLatestBlockhash();
+
+    const latestBlockhash = await CONNECTION.getLatestBlockhash();
     const messageV0 = new TransactionMessage({
       payerKey: keypair.publicKey,
-      recentBlockhash: blockhash,
+      recentBlockhash: latestBlockhash.blockhash,
       instructions
     }).compileToV0Message(addressLookupTableAccounts);
 
     const transaction = new VersionedTransaction(messageV0);
-    logger.info("Fetched latestBlockhash:", latestBlockhash);
-    transaction.message.recentBlockhash = latestBlockhash.blockhash;
     transaction.sign([keypair]);
 
-    let res;
-    if (isJito) {
-      logger.info("submit jito");
-      res = await jito_executeAndConfirm(
-        CONNECTION,
-        transaction,
-        keypair,
-        latestBlockhash,
-        JITO_TIP
-      );
-    } else {
-      logger.info("Solana: submit tx");
-      res = await submitAndConfirm(transaction);
+    const result = await sendWithRetries(
+      CONNECTION,
+      keypair,
+      instructions,
+      addressLookupTableAccounts,
+      isJito
+    );
+
+    if (!result.confirmed) {
+      logger.error("All attempts failed");
+      return { confirmed: false, txSignature: null };
     }
 
-    if (res.confirmed) {
-      logger.info("Solana: confirmed");
-      return { confirmed: true, txSignature: res.signature };
-    } else {
-      logger.info("Solana: Transaction failed, retrying with new blockhash...");
-
-      latestBlockhash = await CONNECTION.getLatestBlockhash("processed");
-      transaction.message.recentBlockhash = latestBlockhash.blockhash;
-      transaction.sign([keypair]);
-
-      const retryRes = await jito_executeAndConfirm(
-        CONNECTION,
-        transaction,
-        keypair,
-        latestBlockhash,
-        JITO_TIP
-      );
-
-      if (retryRes.confirmed) {
-        return { confirmed: true, txSignature: retryRes.signature };
+    // After retry, check if confirmed and validate with getStatusTxnRetry
+    if (result.confirmed && result.signature) {
+      //TODO needs testing
+      // Insert execution info logging
+      // const executionInfo = await getTxInfoMetrics(result.signature, CONNECTION, outputMint);
+      // if (executionInfo) logger.info("Execution info", executionInfo);
+      const status = await getStatusTxnRetry(CONNECTION, result.signature);
+      if (!status.success) {
+        logger.error("Txn failed after retry:", status);
+        return { confirmed: false, txSignature: result.signature };
       }
     }
+
+    if (result.confirmed) {
+      logger.info("Solana: confirmed");
+      return { confirmed: true, txSignature: result.signature };
+    }
+
     return { confirmed: false, txSignature: null };
   } catch (error) {
     logger.error("jupiter swap:", { error });
-
     logger.error(inputMint);
     logger.error(outputMint);
     logger.error(amount);
     logger.error(swapMode);
     logger.error(error);
-
     return { confirmed: false, txSignature: null };
   }
 };

@@ -29,3 +29,4 @@ Thumbs.db
 *.session
 *.session-journal
 script/__pycache__
+.aider*
