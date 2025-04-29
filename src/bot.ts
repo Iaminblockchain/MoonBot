@@ -240,7 +240,7 @@ export async function switchMenu(chatId: TelegramBot.ChatId, messageId: number |
         }
     }
 }
-const onStartCommand = async (msg: TelegramBot.Message, match: (string | null)[]) => {
+const onStartCommand = async (msg: TelegramBot.Message, match: RegExpExecArray | null) => {
     if (!botInstance) {
         logger.error("Bot instance not initialized in onStartCommand");
         return;
