@@ -217,7 +217,6 @@ export const onClickSellWithToken = async (query: TelegramBot.CallbackQuery) => 
 
 //run through each signal and check if sell is triggered
 export const autoSellHandler = () => {
-  logger.info('Running autoSellHandler');
   trade.forEach(async (value, key) => {
     value.map(async (info: TRADE) => {
       try {
