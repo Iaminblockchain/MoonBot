@@ -7,7 +7,7 @@ import * as sellController from './controllers/sellController';
 import * as walletController from './controllers/walletController';
 import * as withdrawController from './controllers/withdrawController';
 import * as settingController from './controllers/settingController';
-import * as positionController from './controllers/positionController';
+import * as portfolioController from './controllers/portfolioController';
 import * as autoBuyController from './controllers/autoBuyController';
 import * as helpController from './controllers/helpController';
 import * as copytradeController from './controllers/copytradeController';
@@ -155,7 +155,7 @@ export const init = (client: TelegramClient) => {
             } else if (data?.startsWith("settingController_")) {
                 settingController.handleCallBackQuery(query);
             } else if (data?.startsWith("pC_")) {
-                positionController.handleCallBackQuery(query);
+                portfolioController.handleCallBackQuery(query);
             } else if (data?.startsWith("autoBuyController_")) {
                 autoBuyController.handleCallBackQuery(query);
             } else if (data?.startsWith("referralController_")) {
@@ -314,7 +314,7 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
                 // { text: 'Limit Orders', callback_data: "limitOrderController_start" }
             ],
             [
-                { text: 'Positions', callback_data: "pC_start" }, // positionController
+                { text: 'Portfolio', callback_data: "pC_start" }, // portfolioController
                 { text: 'Autobuy', callback_data: "autoBuyController_start" }
             ],
             [
