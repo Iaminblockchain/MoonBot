@@ -11,11 +11,13 @@ import * as positionController from './controllers/positionController';
 import * as autoBuyController from './controllers/autoBuyController';
 import * as helpController from './controllers/helpController';
 import * as copytradeController from './controllers/copytradeController';
+import * as referralController from './controllers/referralController';
 import { TelegramClient } from "telegram";
 import { logger } from './logger';
 import { getSolBalance, getPublicKey } from './solana/util';
 
 import cron from "node-cron";
+import { createReferral, getReferralByRefereeId } from './models/referralModel';
 import { helpText } from './util/constants';
 export let botInstance: any;
 
@@ -91,8 +93,8 @@ export const init = (client: TelegramClient) => {
         ],
     );
 
-    botInstance.onText(/\/start/, onStartCommand);
-    // botInstance.onText(/\/wallet/, onWalletCommand);
+    botInstance.onText(/\/start(?: (.+))?/, onStartCommand);
+    botInstance.onText(/\/wallet/, onWalletCommand);
     botInstance.onText(/\/help/, onHelpCommand);
     botInstance.onText(/\/autobuy/, autoBuyController.onAutoBuyCommand);
 
@@ -106,17 +108,22 @@ export const init = (client: TelegramClient) => {
 
         if (msg.text !== undefined && !msg.text.startsWith('/')) {
             const currentState = getState(chatId.toString());
+            logger.info(`currentState ${currentState?.state}`)
             if (currentState) {
                 logger.info(`currentState ${currentState.state}`)
                 if (currentState.state == STATE.INPUT_TOKEN) {
-                    removeState(chatId);
+                    logger.info(`INPUT_TOKEN`);
                     buyController.showBuyPad(msg);
+                    removeState(chatId);
                 } else if (currentState.state == STATE.INPUT_BUY_AMOUNT) {
                     removeState(chatId);
+                    logger.info(`INPUT_BUY_AMOUNT`);
                     buyController.buyXAmount(msg);
                 } else if (currentState.state == STATE.INPUT_PRIVATE_KEY) {
+                    logger.info(`INPUT_PRIVATE_KEY`);
                     walletController.handlePrivateKey(msg);
                 } else if (currentState.state == STATE.INPUT_COPYTRADE) {
+                    logger.info(`INPUT_COPYTRADE`);
                     copytradeController.handleInput(msg, currentState.data);
                 }
             } else {
@@ -151,6 +158,8 @@ export const init = (client: TelegramClient) => {
                 positionController.handleCallBackQuery(query);
             } else if (data?.startsWith("autoBuyController_")) {
                 autoBuyController.handleCallBackQuery(query);
+            } else if (data?.startsWith("referralController_")) {
+                referralController.handleCallBackQuery(query);
             } else if (data?.startsWith("helpController_")) {
                 helpController.handleCallBackQuery(query);
             } else if (data?.startsWith("back_start")) {
@@ -221,8 +230,31 @@ export async function switchMenu(chatId: TelegramBot.ChatId, messageId: number |
         }
     }
 }
-const onStartCommand = async (msg: TelegramBot.Message) => {
+const onStartCommand = async (msg: TelegramBot.Message, match: (string | null)[]) => {
     logger.info('user:', { username: msg.chat.username });
+    const referralCode: string | null = match ? match[1] : null;
+    logger.info("referral_info: ", { referer: referralCode, referee: msg.chat.id });
+    if (referralCode) {
+        const referral = await getReferralByRefereeId(referralCode);
+        if (referral) {
+            const newReferrers = [...referral.referrers];
+            for (let i = newReferrers.length - 1; i > 0; i--) {
+                newReferrers[i] = newReferrers[i - 1];
+            }
+            newReferrers[0] = referralCode;
+            await createReferral(msg.chat.id.toString(), newReferrers);
+            logger.info("update referral", { newReferrers });
+        } else {
+            const newReferral = await createReferral(msg.chat.id.toString(), [null, null, null, null, null]);
+            logger.info("create referral", { newReferral });
+        }
+    } else {
+        const referral = await getReferralByRefereeId(msg.chat.id.toString());
+        if (!referral) {
+            const newReferral = await createReferral(msg.chat.id.toString(), [null, null, null, null, null]);
+            logger.info("create referral", { newReferral });
+        }
+    }
     const { title, buttons } = await getTitleAndButtons(msg.chat.id);
     botInstance.sendMessage(msg.chat.id, title, {
         reply_markup: {

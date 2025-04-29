@@ -1,5 +1,6 @@
 import mongoose, { Schema, model, Document } from 'mongoose';
 import TelegramBot from 'node-telegram-bot-api';
+import { logger } from '../logger';
 
 export interface ITrade extends Document {
     chatId: string;
@@ -8,7 +9,7 @@ export interface ITrade extends Document {
 
 const TradeSchema: Schema = new Schema({
     chatId: { type: Number, required: true },
-    tokenAddress: { type: String, required: true, unique: true }
+    tokenAddress: { type: String, required: true }
 });
 
 export const Trade = model<ITrade>('Trade', TradeSchema);
@@ -18,7 +19,7 @@ export const createTrade = async (chatId: TelegramBot.ChatId, tokenAddress: stri
         const trade = new Trade({ chatId, tokenAddress });
         await trade.save();
     } catch (error) {
-
+        logger.error("create trade info: ", { error });
     }
 }
 

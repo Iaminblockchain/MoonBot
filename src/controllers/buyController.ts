@@ -139,8 +139,8 @@ export const showBuyPad = async (message: TelegramBot.Message) => {
       ]
     ]
     botInstance.sendMessage(chatId, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: 'HTML' })
-    logger.info("buy token address: ", { manualBuyTokenAddress: tokenAddress })
-    tradedb.createTrade(chatId, tokenAddress!);
+    logger.info("buy info: ", { chatId, tokenAddress });
+    await tradedb.createTrade(chatId, tokenAddress!);
     botInstance.deleteMessage(chatId, getDeleteMessageId(chatId));
   } catch (error) {
     logger.error("showBuyPad error", { error });
