@@ -25,6 +25,11 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
 }
 
 const showPrivateKey = async (query: TelegramBot.CallbackQuery) => {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in showPrivateKey");
+        return;
+    }
+
     const { chatId, messageId } = getChatIdandMessageId(query);
     const wallet = await walletdb.getWalletByChatId(chatId!);
     botInstance.sendMessage(
@@ -92,6 +97,11 @@ const createWalletCall = async (query: TelegramBot.CallbackQuery) => {
 }
 
 const importWallet = async (query: TelegramBot.CallbackQuery) => {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in importWallet");
+        return;
+    }
+
     try {
         const { chatId, messageId } = getChatIdandMessageId(query);
         botInstance.sendMessage(chatId!, 'Input private key:');
@@ -102,6 +112,11 @@ const importWallet = async (query: TelegramBot.CallbackQuery) => {
 }
 
 export const handlePrivateKey = async (msg: TelegramBot.Message) => {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in handlePrivateKey");
+        return;
+    }
+
     try {
         const chatId = msg.chat.id;
         const messageId = msg.message_id;
@@ -120,6 +135,11 @@ export const handlePrivateKey = async (msg: TelegramBot.Message) => {
 }
 
 const walletManageStart = async (query: TelegramBot.CallbackQuery) => {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in walletManageStart");
+        return;
+    }
+
     const chatId = query.message?.chat.id;
     const walletInfo = await getWalletInfoAndButtons(chatId!);
     if (walletInfo) {

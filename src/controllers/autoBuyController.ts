@@ -28,12 +28,22 @@ export const autoBuySettings = new Map<string, AutoBuySettings>();
  * Prompts the user for auto-buy settings: buy amount and maximum slippage.
  */
 function promptBuyAmount(chatId: string,) {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in promptBuyAmount");
+    return;
+  }
+
   botInstance
     .sendMessage(
       chatId,
       'Please enter your buy amount (e.g., "1" for 1 SOL or "10%" for 10% of your balance):'
     )
     .then((n_msg: any) => {
+      if (!botInstance) {
+        logger.error("Bot instance not initialized in promptBuyAmount callback");
+        return;
+      }
+
       botInstance.once("message", (amountMsg: TelegramBot.Message) => {
         const amountText = amountMsg.text || "";
         const isPercentage = amountText.trim().endsWith("%");
@@ -48,13 +58,24 @@ function promptBuyAmount(chatId: string,) {
           stopLoss: null,
           repetitiveBuy: 1,
         });
+
         // Now prompt for maximum slippage.
+        if (!botInstance) {
+          logger.error("Bot instance not initialized in amountMsg callback");
+          return;
+        }
+
         botInstance
           .sendMessage(
             chatId,
             'Please enter your maximum slippage (in %, e.g., "1" for 1%):'
           )
           .then((n1_msg: any) => {
+            if (!botInstance) {
+              logger.error("Bot instance not initialized in slippage prompt");
+              return;
+            }
+
             botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
             botInstance.deleteMessage(amountMsg.chat.id, amountMsg.message_id);
 
@@ -64,12 +85,23 @@ function promptBuyAmount(chatId: string,) {
               if (settings) {
                 settings.maxSlippage = slippageValue;
                 autoBuySettings.set(chatId, settings);
+
+                if (!botInstance) {
+                  logger.error("Bot instance not initialized in slippageMsg callback");
+                  return;
+                }
+
                 botInstance
                   .sendMessage(
                     chatId,
                     'Please enter your take profit (in %, e.g., "1" for 1%):'
                   )
                   .then((n2_msg: any) => {
+                    if (!botInstance) {
+                      logger.error("Bot instance not initialized in take profit prompt");
+                      return;
+                    }
+
                     botInstance.deleteMessage(
                       n1_msg.chat.id,
                       n1_msg.message_id
@@ -87,12 +119,23 @@ function promptBuyAmount(chatId: string,) {
                         if (settings) {
                           settings.takeProfit = tpValue;
                           autoBuySettings.set(chatId, settings);
+
+                          if (!botInstance) {
+                            logger.error("Bot instance not initialized in tpMsg callback");
+                            return;
+                          }
+
                           const answer2 = botInstance
                             .sendMessage(
                               chatId,
                               `Please enter your Stop loss percentage (e.g. "1" for 1%)`
                             )
                             .then((n3_msg: any) => {
+                              if (!botInstance) {
+                                logger.error("Bot instance not initialized in stop loss prompt");
+                                return;
+                              }
+
                               botInstance.deleteMessage(
                                 n2_msg.chat.id,
                                 n2_msg.message_id
@@ -112,12 +155,23 @@ function promptBuyAmount(chatId: string,) {
                                   if (settings) {
                                     settings.stopLoss = stoploss;
                                     autoBuySettings.set(chatId, settings);
+
+                                    if (!botInstance) {
+                                      logger.error("Bot instance not initialized in stoplossMsg callback");
+                                      return;
+                                    }
+
                                     botInstance
                                       .sendMessage(
                                         chatId,
                                         `Please enter your repetitive buys number (e.g. "1" The minimum value is 1)`
                                       )
                                       .then((n4_msg: any) => {
+                                        if (!botInstance) {
+                                          logger.error("Bot instance not initialized in repetitive buys prompt");
+                                          return;
+                                        }
+
                                         botInstance.deleteMessage(
                                           n3_msg.chat.id,
                                           n3_msg.message_id
@@ -141,6 +195,12 @@ function promptBuyAmount(chatId: string,) {
                                                 chatId,
                                                 settings
                                               );
+
+                                              if (!botInstance) {
+                                                logger.error("Bot instance not initialized in duplicateMsg callback");
+                                                return;
+                                              }
+
                                               botInstance.deleteMessage(
                                                 n4_msg.chat.id,
                                                 n4_msg.message_id
@@ -202,8 +262,12 @@ export const onAutoBuyCommand = (msg: TelegramBot.Message) => {
  * Handles callback queries related to auto-buy.
  */
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
-  if (query.data === "autoBuyController_start") {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in handleCallBackQuery");
+    return;
+  }
 
+  if (query.data === "autoBuyController_start") {
     const rawChatId = query.message?.chat?.id;
     if (rawChatId !== undefined) {
       const chatId = String(rawChatId);

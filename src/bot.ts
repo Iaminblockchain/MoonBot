@@ -19,7 +19,7 @@ import { getSolBalance, getPublicKey } from './solana/util';
 import cron from "node-cron";
 import { createReferral, getReferralByRefereeId } from './models/referralModel';
 import { helpText } from './util/constants';
-export let botInstance: any;
+export let botInstance: TelegramBot | undefined;
 
 export const enum STATE {
     INPUT_TOKEN,
@@ -189,6 +189,11 @@ export const runAutoSellSchedule = () => {
 };
 
 export const closeMessage = (query: TelegramBot.CallbackQuery) => {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in closeMessage");
+        return;
+    }
+
     const { chatId, messageId } = getChatIdandMessageId(query);
     if (!chatId || !messageId) return;
 
@@ -203,6 +208,11 @@ export const getChatIdandMessageId = (query: TelegramBot.CallbackQuery) => {
 };
 
 export async function switchMenu(chatId: TelegramBot.ChatId, messageId: number | undefined, title: string, json_buttons: any) {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in switchMenu");
+        return;
+    }
+
     const keyboard = {
         inline_keyboard: json_buttons,
         resize_keyboard: true,
@@ -231,6 +241,11 @@ export async function switchMenu(chatId: TelegramBot.ChatId, messageId: number |
     }
 }
 const onStartCommand = async (msg: TelegramBot.Message, match: (string | null)[]) => {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in onStartCommand");
+        return;
+    }
+
     logger.info('user:', { username: msg.chat.username });
     const referralCode: string | null = match ? match[1] : null;
     logger.info("referral_info: ", { referer: referralCode, referee: msg.chat.id });
@@ -269,19 +284,24 @@ const onWalletCommand = (msg: TelegramBot.Message) => {
 };
 
 const onHelpCommand = (msg: TelegramBot.Message) => {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in onHelpCommand");
+        return;
+    }
+
     // Implement help command handling if needed.
     const chatId = msg.chat.id;
-      const message = helpText;
-    
-      botInstance.sendMessage(chatId!, message, {
+    const message = helpText;
+
+    botInstance.sendMessage(chatId!, message, {
         reply_markup: {
-          inline_keyboard: [
-            [
-              { text: 'Close', callback_data: "close" }
+            inline_keyboard: [
+                [
+                    { text: 'Close', callback_data: "close" }
+                ]
             ]
-          ]
         }, parse_mode: 'HTML'
-      });
+    });
 };
 
 const backToStart = async (query: TelegramBot.CallbackQuery) => {

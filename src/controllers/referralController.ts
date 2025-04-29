@@ -26,7 +26,18 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
 
 const onReferralSystemStart = async (query: TelegramBot.CallbackQuery) => {
 	try {
-		const referral_link = `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${query.message?.chat.id}`;
+		if (!botInstance) {
+			logger.error("Bot instance not initialized in onReferralSystemStart");
+			return;
+		}
+
+		const chatId = query.message?.chat.id;
+		if (!chatId) {
+			logger.error("Chat ID not found in onReferralSystemStart");
+			return;
+		}
+
+		const referral_link = `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${chatId}`;
 		const reply_markup = {
 			inline_keyboard: [
 				[{ text: 'Close', callback_data: "close" }]
@@ -41,7 +52,7 @@ const onReferralSystemStart = async (query: TelegramBot.CallbackQuery) => {
 			"5. <b>Get 0.5% of the profit from your referrals' referrals' referrals' referrals' referrals</b>\n\n" +
 			`Your referral link is here: \n<code>${referral_link}</code>\n\n`;
 
-		await botInstance.sendMessage(query.message?.chat.id, caption, {
+		await botInstance.sendMessage(chatId, caption, {
 			parse_mode: "HTML",
 			disable_web_page_preview: false,
 			reply_markup,
