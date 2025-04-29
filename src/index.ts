@@ -49,39 +49,48 @@ type StartStatus =
 let serviceStatus: StartStatus = { status: 'idle' };
 
 const gracefulShutdown = async () => {
-  logger.info('Starting graceful shutdown...');
+  logger.info('🗑️ Starting graceful shutdown...');
 
   try {
     // Close Telegram client if it exists
     if (client) {
+      logger.info('🗑️ Telegram client will disconnect...');
       await client.disconnect();
-      logger.info('Telegram client disconnected');
+      logger.info('🗑️ Telegram client disconnected');
+    } else {
+      logger.info('🗑️ No telegram client to disconnect');
     }
   } catch (error) {
-    logger.error('Error shutting down client', error);
+    logger.error('🗑️ Error shutting down client', error);
   }
 
   try {
     // Stop Telegram bot if it exists
     if (botInstance) {
+      logger.info('🗑️ Telegram bot will stop polling...');
       await botInstance.stopPolling();
-      logger.info('Telegram bot polling stopped');
+      logger.info('🗑️ Telegram bot polling stopped');
+    } else {
+      logger.info('🗑️ No telegram bot to stop');
     }
   } catch (error) {
-    logger.error('Error shutting down botInstance', error);
+    logger.error('🗑️ Error shutting down botInstance', error);
   }
 
   try {
     // Close MongoDB connection
     if (mongoose.connection.readyState === 1) {
+      logger.info('🗑️ MongoDB connection will close...');
       await mongoose.connection.close();
-      logger.info('MongoDB connection closed');
+      logger.info('🗑️ MongoDB connection closed');
+    } else {
+      logger.info('🗑️ No MongoDB connection to close');
     }
   } catch (error) {
-    logger.error('Error shutting down mongoose:', error);
+    logger.error('🗑️ Error shutting down mongoose:', error);
   }
 
-  logger.info('Graceful shutdown completed');
+  logger.info('🗑️ Graceful shutdown completed');
   process.exit(0);
 };
 
