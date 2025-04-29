@@ -4,6 +4,9 @@ import { Chat } from './models/chatModel';
 import { Call } from './models/callModel';
 import cors from 'cors';
 import { ALLOWED_ORIGIN } from '.';
+import { client } from './index';
+import { botInstance } from './bot';
+import mongoose from 'mongoose';
 
 export const setupServer = (
     app: express.Application,
@@ -57,6 +60,34 @@ export const setupServer = (
         } catch (error) {
             logger.error('Failed to fetch calls', error);
             res.status(500).json({ error: 'Error fetching calls' });
+        }
+    });
+
+    app.get('/services', (_, res) => {
+        const telegramConnected = client?.connected || false;
+        const botPolling = botInstance?.isPolling() || false;
+        const mongoConnected = mongoose.connection.readyState === 1;
+
+        const allServicesHealthy = telegramConnected && botPolling && mongoConnected;
+
+        if (allServicesHealthy) {
+            res.status(200).json({
+                status: 'healthy',
+                services: {
+                    telegram: 'connected',
+                    bot: 'polling',
+                    mongodb: 'connected'
+                }
+            });
+        } else {
+            res.status(503).json({
+                status: 'unhealthy',
+                services: {
+                    telegram: telegramConnected ? 'connected' : 'disconnected',
+                    bot: botPolling ? 'polling' : 'not polling',
+                    mongodb: mongoConnected ? 'connected' : 'disconnected'
+                }
+            });
         }
     });
 
