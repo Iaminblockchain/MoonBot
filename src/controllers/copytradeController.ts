@@ -139,7 +139,7 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
             await botInstance.sendMessage(chatid, "You need to set up your wallet first");
             return;
           }
-          return showPositionPad(chatid);
+          return showPortfolioPad(chatid);
         });
     }
 
@@ -162,7 +162,7 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     }
 
     if (callbackData === "ct_back") {
-      return showPositionPad(chatid, msgId);
+      return showPortfolioPad(chatid, msgId);
     }
 
     const actionMap: Record<string, Function> = {
@@ -188,7 +188,7 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
   }
 };
 
-const showPositionPad = async (chatId: string, replaceId?: number) => {
+const showPortfolioPad = async (chatId: string, replaceId?: number) => {
   const signals = await copytradedb.getTradeByChatId(chatId);
   const wallet = await walletdb.getWalletByChatId(chatId);
   if (!wallet) return;
@@ -255,7 +255,7 @@ const editcopytradesignal = async (
 - Slippage: Difference between the expected price of a trade and the price at which the trade is executed. (Normally around 5-20% depending on how much volatile the coin is)
 - Replicate Buy: Set the number of times to replicate the purchase (How many time the bot should perform the buy if a group or channel calls the coin multiple times, the fastest option is to leave it at one)
 - Stop loss: If the coin dumps you can minimize the losses by setting a stop loss. Example: if you set 20, the bot will sell once the coin loses 20% of the value. 
-- Take profit: Similar to the stop loss, if the coin you bought gains a specific percentage in value the bot can sell your entire position for you. 
+- Take profit: Similar to the stop loss, if the coin you bought gains a specific percentage in value the bot can sell your entire assets for you. 
 
 To manage your Copy Trade:
 - Click the “Active” button to pause the Copy Trade.
@@ -294,7 +294,7 @@ To manage your Copy Trade:
 
 const removecopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
   const signals = await copytradedb.removeTrade(new mongoose.Types.ObjectId(dbId));
-  showPositionPad(chatId, replaceId);
+  showPortfolioPad(chatId, replaceId);
 };
 
 const editTagcopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {

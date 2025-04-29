@@ -15,7 +15,7 @@ Send SOL to the wallet address shown. It may take 5–10 mins to reflect. Use So
 <b>• /autobuy</b> – Auto-buy any contract you paste, with custom settings:
 • Buy amount, Take Profit %, Stop Loss %, Slippage %, Repeat buys
 <b>• /copy</b> – Auto-buy from Telegram groups/channels. Paste handle or link and set custom options.
-<b>• /positions</b> – View tokens you hold
+<b>• /portfolio</b> – View tokens you hold
 <b>• /withdraw</b> – Send tokens to another wallet
 💰 <b>Fees</b>
 Only 1% per successful transaction. No subscriptions, no hidden fees.

@@ -14,22 +14,22 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
         if (!callbackData || !callbackMessage) return;
         let callback_str = String(callbackMessage.chat.id);
         if (callbackData == "pC_start") {
-            showPositionStart(callback_str);
+            showPortfolioStart(callback_str);
         } else if (callbackData.startsWith("pC_show_")) {
             const token = callbackData.split('_');
-            positionPad(callback_str, callbackMessage.message_id, token[2]);
+            portfolioPad(callback_str, callbackMessage.message_id, token[2]);
         } else if (callbackData.startsWith("pC_sell_")) {
             const token = callbackData.split('_');
-            sellPosition(callback_str, callbackMessage.message_id, token[2], token[3]);
+            sellPortfolio(callback_str, callbackMessage.message_id, token[2], token[3]);
         } else if (callbackData == "pC_back") {
-            showPositionStart(callback_str, callbackMessage.message_id);
+            showPortfolioStart(callback_str, callbackMessage.message_id);
         }
     } catch (error) {
 
     }
 }
 
-const showPositionStart = async (chatId: string, replaceId?: number) => {
+const showPortfolioStart = async (chatId: string, replaceId?: number) => {
     try {
         const wallet = await getWalletByChatId(chatId);
         if (!wallet) {
@@ -51,7 +51,7 @@ const showPositionStart = async (chatId: string, replaceId?: number) => {
             tokenList += `${index + 1} : ${token.name}(${token.symbol}): ${token.balance} ${token.symbol}\n`
         ]);
 
-        const caption = "<b>Select a token to check position\n\n</b>" + tokenList;
+        const caption = "<b>Select a token to check assets\n\n</b>" + tokenList;
 
         const Keyboard = tokenAccounts.map((token, index) => {
             return [
@@ -93,11 +93,11 @@ const showPositionStart = async (chatId: string, replaceId?: number) => {
             });
         }
     } catch (e) {
-        logger.error("positionStart Error", e);
+        logger.error("portfolioStart Error", e);
     }
 }
 
-const positionPad = async (chatId: string, replaceId: number, tokenAddress: string) => {
+const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: string) => {
     try {
         const wallet = await getWalletByChatId(chatId);
         if (!wallet) {
@@ -108,7 +108,7 @@ const positionPad = async (chatId: string, replaceId: number, tokenAddress: stri
         const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress)
         const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
         const price = await getPrice(tokenAddress);
-        const caption = `<b>Position ${metaData?.name}(${metaData?.symbol})\n\n</b>
+        const caption = `<b>Portfolio ${metaData?.name}(${metaData?.symbol})\n\n</b>
   Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}
   Price: $${price}
   Total Supply: ${metaData?.totalSupply} ${metaData?.symbol}
@@ -150,11 +150,11 @@ const positionPad = async (chatId: string, replaceId: number, tokenAddress: stri
             reply_markup,
         });
     } catch (e) {
-        logger.error("PositionPad Error", e);
+        logger.error("PortfolioPad Error", e);
     }
 }
 
-const sellPosition = async (chatId: string, replaceId: number, amount: string, tokenAddress: string) => {
+const sellPortfolio = async (chatId: string, replaceId: number, amount: string, tokenAddress: string) => {
     try {
         const wallet = await getWalletByChatId(chatId);
         if (!wallet) {
@@ -221,6 +221,6 @@ https://solscan.io/tx/${result.txSignature}`, {
         }
 
     } catch (e) {
-        logger.error("PositionPad Error", e);
+        logger.error("PortfolioPad Error", e);
     }
-}
+} 
