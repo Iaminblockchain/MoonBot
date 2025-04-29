@@ -42,9 +42,9 @@ export let client: TelegramClient | undefined;
 // Service state management
 type StartStatus =
   | { status: 'idle' }
-  | { status: 'started' }
-  | { status: 'starting' }
-  | { status: 'error', error: Error };
+  | { status: 'started', id: string }
+  | { status: 'starting', id: string }
+  | { status: 'error', error: Error, id: string };
 
 let serviceStatus: StartStatus = { status: 'idle' };
 
@@ -147,48 +147,68 @@ const setupStartEndpoint = (app: express.Express) => {
       const maskedApiKey = apiKey ? `${apiKey.slice(0, 4)}***${apiKey.slice(-4)}` : 'N/A';
       logger.info(`${endpoint} called but API key invalid`, { apiKey: maskedApiKey })
       return res.status(401).json({
-        status: 'Unauthorized'
+        outcome: `unauthorized`,
+        message: 'Unauthorized'
+      });
+    }
+
+    const id = req.query.id as string;
+    if (!id) {
+      logger.info(`${endpoint} called but no id provided`)
+      return res.status(400).json({
+        outcome: `error`,
+        message: 'id parameter is required'
       });
     }
 
     if (serviceStatus.status === 'started') {
       logger.info(`${endpoint} called but server has already started`)
       return res.status(200).json({
-        status: 'Services already started'
+        outcome: `started`,
+        message: 'Services already started',
+        id: serviceStatus.id
       });
     }
 
     if (serviceStatus.status === 'error') {
       logger.info(`${endpoint} called but there was already an error starting service`, { error: serviceStatus.error })
       return res.status(500).json({
-        status: `Services initialization previously failed: ${serviceStatus.error.message}`
+        outcome: `error`,
+        message: `Services initialization previously failed: ${serviceStatus.error.message}`,
+        id: serviceStatus.id
       });
     }
 
     if (serviceStatus.status === 'starting') {
       logger.info(`${endpoint} called but services are already starting`)
       return res.status(409).json({
-        status: 'Services are already starting'
+        outcome: `starting`,
+        message: 'Services are already starting',
+        id: serviceStatus.id
       });
     }
 
-    serviceStatus = { status: 'starting' };
+    serviceStatus = { status: 'starting', id: id };
 
     // Initialize services synchronously and return the result directly
     try {
       logger.info(`⏳ Starting services via ${endpoint} endpoint...`);
       await startServices();
-      serviceStatus = { status: 'started' };
+      serviceStatus = { status: 'started', id: id };
       logger.info(`✅ Services successfully started via ${endpoint} endpoint`);
       return res.status(200).json({
-        status: 'Services successfully started'
+        outcome: `success`,
+        message: 'Services successfully started',
+        id: id
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('Failed to initialize services via /start endpoint:', error);
-      serviceStatus = { status: 'error', error: error instanceof Error ? error : new Error(errorMessage) };
+      serviceStatus = { status: 'error', error: error instanceof Error ? error : new Error(errorMessage), id: id };
       return res.status(500).json({
-        status: `Failed to start services: ${errorMessage}`
+        outcome: `error`,
+        message: `Failed to start services: ${errorMessage}`,
+        id: id
       });
     }
   });
@@ -212,13 +232,14 @@ const main = async () => {
     setupStartEndpoint(app);
   } else {
     // In local dev, we want to start services immediately
+    const startId = "local-dev";
     try {
       await startServices();
-      serviceStatus = { status: 'started' };
+      serviceStatus = { status: 'started', id: startId };
       logger.info('✅ Services successfully started!');
     } catch (error) {
       logger.error('Failed to start services:', error);
-      serviceStatus = { status: 'error', error: error instanceof Error ? error : new Error(String(error)) };
+      serviceStatus = { status: 'error', error: error instanceof Error ? error : new Error(String(error)), id: startId };
       throw serviceStatus.error;
     }
   }
