@@ -23,13 +23,14 @@ const { fetchMarketAccounts } = require("../scripts/fetchMarketAccounts");
 const { getPoolKeysByPoolId } = require("../scripts/getPoolKeysByPoolId");
 import swap from "../swap";
 import { FEE_COLLECTION_WALLET, JITO_TIP, SOLANA_CONNECTION } from "..";
-import { getWalletByChatId } from "../models/walletModel";
+import { getChatIdByPrivateKey, getWalletByChatId } from "../models/walletModel";
 import { getKeypair } from "./util";
 import { logger } from "../logger";
 import { getTokenMetaData } from "./token";
 import { getStatusTxnRetry } from "./txhelpers";
 
 import { getTxInfoMetrics } from "./txhelpers";
+import { getReferralByRefereeId } from "../models/referralModel";
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
@@ -276,10 +277,45 @@ export const jupiter_swap = async (
     if (quoteResponse.error) throw new Error("Failed to fetch quote response");
     logger.info("Quote response received", quoteResponse);
 
-    const feeAmount = inputMint === WSOL_ADDRESS
+    let feeAmount = inputMint === WSOL_ADDRESS
       ? Math.floor(parseInt(quoteResponse.inAmount) / 100)
       : Math.floor(parseInt(quoteResponse.outAmount) / 100);
     logger.info("Calculated feeAmount:", feeAmount);
+
+    const chatId = await getChatIdByPrivateKey(PRIVATE_KEY);
+
+    let referrers: any[] = [null, null, null, null, null];
+    if (chatId) {
+      const referral = await getReferralByRefereeId(chatId);
+      referrers = referral?.referrers || [null, null, null, null, null];
+    }
+    let referrerPublicKeys: any[] = [null, null, null, null, null];
+    for (let i = 0; i < referrers.length; i++) {
+      if (referrers[i]) {
+        let wallet = await getWalletByChatId(referrers[i]);
+        let privateKey = wallet?.privateKey;
+        if (privateKey) {
+          let keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
+          referrerPublicKeys[i] = keypair.publicKey.toString();
+        }
+      }
+    }
+    let referrals: any[] = [];
+    let referralFeePercentages = [0.25, 0.035, 0.025, 0.02, 0.01]
+    let finalFeeAmount = feeAmount;
+    if (referrerPublicKeys.indexOf(null) > 0) {
+      feeAmount = Math.ceil(feeAmount * 0.9);
+      finalFeeAmount = feeAmount
+      for (let i = 0; i < 5; i++) {
+        if (referrerPublicKeys[i] != null) {
+          referrals.push({
+            key: referrerPublicKeys[i],
+            amount: Math.floor(feeAmount * referralFeePercentages[i])
+          })
+          finalFeeAmount -= Math.floor(feeAmount * referralFeePercentages[i]);
+        }
+      }
+    }
 
     const { instructions, addressLookupTableAccounts } = await getSwapInstructions(
       quoteResponse,
@@ -287,13 +323,29 @@ export const jupiter_swap = async (
     );
 
     if (!whitelistedUsers.includes(keypair.publicKey.toBase58())) {
+      const feeInstructions: any[] = [];
+      await Promise.all(
+        referrals.map(async (referral) => {
+          let isValid = await isValidPublicKey(CONNECTION, referral.key);
+          if (isValid) {
+            const instruction = SystemProgram.transfer({
+              fromPubkey: keypair.publicKey,
+              toPubkey: new PublicKey(referral.key),
+              lamports: referral.amount,
+            });
+            feeInstructions.push(instruction);
+          }
+        })
+      );
+
       instructions.push(
         SystemProgram.transfer({
           fromPubkey: keypair.publicKey,
           toPubkey: feePayer,
-          lamports: feeAmount
+          lamports: finalFeeAmount
         })
       );
+      instructions.push(...feeInstructions);
     }
 
     const latestBlockhash = await CONNECTION.getLatestBlockhash();
@@ -631,3 +683,20 @@ export const sendNativeSol = async (chatId: string, destination: string, amount:
     return { confirmed: false, error: error.message };
   }
 }
+
+export const isValidPublicKey = async (
+  connection: Connection,
+  publicKeyString: string
+): Promise<boolean> => {
+  try {
+    // Validate the format of the public key
+    const publicKey = new PublicKey(publicKeyString);
+
+    // Check if the account exists on the blockchain
+    const accountInfo = await connection.getAccountInfo(publicKey);
+    return accountInfo !== null; // If accountInfo is not null, the public key is valid
+  } catch (error) {
+    logger.error("Invalid public key:", { error });
+    return false; // Return false if the public key is invalid or does not exist
+  }
+};

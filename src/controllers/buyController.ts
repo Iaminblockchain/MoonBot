@@ -30,6 +30,11 @@ const onClickBuy = async (
   query: TelegramBot.CallbackQuery,
   amountSol: number
 ): Promise<void> => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in onClickBuy");
+    return;
+  }
+
   const { chatId } = getChatIdandMessageId(query);
   try {
     const wallet = await walletdb.getWalletByChatId(chatId!);
@@ -58,7 +63,7 @@ const onClickBuy = async (
       const trxLink = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : 'N/A';
       logger.info('onClickBuy success', { chatId, txSignature: result.txSignature });
       const msg = await getBuySuccessMessage(trxLink, trade.tokenAddress, amountSol);
-        botInstance.sendMessage(chatId!, msg);
+      botInstance.sendMessage(chatId!, msg);
     } else {
       logger.error('onClickBuy failed: not confirmed', { chatId, result });
       await botInstance.sendMessage(chatId!, 'Buy failed');
@@ -78,12 +83,22 @@ export const onClickHalfBuy = (query: TelegramBot.CallbackQuery) => onClickBuy(q
 export const onClickOneBuy = (query: TelegramBot.CallbackQuery) => onClickBuy(query, 1);
 
 const onClickXBuy = (query: TelegramBot.CallbackQuery) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in onClickXBuy");
+    return;
+  }
+
   const { chatId } = getChatIdandMessageId(query);
   setState(chatId!, STATE.INPUT_BUY_AMOUNT);
   botInstance.sendMessage(chatId!, 'Input buy amount');
 }
 
 export const buyXAmount = async (message: TelegramBot.Message) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in buyXAmount");
+    return;
+  }
+
   try {
     const chatId = message.chat.id;
 
@@ -121,6 +136,11 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
 }
 
 export const showBuyPad = async (message: TelegramBot.Message) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in showBuyPad");
+    return;
+  }
+
   try {
     const chatId = message.chat.id;
     const tokenAddress = message.text;
@@ -139,8 +159,8 @@ export const showBuyPad = async (message: TelegramBot.Message) => {
       ]
     ]
     botInstance.sendMessage(chatId, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: 'HTML' })
-    logger.info("buy token address: ", { manualBuyTokenAddress: tokenAddress })
-    tradedb.createTrade(chatId, tokenAddress!);
+    logger.info("buy info: ", { chatId, tokenAddress });
+    await tradedb.createTrade(chatId, tokenAddress!);
     botInstance.deleteMessage(chatId, getDeleteMessageId(chatId));
   } catch (error) {
     logger.error("showBuyPad error", { error });
@@ -150,6 +170,11 @@ export const showBuyPad = async (message: TelegramBot.Message) => {
 }
 
 const onBuyControlStart = async (query: TelegramBot.CallbackQuery) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in onBuyControlStart");
+    return;
+  }
+
   try {
     const { chatId, messageId } = getChatIdandMessageId(query);
     setState(chatId!, STATE.INPUT_TOKEN);
@@ -204,6 +229,11 @@ export const autoBuyContract = async (
   contractAddress: string,
   tradeSignal?: string
 ) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in autoBuyContract");
+    return;
+  }
+
   try {
     const wallet = await walletdb.getWalletByChatId(chatId);
     if (!wallet) {
@@ -285,8 +315,8 @@ const getBuySuccessMessage = async (
   if (!trade_type) {
     return `Buy successful: ${trx}\nTicker: ${metaData?.symbol}\nBuy Amount: ${solAmount} SOL`;
   } else if (settings) {
-    return `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource:${tradeSignal ? `$@{tradeSignal}` : ""}\nTake profit:${settings!.takeProfit}%, Stop loss:${settings!.stopLoss}%`
+    return `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource: ${tradeSignal ? tradeSignal : ""}\nTake profit:${settings!.takeProfit}%, Stop loss:${settings!.stopLoss}%`
   } else {
-    return `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource:${tradeSignal ? `$@{tradeSignal}` : ""}`
+    return `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource: ${tradeSignal ? tradeSignal : ""}`
   }
 }

@@ -13,6 +13,11 @@ import { logger } from "../logger";
 import { getTokenMetaData } from "../solana/token";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in sellController.handleCallBackQuery");
+    return;
+  }
+
   try {
     const data = query.data;
     if (data == "sc_start") {
@@ -29,7 +34,7 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
       onClickSellWithToken(query)
     }
   } catch (error) {
-
+    logger.error("Error in handleCallBackQuery", { error });
   }
 }
 
@@ -39,6 +44,11 @@ const onClickSell = async (
   fraction: number,
   wrapUnwrapSOL: boolean = false
 ): Promise<void> => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in onClickSell");
+    return;
+  }
+
   const { chatId } = getChatIdandMessageId(query);
   logger.info('onClickSell called', { chatId, fraction, wrapUnwrapSOL });
 
@@ -139,6 +149,11 @@ export const getPublicKeyinFormat = (privateKey: string) => {
 };
 
 export const showSellPad = async (query: TelegramBot.CallbackQuery) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in showSellPad");
+    return;
+  }
+
   try {
     const { chatId } = getChatIdandMessageId(query);
     const wallet = await walletdb.getWalletByChatId(chatId!);
@@ -167,11 +182,18 @@ export const showSellPad = async (query: TelegramBot.CallbackQuery) => {
     botInstance.sendMessage(chatId!, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: 'HTML' });
   } catch (error) {
     logger.error("Error in showSellPad:", error);
-    botInstance.sendMessage(query.message!.chat.id, "❌ Failed to fetch wallet tokens.");
+    if (botInstance && query.message) {
+      botInstance.sendMessage(query.message.chat.id, "❌ Failed to fetch wallet tokens.");
+    }
   }
 };
 
 export const onClickSellWithToken = async (query: TelegramBot.CallbackQuery) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in onClickSellWithToken");
+    return;
+  }
+
   try {
     const { chatId, messageId } = getChatIdandMessageId(query);
     // const trade = await tradedb.getTradeByChatId(chatId!);
@@ -217,7 +239,11 @@ export const onClickSellWithToken = async (query: TelegramBot.CallbackQuery) => 
 
 //run through each signal and check if sell is triggered
 export const autoSellHandler = () => {
-  logger.info('Running autoSellHandler');
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in autoSellHandler");
+    return;
+  }
+
   trade.forEach(async (value, key) => {
     value.map(async (info: TRADE) => {
       try {
@@ -235,6 +261,11 @@ export const autoSellHandler = () => {
           let result = await solana.jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, info.contractAddress, solana.WSOL_ADDRESS, splAmount, "ExactIn", false)
 
           if (result.confirmed) {
+            if (!botInstance) {
+              logger.error("Bot instance not initialized in autoSellHandler result handler");
+              return;
+            }
+
             const metadata = await getTokenMetaData(SOLANA_CONNECTION, info.contractAddress);
             if (price > info.targetPrice) {
               botInstance.sendMessage(key, `Auto-Sell Token : You successfully sold ${metadata?.name}(${metadata?.symbol}) : ${info.contractAddress} at Price: $${price} for a ${((price / info.startPrice - 1) * 100).toFixed(1)}% gain `);
@@ -243,6 +274,11 @@ export const autoSellHandler = () => {
             }
             removeTradeState(key, info.contractAddress);
           } else {
+            if (!botInstance) {
+              logger.error("Bot instance not initialized in autoSellHandler else branch");
+              return;
+            }
+
             botInstance.sendMessage(key, `Auto-Sell Token : ${info.contractAddress}  failed`);
             removeTradeState(key, info.contractAddress);
           }

@@ -106,6 +106,11 @@ export const editText = async (
   text: string,
   opts: TelegramBot.EditMessageTextOptions = {}
 ): Promise<number> => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in editText");
+    throw new Error("Bot instance not initialized");
+  }
+
   const msgId = lastMessageId.get(chatId);
   try {
     if (msgId) {
@@ -122,6 +127,11 @@ export const editText = async (
 };
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in handleCallBackQuery");
+    return;
+  }
+
   logger.info("copytrade: handleCallBackQuery", { query });
 
   const { data: callbackData, message: callbackMessage } = query;
@@ -135,6 +145,11 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     if (callbackData === "ct_start") {
       return walletdb.getWalletByChatId(callbackMessage.chat.id)
         .then(async (wallet) => {
+          if (!botInstance) {
+            logger.error("Bot instance not initialized in ct_start callback");
+            return;
+          }
+
           if (!wallet) {
             await botInstance.sendMessage(chatid, "You need to set up your wallet first");
             return;
@@ -146,6 +161,11 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     if (callbackData === "ct_add_signal") {
       return walletdb.getWalletByChatId(callbackMessage.chat.id)
         .then(async (wallet) => {
+          if (!botInstance) {
+            logger.error("Bot instance not initialized in ct_add_signal callback");
+            return;
+          }
+
           if (!wallet) {
             await botInstance.sendMessage(chatid, "You need to set up your wallet first");
             return;
@@ -156,6 +176,11 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
           }
         })
         .catch(err => {
+          if (!botInstance) {
+            logger.error("Bot instance not initialized in ct_add_signal error handler");
+            return;
+          }
+
           logger.error("wallet lookup failed", err);
           botInstance.sendMessage(chatid, "❌ Something went wrong.");
         });
@@ -249,7 +274,7 @@ const editcopytradesignal = async (
   dbId?: string,
 ) => {
   const caption = `<b>HOW TO FOLLOW A GROUP/ CHANNEL</b>
-- Assign a unique name or “tag” to your target group/channel, to make it easier to identify.
+- Assign a unique name or "tag" to your target group/channel, to make it easier to identify.
 - Set the target signal channel (https://t.me/abc or @abc) to get signals on the coins they launch.
 - Set a specific Buy amount in Sol (for this set up, the bot will always buy specified amount).
 - Slippage: Difference between the expected price of a trade and the price at which the trade is executed. (Normally around 5-20% depending on how much volatile the coin is)
@@ -258,8 +283,8 @@ const editcopytradesignal = async (
 - Take profit: Similar to the stop loss, if the coin you bought gains a specific percentage in value the bot can sell your entire assets for you. 
 
 To manage your Copy Trade:
-- Click the “Active” button to pause the Copy Trade.
-- Delete a Copy Trade by clicking the “Delete” button`;
+- Click the "Active" button to pause the Copy Trade.
+- Delete a Copy Trade by clicking the "Delete" button`;
   logger.info("editing copytradesignal");
   let trade;
   if (!dbId) {
@@ -298,6 +323,11 @@ const removecopytradesignal = async (chatId: string, replaceId: number, dbId: st
 };
 
 const editTagcopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in editTagcopytradesignal");
+    return;
+  }
+
   const caption = `<b>Please type Your signal Tag name</b>\n\n`;
   const reply_markup = {
     force_reply: true,
@@ -309,6 +339,11 @@ const editTagcopytradesignal = async (chatId: string, replaceId: number, dbId: s
   setState(chatId, STATE.INPUT_COPYTRADE);
 
   botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
+    if (!botInstance) {
+      logger.error("Bot instance not initialized in editTagcopytradesignal callback");
+      return;
+    }
+
     botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
     botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
 
@@ -323,6 +358,11 @@ const editTagcopytradesignal = async (chatId: string, replaceId: number, dbId: s
 }
 
 const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in editSignalcopytradesignal");
+    return;
+  }
+
   const caption = `<b>Please type your signal like "@solsignal" or "https://t.me/solsignal"</b>\n\n`;
   const reply_markup = {
     force_reply: true,
@@ -333,6 +373,11 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
     reply_markup,
   });
   botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
+    if (!botInstance) {
+      logger.error("Bot instance not initialized in editSignalcopytradesignal callback");
+      return;
+    }
+
     logger.info("copytrade: onReplyToMessage")
     botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
     botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
@@ -366,6 +411,11 @@ type Spec<T> = {
 const makeEditor =
   <T>(spec: Spec<T>) =>
     async (chatId: string, replaceId: number, dbId: string) => {
+      if (!botInstance) {
+        logger.error(`Bot instance not initialized in makeEditor for ${spec.label}`);
+        return;
+      }
+
       const ask = await botInstance.sendMessage(
         chatId,
         `<b>Please type ${spec.label}</b>\n\n`,
@@ -376,6 +426,11 @@ const makeEditor =
         ask.chat.id,
         ask.message_id,
         async (reply: TelegramBot.Message) => {
+          if (!botInstance) {
+            logger.error(`Bot instance not initialized in makeEditor callback for ${spec.label}`);
+            return;
+          }
+
           botInstance.deleteMessage(ask.chat.id, ask.message_id);
           botInstance.deleteMessage(reply.chat.id, reply.message_id);
           if (!reply.text) return;

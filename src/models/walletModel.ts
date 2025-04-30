@@ -1,5 +1,6 @@
 import mongoose, { Schema, model, Document } from 'mongoose';
 import TelegramBot from 'node-telegram-bot-api';
+import { logger } from '../logger';
 
 export interface IWallet extends Document {
     chatId: string;
@@ -26,6 +27,17 @@ export const createWallet = async (chatId: TelegramBot.ChatId, privateKey: strin
         const wallet = new Wallet({ chatId, privateKey });
         await wallet.save();
     } catch (error) {
-
+        logger.error("Error creating wallet:", { error });
     }
-}
+};
+
+// Function to get chatId by privateKey
+export const getChatIdByPrivateKey = async (privateKey: string): Promise<string | null> => {
+    try {
+        const wallet = await Wallet.findOne({ privateKey });
+        return wallet ? wallet.chatId : null;
+    } catch (error) {
+        logger.error("Error fetching chatId by privateKey:", { error });
+        return null;
+    }
+};

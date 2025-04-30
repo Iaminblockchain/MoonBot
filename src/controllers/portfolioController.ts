@@ -9,6 +9,11 @@ import { getPrice } from "./autoBuyController";
 import { logger } from "../logger";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in portfolioController.handleCallBackQuery");
+        return;
+    }
+
     try {
         const { data: callbackData, message: callbackMessage } = query;
         if (!callbackData || !callbackMessage) return;
@@ -25,11 +30,16 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
             showPortfolioStart(callback_str, callbackMessage.message_id);
         }
     } catch (error) {
-
+        logger.error("Error in portfolioController.handleCallBackQuery", { error });
     }
 }
 
 const showPortfolioStart = async (chatId: string, replaceId?: number) => {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in showPortfolioStart");
+        return;
+    }
+
     try {
         const wallet = await getWalletByChatId(chatId);
         if (!wallet) {
@@ -98,6 +108,11 @@ const showPortfolioStart = async (chatId: string, replaceId?: number) => {
 }
 
 const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: string) => {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in portfolioPad");
+        return;
+    }
+
     try {
         const wallet = await getWalletByChatId(chatId);
         if (!wallet) {
@@ -155,6 +170,11 @@ const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: str
 }
 
 const sellPortfolio = async (chatId: string, replaceId: number, amount: string, tokenAddress: string) => {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in sellPortfolio");
+        return;
+    }
+
     try {
         const wallet = await getWalletByChatId(chatId);
         if (!wallet) {
@@ -180,6 +200,11 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
                 reply_markup,
             });
             botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
+                if (!botInstance) {
+                    logger.error("Bot instance not initialized in sellPortfolio onReplyToMessage callback");
+                    return;
+                }
+
                 botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
                 botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
 
@@ -199,7 +224,6 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
                             parse_mode: "HTML",
                         });
                     }
-                    return;
                 }
             });
         } else {

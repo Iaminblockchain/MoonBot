@@ -48,6 +48,11 @@ const setWithdarwSettingAmount = (chatId: string, tokenAddress: string, amount: 
 }
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in withdrawController.handleCallBackQuery");
+    return;
+  }
+
   try {
     const { data: callbackData, message: callbackMessage } = query;
     if (!callbackData || !callbackMessage) return;
@@ -72,6 +77,11 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
 }
 
 const withdrawStart = async (chatId: string, replaceId?: number) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in withdrawStart");
+    return;
+  }
+
   try {
     const wallet = await walletdb.getWalletByChatId(chatId);
     if (!wallet) {
@@ -142,6 +152,11 @@ const withdrawStart = async (chatId: string, replaceId?: number) => {
 }
 
 const withdrawPad = async (chatId: string, replaceId: number, tokenAddress: string) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in withdrawPad");
+    return;
+  }
+
   try {
     const wallet = await walletdb.getWalletByChatId(chatId);
     if (!wallet) {
@@ -211,6 +226,11 @@ const withdrawPad = async (chatId: string, replaceId: number, tokenAddress: stri
 }
 
 const setWithdrawAmount = async (chatId: string, replaceId: number, identifier: string, tokenAddress: string) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in setWithdrawAmount");
+    return;
+  }
+
   if (identifier == "50") {
     setWithdarwSettingAmount(chatId, tokenAddress, 50, true)
     withdrawPad(chatId, replaceId, tokenAddress);
@@ -221,7 +241,6 @@ const setWithdrawAmount = async (chatId: string, replaceId: number, identifier: 
     return;
   }
 
-
   const caption = `<b>Please type token amount to withdraw</b>\n\n`;
   const reply_markup = {
     force_reply: true,
@@ -231,6 +250,11 @@ const setWithdrawAmount = async (chatId: string, replaceId: number, identifier: 
     reply_markup,
   });
   botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
+    if (!botInstance) {
+      logger.error("Bot instance not initialized in setWithdrawAmount onReplyToMessage callback");
+      return;
+    }
+
     botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
     botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
 
@@ -249,6 +273,11 @@ const setWithdrawAmount = async (chatId: string, replaceId: number, identifier: 
 }
 
 const sendWithdraw = async (chatId: string, queryId: string, tokenAddress: string) => {
+  if (!botInstance) {
+    logger.error("Bot instance not initialized in sendWithdraw");
+    return;
+  }
+
   const withdrawsetting = getWithdrawSetting(chatId, tokenAddress)
   if (!withdrawsetting.amount || withdrawsetting.isPercentage == null || withdrawsetting.isPercentage == undefined) {
     botInstance.answerCallbackQuery({
@@ -267,6 +296,11 @@ const sendWithdraw = async (chatId: string, queryId: string, tokenAddress: strin
       reply_markup,
     });
     botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
+      if (!botInstance) {
+        logger.error("Bot instance not initialized in sendWithdraw onReplyToMessage callback");
+        return;
+      }
+
       botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
       botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
 

@@ -30,6 +30,7 @@ export const TELEGRAM_STRING_SESSION = retrieveEnvVariable("telegram_string_sess
 export const FEE_COLLECTION_WALLET = retrieveEnvVariable("fee_collection_wallet");
 export const START_ENDPOINT_ENABLED = retrieveEnvVariable("start_endpoint_enabled") === "true";
 export const START_ENDPOINT_API_KEY = retrieveEnvVariable("start_endpoint_api_key");
+export const TELEGRAM_BOT_USERNAME = retrieveEnvVariable("telegram_bot_username");
 
 export const SOLANA_CONNECTION = new Connection(SOLANA_RPC_ENDPOINT, {
   wsEndpoint: SOLANA_WSS_ENDPOINT,
@@ -41,46 +42,55 @@ export let client: TelegramClient | undefined;
 // Service state management
 type StartStatus =
   | { status: 'idle' }
-  | { status: 'started' }
-  | { status: 'starting' }
-  | { status: 'error', error: Error };
+  | { status: 'started', id: string }
+  | { status: 'starting', id: string }
+  | { status: 'error', error: Error, id: string };
 
 let serviceStatus: StartStatus = { status: 'idle' };
 
 const gracefulShutdown = async () => {
-  logger.info('Starting graceful shutdown...');
+  logger.info('🗑️ Starting graceful shutdown...');
 
   try {
     // Close Telegram client if it exists
     if (client) {
+      logger.info('🗑️ Telegram client will disconnect...');
       await client.disconnect();
-      logger.info('Telegram client disconnected');
+      logger.info('🗑️ Telegram client disconnected');
+    } else {
+      logger.info('🗑️ No telegram client to disconnect');
     }
   } catch (error) {
-    logger.error('Error shutting down client', error);
+    logger.error('🗑️ Error shutting down client', error);
   }
 
   try {
     // Stop Telegram bot if it exists
     if (botInstance) {
+      logger.info('🗑️ Telegram bot will stop polling...');
       await botInstance.stopPolling();
-      logger.info('Telegram bot polling stopped');
+      logger.info('🗑️ Telegram bot polling stopped');
+    } else {
+      logger.info('🗑️ No telegram bot to stop');
     }
   } catch (error) {
-    logger.error('Error shutting down botInstance', error);
+    logger.error('🗑️ Error shutting down botInstance', error);
   }
 
   try {
     // Close MongoDB connection
     if (mongoose.connection.readyState === 1) {
+      logger.info('🗑️ MongoDB connection will close...');
       await mongoose.connection.close();
-      logger.info('MongoDB connection closed');
+      logger.info('🗑️ MongoDB connection closed');
+    } else {
+      logger.info('🗑️ No MongoDB connection to close');
     }
   } catch (error) {
-    logger.error('Error shutting down mongoose:', error);
+    logger.error('🗑️ Error shutting down mongoose:', error);
   }
 
-  logger.info('Graceful shutdown completed');
+  logger.info('🗑️ Graceful shutdown completed');
   process.exit(0);
 };
 
@@ -146,48 +156,68 @@ const setupStartEndpoint = (app: express.Express) => {
       const maskedApiKey = apiKey ? `${apiKey.slice(0, 4)}***${apiKey.slice(-4)}` : 'N/A';
       logger.info(`${endpoint} called but API key invalid`, { apiKey: maskedApiKey })
       return res.status(401).json({
-        status: 'Unauthorized'
+        outcome: `unauthorized`,
+        message: 'Unauthorized'
+      });
+    }
+
+    const id = req.query.id as string;
+    if (!id) {
+      logger.info(`${endpoint} called but no id provided`)
+      return res.status(400).json({
+        outcome: `error`,
+        message: 'id parameter is required'
       });
     }
 
     if (serviceStatus.status === 'started') {
       logger.info(`${endpoint} called but server has already started`)
       return res.status(200).json({
-        status: 'Services already started'
+        outcome: `started`,
+        message: 'Services already started',
+        id: serviceStatus.id
       });
     }
 
     if (serviceStatus.status === 'error') {
       logger.info(`${endpoint} called but there was already an error starting service`, { error: serviceStatus.error })
       return res.status(500).json({
-        status: `Services initialization previously failed: ${serviceStatus.error.message}`
+        outcome: `error`,
+        message: `Services initialization previously failed: ${serviceStatus.error.message}`,
+        id: serviceStatus.id
       });
     }
 
     if (serviceStatus.status === 'starting') {
       logger.info(`${endpoint} called but services are already starting`)
       return res.status(409).json({
-        status: 'Services are already starting'
+        outcome: `starting`,
+        message: 'Services are already starting',
+        id: serviceStatus.id
       });
     }
 
-    serviceStatus = { status: 'starting' };
+    serviceStatus = { status: 'starting', id: id };
 
     // Initialize services synchronously and return the result directly
     try {
       logger.info(`⏳ Starting services via ${endpoint} endpoint...`);
       await startServices();
-      serviceStatus = { status: 'started' };
+      serviceStatus = { status: 'started', id: id };
       logger.info(`✅ Services successfully started via ${endpoint} endpoint`);
       return res.status(200).json({
-        status: 'Services successfully started'
+        outcome: `success`,
+        message: 'Services successfully started',
+        id: id
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('Failed to initialize services via /start endpoint:', error);
-      serviceStatus = { status: 'error', error: error instanceof Error ? error : new Error(errorMessage) };
+      serviceStatus = { status: 'error', error: error instanceof Error ? error : new Error(errorMessage), id: id };
       return res.status(500).json({
-        status: `Failed to start services: ${errorMessage}`
+        outcome: `error`,
+        message: `Failed to start services: ${errorMessage}`,
+        id: id
       });
     }
   });
@@ -211,13 +241,14 @@ const main = async () => {
     setupStartEndpoint(app);
   } else {
     // In local dev, we want to start services immediately
+    const startId = "local-dev";
     try {
       await startServices();
-      serviceStatus = { status: 'started' };
+      serviceStatus = { status: 'started', id: startId };
       logger.info('✅ Services successfully started!');
     } catch (error) {
       logger.error('Failed to start services:', error);
-      serviceStatus = { status: 'error', error: error instanceof Error ? error : new Error(String(error)) };
+      serviceStatus = { status: 'error', error: error instanceof Error ? error : new Error(String(error)), id: startId };
       throw serviceStatus.error;
     }
   }
