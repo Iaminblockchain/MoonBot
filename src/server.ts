@@ -1,12 +1,12 @@
-import express from 'express';
-import { logger } from './logger';
-import { Chat } from './models/chatModel';
-import { Call } from './models/callModel';
-import cors from 'cors';
-import { ALLOWED_ORIGIN } from '.';
-import { client } from './index';
-import { botInstance } from './bot';
-import mongoose from 'mongoose';
+import express from "express";
+import { logger } from "./logger";
+import { Chat } from "./models/chatModel";
+import { Call } from "./models/callModel";
+import cors from "cors";
+import { ALLOWED_ORIGIN } from ".";
+import { client } from "./index";
+import { botInstance } from "./bot";
+import mongoose from "mongoose";
 
 export const setupServer = (
     app: express.Application,
@@ -14,7 +14,7 @@ export const setupServer = (
     startEndpointEnabled = false,
     isServicesStarted = () => false
 ): Promise<void> => {
-    const health_endpoint = '/health';
+    const health_endpoint = "/health";
 
     logger.info("Will setup cors with allowed origin", { allowedOrigin: ALLOWED_ORIGIN });
 
@@ -25,11 +25,11 @@ export const setupServer = (
         return cors({ origin: ALLOWED_ORIGIN })(req, res, next);
     });
 
-    app.use(express.static('public'));
+    app.use(express.static("public"));
     app.use(express.json());
 
     app.get(health_endpoint, (_, res) => {
-        res.status(200).send('OK');
+        res.status(200).send("OK");
     });
 
     // Services check middleware for API endpoints
@@ -38,32 +38,30 @@ export const setupServer = (
             return next();
         }
 
-        return res.status(503)
-            .header('Retry-After', '60')
-            .json({ error: 'Services not started yet. Call /start to initialize services.' });
+        return res.status(503).header("Retry-After", "60").json({ error: "Services not started yet. Call /start to initialize services." });
     };
 
-    app.get('/api/chats', checkServicesStarted, async (_, res) => {
+    app.get("/api/chats", checkServicesStarted, async (_, res) => {
         try {
             const chats = await Chat.find({});
             res.json(chats);
         } catch (error) {
-            logger.error('Failed to fetch chats', error);
-            res.status(500).json({ error: 'Error fetching chats' });
+            logger.error("Failed to fetch chats", error);
+            res.status(500).json({ error: "Error fetching chats" });
         }
     });
 
-    app.get('/api/calls', checkServicesStarted, async (_, res) => {
+    app.get("/api/calls", checkServicesStarted, async (_, res) => {
         try {
             const calls = await Call.find({});
             res.json(calls);
         } catch (error) {
-            logger.error('Failed to fetch calls', error);
-            res.status(500).json({ error: 'Error fetching calls' });
+            logger.error("Failed to fetch calls", error);
+            res.status(500).json({ error: "Error fetching calls" });
         }
     });
 
-    app.get('/services', (_, res) => {
+    app.get("/services", (_, res) => {
         const telegramConnected = client?.connected || false;
         const botPolling = botInstance?.isPolling() || false;
         const mongoConnected = mongoose.connection.readyState === 1;
@@ -72,21 +70,21 @@ export const setupServer = (
 
         if (allServicesHealthy) {
             res.status(200).json({
-                status: 'healthy',
+                status: "healthy",
                 services: {
-                    telegram: 'connected',
-                    bot: 'polling',
-                    mongodb: 'connected'
-                }
+                    telegram: "connected",
+                    bot: "polling",
+                    mongodb: "connected",
+                },
             });
         } else {
             res.status(503).json({
-                status: 'unhealthy',
+                status: "unhealthy",
                 services: {
-                    telegram: telegramConnected ? 'connected' : 'disconnected',
-                    bot: botPolling ? 'polling' : 'not polling',
-                    mongodb: mongoConnected ? 'connected' : 'disconnected'
-                }
+                    telegram: telegramConnected ? "connected" : "disconnected",
+                    bot: botPolling ? "polling" : "not polling",
+                    mongodb: mongoConnected ? "connected" : "disconnected",
+                },
             });
         }
     });

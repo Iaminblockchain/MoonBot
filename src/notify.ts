@@ -13,9 +13,9 @@ export const notifySuccess = async (chatId: string, message: string) => {
             logger.error("Bot instance not initialized in notifySuccess timeout");
             return;
         }
-        botInstance.deleteMessage(chatId, sent.message_id).catch(() => { });
+        botInstance.deleteMessage(chatId, sent.message_id).catch(() => {});
     }, 2000);
-}
+};
 
 export const notifyError = async (chatId: string, message: string) => {
     if (!botInstance) {
@@ -29,6 +29,6 @@ export const notifyError = async (chatId: string, message: string) => {
             logger.error("Bot instance not initialized in notifyError timeout");
             return;
         }
-        botInstance.deleteMessage(chatId, sent.message_id).catch(() => { });
+        botInstance.deleteMessage(chatId, sent.message_id).catch(() => {});
     }, 2000);
 };

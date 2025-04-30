@@ -1,11 +1,7 @@
-const axios = require('axios');
-import { logger } from './logger';
+const axios = require("axios");
+import { logger } from "./logger";
 
-export async function getTokenPrice(
-    ids: string,
-    vsToken: string | null = null,
-    showExtraInfo: boolean = false
-): Promise<any> {
+export async function getTokenPrice(ids: string, vsToken: string | null = null, showExtraInfo: boolean = false): Promise<any> {
     try {
         const params: { ids: string; vsToken?: string; showExtraInfo?: boolean } = { ids };
 
@@ -16,7 +12,7 @@ export async function getTokenPrice(
             params.vsToken = vsToken;
         }
 
-        const response = await axios.get('https://api.jup.ag/price/v2', { params });
+        const response = await axios.get("https://api.jup.ag/price/v2", { params });
 
         const priceData = response.data.data;
 
@@ -24,15 +20,14 @@ export async function getTokenPrice(
         for (const tokenId in priceData) {
             if (priceData.hasOwnProperty(tokenId)) {
                 const tokenInfo = priceData[tokenId];
-                logger.debug('Price ', { token: tokenInfo.id, price: tokenInfo.price });
+                logger.debug("Price ", { token: tokenInfo.id, price: tokenInfo.price });
                 return tokenInfo.price;
             }
         }
 
-        logger.error("price not found")
-
+        logger.error("price not found");
     } catch (error) {
-        logger.error('Error fetching price:', error);
+        logger.error("Error fetching price:", error);
         throw error;
     }
 }

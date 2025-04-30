@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document } from "mongoose";
 
 export interface IChat extends Document {
     chat_id: string;
@@ -14,7 +14,7 @@ const ChatSchema: Schema = new Schema({
     title: { type: String, default: null },
 });
 
-export const Chat = mongoose.model<IChat>('Chat', ChatSchema);
+export const Chat = mongoose.model<IChat>("Chat", ChatSchema);
 
 export interface IChatStats extends Document {
     chat_id: string;
@@ -28,4 +28,4 @@ const ChatStatsSchema: Schema = new Schema({
     token_count: { type: Number, default: 0 },
 });
 
-export const ChatStats = mongoose.model<IChatStats>('ChatStats', ChatStatsSchema);
+export const ChatStats = mongoose.model<IChatStats>("ChatStats", ChatStatsSchema);

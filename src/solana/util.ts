@@ -1,8 +1,5 @@
 import bs58 from "bs58";
-import {
-    Keypair,
-    PublicKey,
-} from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import { SOLANA_CONNECTION } from "..";
 import { logger } from "../logger";
 
@@ -18,11 +15,9 @@ const jito_Validators = [
 ];
 
 export async function getRandomValidator() {
-    const res =
-        jito_Validators[Math.floor(Math.random() * jito_Validators.length)];
+    const res = jito_Validators[Math.floor(Math.random() * jito_Validators.length)];
     return new PublicKey(res);
 }
-
 
 export const getSolBalance = async (privateKey: string) => {
     try {
@@ -31,8 +26,7 @@ export const getSolBalance = async (privateKey: string) => {
 
         const accountInfo = await SOLANA_CONNECTION.getAccountInfo(keypair.publicKey);
 
-        if (accountInfo && accountInfo.lamports)
-            return Number(accountInfo.lamports) / 10 ** 9;
+        if (accountInfo && accountInfo.lamports) return Number(accountInfo.lamports) / 10 ** 9;
         else return 0;
     } catch (error) {
         logger.error({ error });
@@ -48,7 +42,6 @@ export const isValidAddress = (publicKey: string) => {
         return false;
     }
 };
-
 
 export const createWallet = () => {
     let keypair = Keypair.generate();

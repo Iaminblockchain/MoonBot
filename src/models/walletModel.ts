@@ -1,6 +1,6 @@
-import mongoose, { Schema, model, Document } from 'mongoose';
-import TelegramBot from 'node-telegram-bot-api';
-import { logger } from '../logger';
+import mongoose, { Schema, model, Document } from "mongoose";
+import TelegramBot from "node-telegram-bot-api";
+import { logger } from "../logger";
 
 export interface IWallet extends Document {
     chatId: string;
@@ -9,10 +9,10 @@ export interface IWallet extends Document {
 
 const WalletSchema: Schema = new Schema({
     chatId: { type: Number, required: true },
-    privateKey: { type: String, required: true, unique: true }
+    privateKey: { type: String, required: true, unique: true },
 });
 
-export const Wallet = model<IWallet>('Wallet', WalletSchema);
+export const Wallet = model<IWallet>("Wallet", WalletSchema);
 
 export const getWalletByChatId = async (chatId: TelegramBot.ChatId) => {
     try {

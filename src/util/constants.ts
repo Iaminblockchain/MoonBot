@@ -26,4 +26,4 @@ Only 1% per successful transaction. No subscriptions, no hidden fees.
 ❓ <b>FAQs</b>
 <b>Tx failed?</b> Might be slippage, balance, or timeout.
 <b>Wrong PNL?</b> Fees are included, check Solscan for full details.
-`
+`;

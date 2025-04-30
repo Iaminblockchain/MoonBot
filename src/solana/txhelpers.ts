@@ -1,10 +1,5 @@
 // tx-helpers.ts
-import {
-    Connection,
-    ParsedTransactionWithMeta,
-    PublicKey,
-    SignatureStatus
-} from "@solana/web3.js";
+import { Connection, ParsedTransactionWithMeta, PublicKey, SignatureStatus } from "@solana/web3.js";
 import { logger } from "../logger";
 
 /*   error codes & texts  */
@@ -13,19 +8,13 @@ export const ERR_1002 = "Provided owner is not allowed";
 export const ERR_1003 = "custom program error: insufficient funds";
 export const ERR_1011 = "Not known Error";
 
-export const ERR_6002 =
-    "slippage: Too much SOL required to buy the given amount of tokens.";
-export const ERR_6003 =
-    "slippage: Too little SOL received to sell the given amount of tokens.";
+export const ERR_6002 = "slippage: Too much SOL required to buy the given amount of tokens.";
+export const ERR_6003 = "slippage: Too little SOL received to sell the given amount of tokens.";
 
 /*  helpers  */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const getTokenBalance = (
-    tokenBalances: any[],
-    mint: string,
-    owner: string
-): number => {
+const getTokenBalance = (tokenBalances: any[], mint: string, owner: string): number => {
     for (const t of tokenBalances) {
         if (t?.mint === mint && t?.owner === owner) {
             return Number(t.uiTokenAmount?.uiAmount ?? 0);
@@ -41,16 +30,11 @@ export async function getStatusTxnRetry(
     maxRetries = 20,
     retrySleep = 500
 ): Promise<{ success: true; txsig: string } | { success: false; error: string; errorcode: number }> {
-    logger.info(
-        `try get_status_txn ${txsig} (max ${maxRetries}, every ${retrySleep} ms)`
-    );
+    logger.info(`try get_status_txn ${txsig} (max ${maxRetries}, every ${retrySleep} ms)`);
 
     for (let retry = 0; retry < maxRetries; retry++) {
         try {
-            const { value } = await connection.getSignatureStatuses(
-                [txsig],
-                { searchTransactionHistory: true }
-            );
+            const { value } = await connection.getSignatureStatuses([txsig], { searchTransactionHistory: true });
             const status = value[0] as SignatureStatus | null;
 
             if (!status) {
@@ -99,24 +83,18 @@ export async function getStatusTxnRetry(
     return { success: false, error: "could not confirm in time", errorcode: 1003 };
 }
 
-// get tx info 
-export async function getTxInfo(
-    txsig: string,
-    connection: Connection,
-    tokenMint: string
-): Promise<Record<string, any> | null> {
+// get tx info
+export async function getTxInfo(txsig: string, connection: Connection, tokenMint: string): Promise<Record<string, any> | null> {
     const maxRetries = 20;
     for (let retry = 0; retry < maxRetries; retry++) {
         try {
             const txn = await connection.getTransaction(txsig, {
                 commitment: "finalized",
-                maxSupportedTransactionVersion: 0
+                maxSupportedTransactionVersion: 0,
             });
             if (txn) {
                 // make it plain JSON – easier to work with & log
-                const plain = JSON.parse(
-                    JSON.stringify(txn)
-                ) as ParsedTransactionWithMeta;
+                const plain = JSON.parse(JSON.stringify(txn)) as ParsedTransactionWithMeta;
                 return plain as any;
             }
             await sleep(1000);
@@ -130,11 +108,7 @@ export async function getTxInfo(
 }
 
 //  get tx info + metrics
-export async function getTxInfoMetrics(
-    txsig: string,
-    connection: Connection,
-    tokenMint: string
-) {
+export async function getTxInfoMetrics(txsig: string, connection: Connection, tokenMint: string) {
     const tx = await getTxInfo(txsig, connection, tokenMint);
     if (!tx) {
         logger.warn(`no tx info for ${tokenMint}`);
@@ -145,10 +119,7 @@ export async function getTxInfoMetrics(
 }
 
 // extract metrics
-export function extractTransactionMetrics(
-    tx: any,
-    tokenMint: string
-): Record<string, any> {
+export function extractTransactionMetrics(tx: any, tokenMint: string): Record<string, any> {
     const message = tx.transaction?.message;
     if (!message) return {};
 
@@ -164,16 +135,8 @@ export function extractTransactionMetrics(
     const preTokenBalances = meta.preTokenBalances || [];
     const postTokenBalances = meta.postTokenBalances || [];
 
-    const preToken = getTokenBalance(
-        preTokenBalances,
-        tokenMint,
-        ownerPubkey
-    );
-    const postToken = getTokenBalance(
-        postTokenBalances,
-        tokenMint,
-        ownerPubkey
-    );
+    const preToken = getTokenBalance(preTokenBalances, tokenMint, ownerPubkey);
+    const postToken = getTokenBalance(postTokenBalances, tokenMint, ownerPubkey);
     const tokenBalanceChange = postToken - preToken;
 
     /* SOL spent (lamports SOL) */
@@ -191,10 +154,7 @@ export function extractTransactionMetrics(
         }
     }
 
-    const price =
-        Math.abs(tokenBalanceChange) > 1e-6
-            ? solBalanceChange / Math.abs(tokenBalanceChange)
-            : null;
+    const price = Math.abs(tokenBalanceChange) > 1e-6 ? solBalanceChange / Math.abs(tokenBalanceChange) : null;
 
     return {
         owner_pubkey: ownerPubkey,
@@ -204,6 +164,6 @@ export function extractTransactionMetrics(
         sol_balance_change: solBalanceChange,
         token_creation_cost: tokenCreationCost,
         compute_units_consumed: computeUnits,
-        price
+        price,
     };
 }

@@ -1,5 +1,5 @@
-import mongoose, { Schema, model, Document } from 'mongoose';
-import { logger } from '../logger';
+import mongoose, { Schema, model, Document } from "mongoose";
+import { logger } from "../logger";
 
 export interface IReferral extends Document {
     refereeId: string; // The ID of the referee
@@ -13,7 +13,7 @@ const ReferralSchema: Schema = new Schema({
     createdAt: { type: Date, default: Date.now }, // Automatically set creation timestamp
 });
 
-export const Referral = model<IReferral>('Referral', ReferralSchema);
+export const Referral = model<IReferral>("Referral", ReferralSchema);
 
 // Function to create a new referral relationship
 export const createReferral = async (refereeId: string, referrers: (string | null)[]): Promise<IReferral | null> => {
@@ -35,7 +35,7 @@ export const updateReferrers = async (refereeId: string, newReferrers: (string |
             { new: true } // Return the updated document
         );
     } catch (error) {
-        logger.error("Error updating referrers:", {error});
+        logger.error("Error updating referrers:", { error });
         return null;
     }
 };
@@ -45,7 +45,7 @@ export const getReferralByRefereeId = async (refereeId: string): Promise<IReferr
     try {
         return await Referral.findOne({ refereeId });
     } catch (error) {
-        logger.error("Error fetching referral:", {error});
+        logger.error("Error fetching referral:", { error });
         return null;
     }
 };

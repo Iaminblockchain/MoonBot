@@ -1,9 +1,4 @@
-
-import {
-    Connection,
-    ParsedInstruction,
-    PublicKey
-} from "@solana/web3.js";
+import { Connection, ParsedInstruction, PublicKey } from "@solana/web3.js";
 import {
     TOKEN_PROGRAM_ID,
     AccountLayout,
@@ -37,11 +32,7 @@ async function getTokenAddressFromTokenAccount(tokenAccountAddress: string) {
     }
 }
 
-
-export const getTokenSwapInfo = async (
-    connection: Connection,
-    signature: string
-) => {
+export const getTokenSwapInfo = async (connection: Connection, signature: string) => {
     logger.info("getTokenSwapInfo, start");
     try {
         const tx = await connection.getParsedTransaction(signature, {
@@ -60,19 +51,13 @@ export const getTokenSwapInfo = async (
                 for (let j = 0; j < innerinstructions!.length; j++) {
                     if (innerinstructions![j].index === i) {
                         const sendToken = await getTokenAddressFromTokenAccount(
-                            (innerinstructions![j].instructions[0] as ParsedInstruction)
-                                .parsed.info.destination
+                            (innerinstructions![j].instructions[0] as ParsedInstruction).parsed.info.destination
                         );
-                        const sendAmount = (
-                            innerinstructions![j].instructions[0] as ParsedInstruction
-                        ).parsed.info.amount;
+                        const sendAmount = (innerinstructions![j].instructions[0] as ParsedInstruction).parsed.info.amount;
                         const receiveToken = await getTokenAddressFromTokenAccount(
-                            (innerinstructions![j].instructions[1] as ParsedInstruction)
-                                .parsed.info.source
+                            (innerinstructions![j].instructions[1] as ParsedInstruction).parsed.info.source
                         );
-                        const receiveAmount = (
-                            innerinstructions![j].instructions[1] as ParsedInstruction
-                        ).parsed.info.amount;
+                        const receiveAmount = (innerinstructions![j].instructions[1] as ParsedInstruction).parsed.info.amount;
                         const result = {
                             isSwap: true,
                             type: "raydium swap",
@@ -94,36 +79,23 @@ export const getTokenSwapInfo = async (
                         let receiveAmount;
                         for (let i = 0; i < length; i++) {
                             if (
-                                (
-                                    innerinstructions![j].instructions[i] as ParsedInstruction
-                                ).programId.toBase58() ==
+                                (innerinstructions![j].instructions[i] as ParsedInstruction).programId.toBase58() ==
                                 "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
                             ) {
-                                if (
-                                    (innerinstructions![j].instructions[i] as ParsedInstruction)
-                                        .parsed.type == "transferChecked"
-                                ) {
+                                if ((innerinstructions![j].instructions[i] as ParsedInstruction).parsed.type == "transferChecked") {
                                     sendToken = await getTokenAddressFromTokenAccount(
-                                        (innerinstructions![j].instructions[i] as ParsedInstruction)
-                                            .parsed.info.destination
+                                        (innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.destination
                                     );
-                                    sendAmount = (
-                                        innerinstructions![j].instructions[i] as ParsedInstruction
-                                    ).parsed.info.tokenAmount.amount;
+                                    sendAmount = (innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.tokenAmount
+                                        .amount;
                                     break;
                                 }
 
-                                if (
-                                    (innerinstructions![j].instructions[i] as ParsedInstruction)
-                                        .parsed.type == "transfer"
-                                ) {
+                                if ((innerinstructions![j].instructions[i] as ParsedInstruction).parsed.type == "transfer") {
                                     sendToken = await getTokenAddressFromTokenAccount(
-                                        (innerinstructions![j].instructions[i] as ParsedInstruction)
-                                            .parsed.info.destination
+                                        (innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.destination
                                     );
-                                    sendAmount = (
-                                        innerinstructions![j].instructions[i] as ParsedInstruction
-                                    ).parsed.info.amount;
+                                    sendAmount = (innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.amount;
                                     break;
                                 }
                             }
@@ -131,36 +103,23 @@ export const getTokenSwapInfo = async (
 
                         for (let i = length - 1; i >= 0; i--) {
                             if (
-                                (
-                                    innerinstructions![j].instructions[i] as ParsedInstruction
-                                ).programId.toBase58() ==
+                                (innerinstructions![j].instructions[i] as ParsedInstruction).programId.toBase58() ==
                                 "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
                             ) {
-                                if (
-                                    (innerinstructions![j].instructions[i] as ParsedInstruction)
-                                        .parsed.type == "transferChecked"
-                                ) {
+                                if ((innerinstructions![j].instructions[i] as ParsedInstruction).parsed.type == "transferChecked") {
                                     receiveToken = await getTokenAddressFromTokenAccount(
-                                        (innerinstructions![j].instructions[i] as ParsedInstruction)
-                                            .parsed.info.source
+                                        (innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.source
                                     );
-                                    receiveAmount = (
-                                        innerinstructions![j].instructions[i] as ParsedInstruction
-                                    ).parsed.info.tokenAmount.amount;
+                                    receiveAmount = (innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.tokenAmount
+                                        .amount;
                                     break;
                                 }
 
-                                if (
-                                    (innerinstructions![j].instructions[i] as ParsedInstruction)
-                                        .parsed.type == "transfer"
-                                ) {
+                                if ((innerinstructions![j].instructions[i] as ParsedInstruction).parsed.type == "transfer") {
                                     receiveToken = await getTokenAddressFromTokenAccount(
-                                        (innerinstructions![j].instructions[i] as ParsedInstruction)
-                                            .parsed.info.source
+                                        (innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.source
                                     );
-                                    receiveAmount = (
-                                        innerinstructions![j].instructions[i] as ParsedInstruction
-                                    ).parsed.info.amount;
+                                    receiveAmount = (innerinstructions![j].instructions[i] as ParsedInstruction).parsed.info.amount;
                                     break;
                                 }
                             }
