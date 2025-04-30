@@ -8,57 +8,9 @@ import { client } from "./index";
 import { botInstance } from "./bot";
 import mongoose from "mongoose";
 
-export const setupServer = (
-    app: express.Application,
-    port: number,
-    startEndpointEnabled = false,
-    isServicesStarted = () => false
-): Promise<void> => {
-    const health_endpoint = "/health";
-
-    logger.info("Will setup cors with allowed origin", { allowedOrigin: ALLOWED_ORIGIN });
-
-    app.use((req, res, next) => {
-        if (req.path === health_endpoint) {
-            return next();
-        }
-        return cors({ origin: ALLOWED_ORIGIN })(req, res, next);
-    });
-
-    app.use(express.static("public"));
-    app.use(express.json());
-
-    app.get(health_endpoint, (_, res) => {
+const setupStatusChecks = (app: express.Application): void => {
+    app.get("/health", (_, res) => {
         res.status(200).send("OK");
-    });
-
-    // Services check middleware for API endpoints
-    const checkServicesStarted = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-        if (!startEndpointEnabled || isServicesStarted()) {
-            return next();
-        }
-
-        return res.status(503).header("Retry-After", "60").json({ error: "Services not started yet. Call /start to initialize services." });
-    };
-
-    app.get("/api/chats", checkServicesStarted, async (_, res) => {
-        try {
-            const chats = await Chat.find({});
-            res.json(chats);
-        } catch (error) {
-            logger.error("Failed to fetch chats", error);
-            res.status(500).json({ error: "Error fetching chats" });
-        }
-    });
-
-    app.get("/api/calls", checkServicesStarted, async (_, res) => {
-        try {
-            const calls = await Call.find({});
-            res.json(calls);
-        } catch (error) {
-            logger.error("Failed to fetch calls", error);
-            res.status(500).json({ error: "Error fetching calls" });
-        }
     });
 
     app.get("/services", (_, res) => {
@@ -86,6 +38,51 @@ export const setupServer = (
                     mongodb: mongoConnected ? "connected" : "disconnected",
                 },
             });
+        }
+    });
+};
+
+export const setupServer = (
+    app: express.Application,
+    port: number,
+    startEndpointEnabled = false,
+    isServicesStarted = () => false
+): Promise<void> => {
+    logger.info("Will setup cors with allowed origin", { allowedOrigin: ALLOWED_ORIGIN });
+
+    app.use(cors({ origin: ALLOWED_ORIGIN }));
+
+    app.use(express.static("public"));
+    app.use(express.json());
+
+    setupStatusChecks(app);
+
+    // Services check middleware for API endpoints
+    const checkServicesStarted = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+        if (!startEndpointEnabled || isServicesStarted()) {
+            return next();
+        }
+
+        return res.status(503).header("Retry-After", "60").json({ error: "Services not started yet. Call /start to initialize services." });
+    };
+
+    app.get("/api/chats", checkServicesStarted, async (_, res) => {
+        try {
+            const chats = await Chat.find({});
+            res.json(chats);
+        } catch (error) {
+            logger.error("Failed to fetch chats", error);
+            res.status(500).json({ error: "Error fetching chats" });
+        }
+    });
+
+    app.get("/api/calls", checkServicesStarted, async (_, res) => {
+        try {
+            const calls = await Call.find({});
+            res.json(calls);
+        } catch (error) {
+            logger.error("Failed to fetch calls", error);
+            res.status(500).json({ error: "Error fetching calls" });
         }
     });
 
