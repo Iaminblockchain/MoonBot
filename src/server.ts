@@ -7,6 +7,9 @@ import { ALLOWED_ORIGIN } from ".";
 import { client } from "./index";
 import { botInstance } from "./bot";
 import mongoose from "mongoose";
+import { lastMessageLog } from "./scraper/processMessages";
+
+const serverStartTime = new Date();
 
 const setupStatusChecks = (app: express.Application): void => {
     app.get("/health", (_, res) => {
@@ -37,6 +40,35 @@ const setupStatusChecks = (app: express.Application): void => {
                     bot: botPolling ? "polling" : "not polling",
                     mongodb: mongoConnected ? "connected" : "disconnected",
                 },
+            });
+        }
+    });
+
+    app.get("/last-message", (_, res) => {
+        const minutes = 300;
+        if (lastMessageLog) {
+            const now = new Date();
+            const secondsSince = Math.floor((now.getTime() - lastMessageLog.date.getTime()) / 1000);
+
+            const responseData = {
+                serverStartTime,
+                lastMessage: lastMessageLog,
+                secondsSince
+            };
+
+            // If the message is older than 5 minutes (300 seconds), return 500
+            if (secondsSince > minutes) {
+                res.status(500).json(responseData);
+            } else {
+                res.status(200).json(responseData);
+            }
+        } else {
+            const secondsSinceStart = Math.floor((new Date().getTime() - serverStartTime.getTime()) / 1000);
+
+            res.status(secondsSinceStart > minutes ? 500 : 200).json({
+                serverStartTime,
+                lastMessage: null,
+                secondsSince: null
             });
         }
     });

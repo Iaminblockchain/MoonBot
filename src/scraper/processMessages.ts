@@ -17,6 +17,17 @@ let totalMessagesRead = 0;
 const trackedContracts: Set<string> = new Set();
 const groupContractsMap: Record<string, Set<string>> = {};
 
+type MessageLog = {
+    title: string | null;
+    messageText: string;
+    chatIdConverted: string;
+    chatId: bigInt.BigInteger;
+    chatUsername: string | null;
+    date: Date;
+};
+
+export let lastMessageLog: MessageLog | null = null;
+
 async function trackPerformance(contractAddress: string, entry_price: string): Promise<void> {
     if (trackedContracts.has(contractAddress)) return;
     trackedContracts.add(contractAddress);
@@ -100,6 +111,14 @@ export async function contractFound(contractAddress: string, chat_id_str: string
 
 export async function processMessages(event: NewMessageEvent): Promise<void> {
     try {
+
+        const messageDate = event.message.date;
+        if (!messageDate) {
+            logger.error("Skipping message, message date is not available");
+            return
+        }
+        const date = new Date(messageDate * 1000)
+
         // First check that the message sender is a Api.User or Api.Channel
         // users that send a message in their own channel take on the chat id of the channel.
         // We ignore Api.Chat because users in a Chat will be an Api.User sender.
@@ -175,14 +194,17 @@ export async function processMessages(event: NewMessageEvent): Promise<void> {
             title = null;
         }
 
-        // Log message info
-        logger.info(`Incoming message ${channelUsername}`, {
+        lastMessageLog = {
             title: title,
             messageText: messageText,
             chatIdConverted: chatIdConverted,
             chatId: chatId,
             chatUsername: channelUsername,
-        });
+            date: date,
+        };
+
+        // Log message info
+        logger.info(`Incoming message ${channelUsername}`, lastMessageLog);
 
         // Query database for the chat username info
         const chatDoc = await Chat.findOne({ chat_id: chatIdConverted });
