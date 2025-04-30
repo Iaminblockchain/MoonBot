@@ -67,12 +67,12 @@ const gracefulShutdown = async () => {
 
     try {
         // Stop Telegram bot if it exists
-        if (botInstance) {
+        if (botInstance && botInstance.isPolling()) {
             logger.info("🗑️ Telegram bot will stop polling...");
-            await botInstance.stopPolling();
+            await botInstance.stopPolling({ cancel: true });
             logger.info("🗑️ Telegram bot polling stopped");
         } else {
-            logger.info("🗑️ No telegram bot to stop");
+            logger.info("🗑️ No telegram bot to stop or not polling");
         }
     } catch (error) {
         logger.error("🗑️ Error shutting down botInstance", error);
