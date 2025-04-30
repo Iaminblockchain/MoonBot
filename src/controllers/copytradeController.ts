@@ -73,6 +73,10 @@ export const handleInput = async (msg: TelegramBot.Message, ctx: InputCtx) => {
     }
 };
 
+export const setAllCopytradeStatus = async (chatId: string, active: boolean) => {
+    await Trade.updateMany({ chatId }, { $set: { active } }).exec();
+};
+
 const lastMessageId = new Map<string, number>();
 
 // Normalize signal input, ensure chat exists, and return { signal, chatId }.
@@ -91,28 +95,34 @@ async function resolveSignalAndChatId(signalInput: string): Promise<{ signal: st
     return { signal, chatId: chatDoc.chat_id };
 }
 
-export const editText = async (chatId: string, text: string, opts: TelegramBot.EditMessageTextOptions = {}): Promise<number> => {
-    if (!botInstance) {
-        logger.error("Bot instance not initialized in editText");
-        throw new Error("Bot instance not initialized");
-    }
+export const editText = async (
+    chatId: string,
+    text: string,
+    opts: TelegramBot.EditMessageTextOptions = {}
+): Promise<number> => {
+    if (!botInstance) throw new Error("Bot instance not initialized");
 
-    const msgId = lastMessageId.get(chatId);
+    const msgId = opts.message_id ?? lastMessageId.get(chatId);
+
     try {
         if (msgId) {
-            await botInstance.editMessageText(text, { chat_id: chatId, message_id: msgId, ...opts });
+            await botInstance.editMessageText(text, {
+                chat_id: chatId,
+                message_id: msgId,
+                ...opts,
+            });
+            lastMessageId.set(chatId, msgId);
             return msgId;
         }
         throw new Error();
     } catch (_) {
         const { message_id } = await botInstance.sendMessage(chatId, text, opts);
         lastMessageId.set(chatId, message_id);
-        // store updated
         return message_id;
     }
 };
 
-export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
+export const handleCallBackQuery = async (query: TelegramBot.CallbackQuery) => {
     if (!botInstance) {
         logger.error("Bot instance not initialized in handleCallBackQuery");
         return;
@@ -176,6 +186,15 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
             return showPortfolioPad(chatid, msgId);
         }
 
+        if (callbackData === "ct_activate_all") {
+            await setAllCopytradeStatus(chatid, true);
+            await showPortfolioPad(chatid, msgId);
+        }
+        if (callbackData === "ct_deactivate_all") {
+            await setAllCopytradeStatus(chatid, false);
+            await showPortfolioPad(chatid, msgId);
+        }
+
         const actionMap: Record<string, Function> = {
             ct_edit: editcopytradesignal,
             ct_del: removecopytradesignal,
@@ -208,6 +227,7 @@ This function allows you to monitor any public group or channel on telegram and 
 You can also customize the buy amount, take profit, stop loss and more for every channel you follow.
 🟢 Indicates a copy trade setup is active.
 🔴 Indicates a copy trade setup is paused.`;
+
     const signalKeyboard = signals.map((value: copytradedb.ITrade, index: number) => {
         return [
             {
@@ -216,7 +236,16 @@ You can also customize the buy amount, take profit, stop loss and more for every
             },
         ];
     });
-    const keyboardList = signalKeyboard.concat([[{ text: "Add Signal", command: "ct_add_signal" }], [{ text: "Close", command: "close" }]]);
+
+    const keyboardList = [
+        [
+            { text: "Activate all", command: "ct_activate_all" },
+            { text: "Deactivate all", command: "ct_deactivate_all" },
+        ],
+        ...signalKeyboard,
+        [{ text: "Add Signal", command: "ct_add_signal" }],
+        [{ text: "Close", command: "close" }],
+    ];
 
     const reply_markup = {
         inline_keyboard: keyboardList.map((rowItem: { text: string; command: string }[]) =>
@@ -233,6 +262,7 @@ You can also customize the buy amount, take profit, stop loss and more for every
         parse_mode: "HTML",
         disable_web_page_preview: false,
         reply_markup,
+        message_id: replaceId,
     });
 };
 
@@ -293,6 +323,20 @@ To manage your Copy Trade:
         disable_web_page_preview: false,
         reply_markup,
     });
+};
+
+
+export const toggleCopytrade = async (chatId: string | number) => {
+    const trades = await copytradedb.getTradeByChatId(String(chatId));
+    const anyActive = trades.some(t => t.active);
+    const newState = !anyActive;
+    await setAllCopytradeStatus(String(chatId), newState);
+    return newState;
+};
+
+export const isCopytradeEnabled = async (chatId: string | number): Promise<boolean> => {
+    const trades = await copytradedb.getTradeByChatId(String(chatId));
+    return trades.some(t => t.active);
 };
 
 const removecopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
@@ -387,34 +431,34 @@ type Spec<T> = {
 
 const makeEditor =
     <T>(spec: Spec<T>) =>
-    async (chatId: string, replaceId: number, dbId: string) => {
-        if (!botInstance) {
-            logger.error(`Bot instance not initialized in makeEditor for ${spec.label}`);
-            return;
-        }
-
-        const ask = await botInstance.sendMessage(chatId, `<b>Please type ${spec.label}</b>\n\n`, {
-            parse_mode: "HTML",
-            reply_markup: { force_reply: true },
-        });
-
-        botInstance.onReplyToMessage(ask.chat.id, ask.message_id, async (reply: TelegramBot.Message) => {
+        async (chatId: string, replaceId: number, dbId: string) => {
             if (!botInstance) {
-                logger.error(`Bot instance not initialized in makeEditor callback for ${spec.label}`);
+                logger.error(`Bot instance not initialized in makeEditor for ${spec.label}`);
                 return;
             }
 
-            botInstance.deleteMessage(ask.chat.id, ask.message_id);
-            botInstance.deleteMessage(reply.chat.id, reply.message_id);
-            if (!reply.text) return;
-
-            await copytradedb.updateTrade({
-                id: new mongoose.Types.ObjectId(dbId),
-                [spec.dbKey]: spec.parse(reply.text),
+            const ask = await botInstance.sendMessage(chatId, `<b>Please type ${spec.label}</b>\n\n`, {
+                parse_mode: "HTML",
+                reply_markup: { force_reply: true },
             });
-            await editcopytradesignal(chatId, replaceId, dbId);
-        });
-    };
+
+            botInstance.onReplyToMessage(ask.chat.id, ask.message_id, async (reply: TelegramBot.Message) => {
+                if (!botInstance) {
+                    logger.error(`Bot instance not initialized in makeEditor callback for ${spec.label}`);
+                    return;
+                }
+
+                botInstance.deleteMessage(ask.chat.id, ask.message_id);
+                botInstance.deleteMessage(reply.chat.id, reply.message_id);
+                if (!reply.text) return;
+
+                await copytradedb.updateTrade({
+                    id: new mongoose.Types.ObjectId(dbId),
+                    [spec.dbKey]: spec.parse(reply.text),
+                });
+                await editcopytradesignal(chatId, replaceId, dbId);
+            });
+        };
 
 export const editBuyAmountcopytradesignal = makeEditor({ label: "buy amount (SOL)", dbKey: "amount", parse: Number });
 export const editSlippagecopytradesignal = makeEditor({ label: "max slippage (%)", dbKey: "maxSlippage", parse: Number });
@@ -507,9 +551,12 @@ export const onSignal = async (chat_id: string, address: string) => {
     try {
         logger.info(`copytrade: onSignal chat ${chat_id}`, { chat: chat_id, address: address });
 
-        // get the users signals
-        const allTrades = await getAllTrades();
+        if (!(await isCopytradeEnabled(chat_id))) {
+            logger.info(`copytrade disabled for ${chat_id}`);
+            return;
+        }
 
+        const allTrades: copytradedb.ITrade[] = await getAllTrades();
         const activeTrades = allTrades.filter((trade) => trade.active);
         logger.info(`total active signals: ${activeTrades.length}`);
 
