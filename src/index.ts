@@ -31,6 +31,7 @@ export const FEE_COLLECTION_WALLET = retrieveEnvVariable("fee_collection_wallet"
 export const START_ENDPOINT_ENABLED = retrieveEnvVariable("start_endpoint_enabled") === "true";
 export const START_ENDPOINT_API_KEY = retrieveEnvVariable("start_endpoint_api_key");
 export const TELEGRAM_BOT_USERNAME = retrieveEnvVariable("telegram_bot_username");
+export const TELEGRAM_PROXY = retrieveEnvVariable("telegram_proxy");
 
 export const SOLANA_CONNECTION = new Connection(SOLANA_RPC_ENDPOINT, {
     wsEndpoint: SOLANA_WSS_ENDPOINT,

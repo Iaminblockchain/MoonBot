@@ -4,6 +4,7 @@ import { NewMessage } from "telegram/events";
 import { TELEGRAM_STRING_SESSION, TELEGRAM_API_ID, TELEGRAM_API_HASH } from "../index";
 import { logger } from "../logger";
 import { processMessages } from "./processMessages";
+import { TELEGRAM_PROXY } from "../index";
 
 async function listenChats(client: TelegramClient): Promise<void> {
     client.addEventHandler(processMessages, new NewMessage({}));
@@ -12,9 +13,27 @@ async function listenChats(client: TelegramClient): Promise<void> {
 export async function getTgClient(): Promise<TelegramClient> {
     try {
         const session = new StringSession(TELEGRAM_STRING_SESSION);
-        const client = new TelegramClient(session, TELEGRAM_API_ID, TELEGRAM_API_HASH, {
+
+        const clientOptions: any = {
             connectionRetries: 5,
-        });
+        };
+
+        // Use the imported TELEGRAM_PROXY
+        if (TELEGRAM_PROXY && TELEGRAM_PROXY.trim() !== '') {
+            const [ip, port, username, password] = TELEGRAM_PROXY.split(',').map(item => item.trim());
+            clientOptions.useWSS = false;
+            clientOptions.proxy = {
+                ip: ip,
+                port: parseInt(port, 10),
+                username: username,
+                password: password,
+                socksType: 5,
+                timeout: 30,
+            };
+            logger.info(`Using proxy: ${ip}:${port}`);
+        }
+
+        const client = new TelegramClient(session, TELEGRAM_API_ID, TELEGRAM_API_HASH, clientOptions);
         await client.connect();
         // Necessary to immediately call this after connecting, otherwise messages may not be received.
         const me = await client.getMe();
