@@ -3,11 +3,13 @@ import { botInstance, getChatIdandMessageId, setState, STATE, setDeleteMessageId
 import { SOLANA_CONNECTION } from "..";
 import * as walletdb from "../models/walletModel";
 import * as tradedb from "../models/tradeModel";
+import * as positiondb from "../models/positionModel";
 import * as solana from "../solana/trade";
 import { getPrice } from "./autoBuyController";
 import { logger } from "../logger";
 import { getSolBalance } from "../solana/util";
 import { getTokenMetaData } from "../solana/token";
+import { PositionStatus } from "../models/positionModel";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     try {
@@ -288,11 +290,25 @@ export const autoBuyContract = async (
             let trx = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "";
             const msg = await getBuySuccessMessage(trx, contractAddress, solAmount, trade_type, tradeSignal, settings);
             botInstance.sendMessage(chatId, msg);
+            
+            // Save position information
+            const splprice = await getPrice(contractAddress);
+            const position: positiondb.Position = {
+                chatId,
+                tokenAddress: contractAddress,
+                signalSource: tradeSignal,
+                buyPrice: splprice,
+                stopLossPercentage: settings.stopLoss ? settings.stopLoss : 0,
+                takeProfitPercentage: settings.takeProfit ? settings.takeProfit : 0,
+                solAmount,
+                tokenAmount: Number((solAmount / splprice).toFixed(metaData?.decimals || 6)), // Store with correct decimal precision
+                buyTime: new Date(),
+                status: PositionStatus.OPEN
+            };
+            await positiondb.createPosition(position);
+
             if (settings.takeProfit != null && settings.stopLoss) {
                 logger.info("set take profit");
-                const splprice = await getPrice(contractAddress);
-                // TODO: Update SPL Price
-                //TODO split TP and SL
                 botInstance.sendMessage(
                     chatId,
                     `Auto-sell Registered: ${contractAddress}, Current Price: ${splprice}, TakeProfit Price: ${(splprice * (100 + settings.takeProfit)) / 100}(${settings.takeProfit}%), StopLoss Price: ${(splprice * (100 - settings.stopLoss)) / 100}(${settings.stopLoss}%)`
