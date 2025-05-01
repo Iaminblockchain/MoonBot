@@ -549,25 +549,17 @@ export const getAllTrades = async () => {
 
 export const onSignal = async (chat_id: string, address: string) => {
     try {
-        logger.info(`copytrade: onSignal chat ${chat_id}`, { chat: chat_id, address: address });
+        logger.info(`copytrade: onSignal chat ${chat_id}`, { chat: chat_id, address });
 
-        if (!(await isCopytradeEnabled(chat_id))) {
-            logger.info(`copytrade disabled for ${chat_id}`);
+        const activeTrades = await Trade.find({ signalChatId: String(chat_id), active: true });
+        logger.info(`active signals for signalChatId ${chat_id}: ${activeTrades.length}`);
+
+        if (activeTrades.length === 0) {
+            logger.info(`copytrade disabled for signalChatId ${chat_id}`);
             return;
         }
 
-        const allTrades: copytradedb.ITrade[] = await getAllTrades();
-        const activeTrades = allTrades.filter((trade) => trade.active);
-        logger.info(`total active signals: ${activeTrades.length}`);
-
-        // find the matching active signals
-        const matchingTrades = allTrades.filter((trade) => String(trade.signalChatId) === chat_id && trade.active);
-        logger.info(`copytrade: matching signals ${matchingTrades.length}  all signals in DB ${allTrades.length}`, {
-            matchingTrades: matchingTrades.length,
-        });
-
-        // trigger auto trade copytrade onSignal
-        matchingTrades.forEach((trade) => {
+        activeTrades.forEach((trade) => {
             logger.info("copytrade: set auto trade for", { id: trade.chatId, address, tradeId: trade._id });
             setAutotradeSignal(trade.chatId, address, trade);
         });
