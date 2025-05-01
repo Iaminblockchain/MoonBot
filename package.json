@@ -10,7 +10,8 @@
     "joinchannel": "ts-node-dev util/joinByName.ts",
     "export": "ts-node-dev util/export.ts",
     "joinchatsdb": "ts-node-dev util/joinChatsFromDB.ts",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "format": "npx prettier --write src/"
   },
   "keywords": [],
   "author": "",
@@ -55,6 +56,7 @@
     "node-telegram-bot-api": "^0.66.0",
     "nodemon": "^3.1.4",
     "openai": "^4.85.1",
+    "prettier": "^3.5.3",
     "prompt-sync": "^4.2.0",
     "telegram": "^2.26.22",
     "ts-node-dev": "^2.0.0",

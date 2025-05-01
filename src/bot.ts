@@ -1,39 +1,39 @@
-import { TELEGRAM_BOT_TOKEN } from '.';
-import TelegramBot from 'node-telegram-bot-api';
-import * as solana from './solana/trade';
-import * as walletDb from './models/walletModel';
-import * as buyController from './controllers/buyController';
-import * as sellController from './controllers/sellController';
-import * as walletController from './controllers/walletController';
-import * as withdrawController from './controllers/withdrawController';
-import * as settingController from './controllers/settingController';
-import * as portfolioController from './controllers/portfolioController';
-import * as autoBuyController from './controllers/autoBuyController';
-import * as helpController from './controllers/helpController';
-import * as copytradeController from './controllers/copytradeController';
-import * as referralController from './controllers/referralController';
+import { TELEGRAM_BOT_TOKEN } from ".";
+import TelegramBot from "node-telegram-bot-api";
+import * as solana from "./solana/trade";
+import * as walletDb from "./models/walletModel";
+import * as buyController from "./controllers/buyController";
+import * as sellController from "./controllers/sellController";
+import * as walletController from "./controllers/walletController";
+import * as withdrawController from "./controllers/withdrawController";
+import * as settingController from "./controllers/settingController";
+import * as portfolioController from "./controllers/portfolioController";
+import * as autoBuyController from "./controllers/autoBuyController";
+import * as helpController from "./controllers/helpController";
+import * as copytradeController from "./controllers/copytradeController";
+import * as referralController from "./controllers/referralController";
 import { TelegramClient } from "telegram";
-import { logger } from './logger';
-import { getSolBalance, getPublicKey } from './solana/util';
+import { logger } from "./logger";
+import { getSolBalance, getPublicKey } from "./solana/util";
 
 import cron from "node-cron";
-import { createReferral, getReferralByRefereeId } from './models/referralModel';
-import { helpText } from './util/constants';
+import { createReferral, getReferralByRefereeId } from "./models/referralModel";
+import { helpText } from "./util/constants";
 export let botInstance: TelegramBot | undefined;
 
 export const enum STATE {
     INPUT_TOKEN,
     INPUT_BUY_AMOUNT,
     INPUT_PRIVATE_KEY,
-    INPUT_COPYTRADE
-};
+    INPUT_COPYTRADE,
+}
 
 export type TRADE = {
-    contractAddress: string,
-    startPrice: number,
-    targetPrice: number,
-    lowPrice: number,
-}
+    contractAddress: string;
+    startPrice: number;
+    targetPrice: number;
+    lowPrice: number;
+};
 
 export const state = new Map();
 export const deleteMessageId = new Map();
@@ -61,16 +61,22 @@ export const clearState = () => {
     state.clear();
 };
 
-export const setTradeState = (chatid: TelegramBot.ChatId, contractAddress: string, startPrice: number, targetPrice: number, lowPrice: number) => {
-    const prev = trade.get(chatid.toString())
+export const setTradeState = (
+    chatid: TelegramBot.ChatId,
+    contractAddress: string,
+    startPrice: number,
+    targetPrice: number,
+    lowPrice: number
+) => {
+    const prev = trade.get(chatid.toString());
     if (prev) trade.set(chatid.toString(), [...prev, { contractAddress, targetPrice, lowPrice, startPrice }]);
     else trade.set(chatid.toString(), [{ contractAddress, targetPrice, lowPrice, startPrice }]);
 };
 
 export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: string) => {
-    const prev = trade.get(chatid.toString())
+    const prev = trade.get(chatid.toString());
     if (!prev) return;
-    const next = prev.filter((value: TRADE) => value.contractAddress !== contractAddress)
+    const next = prev.filter((value: TRADE) => value.contractAddress !== contractAddress);
     trade.set(chatid.toString(), [...next]);
 };
 
@@ -79,19 +85,20 @@ export const init = (client: TelegramClient) => {
 
     logger.info("TGbot: init TG bot with token");
     botInstance = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
-    botInstance.getMe().then((botInfo: any) => {
-        logger.info(`Bot name: ${botInfo.username}`);
-    }).catch((error: any) => {
-        logger.error("Error getting bot info:", { error });
-    });
-    botInstance.setMyCommands(
-        [
-            { command: 'start', description: 'Start bot' },
-            // { command: 'wallet', description: 'Manage wallet' },
-            { command: 'help', description: 'Show help' },
-            { command: 'autobuy', description: 'Auto Buy settings' },
-        ],
-    );
+    botInstance
+        .getMe()
+        .then((botInfo: any) => {
+            logger.info(`Bot name: ${botInfo.username}`);
+        })
+        .catch((error: any) => {
+            logger.error("Error getting bot info:", { error });
+        });
+    botInstance.setMyCommands([
+        { command: "start", description: "Start bot" },
+        // { command: 'wallet', description: 'Manage wallet' },
+        { command: "help", description: "Show help" },
+        { command: "autobuy", description: "Auto Buy settings" },
+    ]);
 
     botInstance.onText(/\/start(?: (.+))?/, onStartCommand);
     botInstance.onText(/\/wallet/, onWalletCommand);
@@ -100,17 +107,17 @@ export const init = (client: TelegramClient) => {
 
     runAutoSellSchedule();
 
-    botInstance.on('message', async (msg: TelegramBot.Message) => {
+    botInstance.on("message", async (msg: TelegramBot.Message) => {
         const chatId = msg.chat.id;
         const messageId = msg.message_id;
         const messageText = msg.text;
         logger.info(`TGbot: message: ${messageText} chatid ${chatId}`, { messageText, chatId });
 
-        if (msg.text !== undefined && !msg.text.startsWith('/')) {
+        if (msg.text !== undefined && !msg.text.startsWith("/")) {
             const currentState = getState(chatId.toString());
-            logger.info(`currentState ${currentState?.state}`)
+            logger.info(`currentState ${currentState?.state}`);
             if (currentState) {
-                logger.info(`currentState ${currentState.state}`)
+                logger.info(`currentState ${currentState.state}`);
                 if (currentState.state == STATE.INPUT_TOKEN) {
                     logger.info(`INPUT_TOKEN`);
                     buyController.showBuyPad(msg);
@@ -133,7 +140,7 @@ export const init = (client: TelegramClient) => {
         }
     });
 
-    botInstance.on('callback_query', (query: any) => {
+    botInstance.on("callback_query", (query: any) => {
         try {
             if (!query.message) {
                 logger.error("missing message object");
@@ -178,11 +185,9 @@ export const init = (client: TelegramClient) => {
 export const runAutoSellSchedule = () => {
     const scheduler = "*/5 * * * * *"; // every 5 seconds
     try {
-        cron
-            .schedule(scheduler, () => {
-                sellController.autoSellHandler()
-            })
-            .start();
+        cron.schedule(scheduler, () => {
+            sellController.autoSellHandler();
+        }).start();
     } catch (error) {
         logger.error(`Error running the Schedule Job for Auto Sell: ${error}`);
     }
@@ -217,7 +222,7 @@ export async function switchMenu(chatId: TelegramBot.ChatId, messageId: number |
         inline_keyboard: json_buttons,
         resize_keyboard: true,
         one_time_keyboard: true,
-        force_reply: true
+        force_reply: true,
     };
 
     try {
@@ -230,10 +235,10 @@ export async function switchMenu(chatId: TelegramBot.ChatId, messageId: number |
             message_id: messageId,
             reply_markup: keyboard,
             disable_web_page_preview: true,
-            parse_mode: 'HTML',
+            parse_mode: "HTML",
         });
     } catch (error: any) {
-        if (error.response?.body?.description?.includes('message is not modified')) {
+        if (error.response?.body?.description?.includes("message is not modified")) {
             logger.info("Skipped edit: message content and markup are identical");
         } else {
             logger.error("Error editing message", { error });
@@ -246,7 +251,7 @@ const onStartCommand = async (msg: TelegramBot.Message, match: RegExpExecArray |
         return;
     }
 
-    logger.info('user:', { username: msg.chat.username });
+    logger.info("user:", { username: msg.chat.username });
     const referralCode: string | null = match ? match[1] : null;
     logger.info("referral_info: ", { referer: referralCode, referee: msg.chat.id });
     if (referralCode) {
@@ -275,7 +280,7 @@ const onStartCommand = async (msg: TelegramBot.Message, match: RegExpExecArray |
         reply_markup: {
             inline_keyboard: buttons,
         },
-        parse_mode: 'HTML'
+        parse_mode: "HTML",
     });
 };
 
@@ -295,12 +300,9 @@ const onHelpCommand = (msg: TelegramBot.Message) => {
 
     botInstance.sendMessage(chatId!, message, {
         reply_markup: {
-            inline_keyboard: [
-                [
-                    { text: 'Close', callback_data: "close" }
-                ]
-            ]
-        }, parse_mode: 'HTML'
+            inline_keyboard: [[{ text: "Close", callback_data: "close" }]],
+        },
+        parse_mode: "HTML",
     });
 };
 
@@ -325,31 +327,30 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
         title: `<b>Welcome to MoonBot</b> \n\nThe first copy sniping telegram bot with one directive: buy low and sell high. \n\n${walletInfo}`,
         buttons: [
             [
-                { text: 'Buy', callback_data: "buyController_start" },
-                { text: 'Sell', callback_data: "sc_start" }
+                { text: "Buy", callback_data: "buyController_start" },
+                { text: "Sell", callback_data: "sc_start" },
             ],
             [
-                { text: 'Copy Trade Groups/Channels', callback_data: "ct_start" },
+                { text: "Copy Trade Groups/Channels", callback_data: "ct_start" },
 
                 // { text: 'Limit Orders', callback_data: "limitOrderController_start" }
             ],
             [
-                { text: 'Portfolio', callback_data: "pC_start" }, // portfolioController
-                { text: 'Autobuy', callback_data: "autoBuyController_start" }
+                { text: "Portfolio", callback_data: "pC_start" }, // portfolioController
+                { text: "Autobuy", callback_data: "autoBuyController_start" },
             ],
             [
-                { text: 'Referrals (Coming soon) 🔜', callback_data: "referralController_start" },
-                { text: 'Settings (Coming soon) 🔜', callback_data: "settingController_start" }
+                { text: "Referrals (Coming soon) 🔜", callback_data: "referralController_start" },
+                { text: "Settings (Coming soon) 🔜", callback_data: "settingController_start" },
             ],
             [
-                { text: 'Wallet', callback_data: "walletController_start" },
-                { text: 'Withdraw', callback_data: "wC_start" } // withdrawController
+                { text: "Wallet", callback_data: "walletController_start" },
+                { text: "Withdraw", callback_data: "wC_start" }, // withdrawController
             ],
             [
-                { text: 'Help', callback_data: "helpController_start" },
-                { text: 'Refresh', callback_data: "Refresh" }
-            ]
-        ]
+                { text: "Help", callback_data: "helpController_start" },
+                { text: "Refresh", callback_data: "Refresh" },
+            ],
+        ],
     };
 };
-

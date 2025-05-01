@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document } from "mongoose";
 
 export interface ICall extends Document {
     id: string;
@@ -12,7 +12,6 @@ export interface ICall extends Document {
     performance_15m?: number;
     performance_30m?: number;
     performance_60m?: number;
-
 }
 
 const CallSchema: Schema = new Schema({
@@ -29,4 +28,4 @@ const CallSchema: Schema = new Schema({
     performance_60m: { type: Number },
 });
 
-export const Call = mongoose.model<ICall>('Call', CallSchema);
+export const Call = mongoose.model<ICall>("Call", CallSchema);

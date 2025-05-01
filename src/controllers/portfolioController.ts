@@ -21,10 +21,10 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
         if (callbackData == "pC_start") {
             showPortfolioStart(callback_str);
         } else if (callbackData.startsWith("pC_show_")) {
-            const token = callbackData.split('_');
+            const token = callbackData.split("_");
             portfolioPad(callback_str, callbackMessage.message_id, token[2]);
         } else if (callbackData.startsWith("pC_sell_")) {
-            const token = callbackData.split('_');
+            const token = callbackData.split("_");
             sellPortfolio(callback_str, callbackMessage.message_id, token[2], token[3]);
         } else if (callbackData == "pC_back") {
             showPortfolioStart(callback_str, callbackMessage.message_id);
@@ -32,7 +32,7 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     } catch (error) {
         logger.error("Error in portfolioController.handleCallBackQuery", { error });
     }
-}
+};
 
 const showPortfolioStart = async (chatId: string, replaceId?: number) => {
     if (!botInstance) {
@@ -55,10 +55,10 @@ const showPortfolioStart = async (chatId: string, replaceId?: number) => {
             botInstance.sendMessage(chatId, "⚠️ No tokens found in your wallet.");
             return;
         }
-        let tokenList = ''
+        let tokenList = "";
         // Generate buttons for each token
         tokenAccounts.forEach((token, index) => [
-            tokenList += `${index + 1} : ${token.name}(${token.symbol}): ${token.balance} ${token.symbol}\n`
+            (tokenList += `${index + 1} : ${token.name}(${token.symbol}): ${token.balance} ${token.symbol}\n`),
         ]);
 
         const caption = "<b>Select a token to check assets\n\n</b>" + tokenList;
@@ -72,9 +72,7 @@ const showPortfolioStart = async (chatId: string, replaceId?: number) => {
             ];
         });
 
-        const keyboardList = Keyboard.concat([
-            [{ text: "Close", command: "close" }],
-        ]);
+        const keyboardList = Keyboard.concat([[{ text: "Close", command: "close" }]]);
 
         const reply_markup = {
             inline_keyboard: keyboardList.map((rowItem) =>
@@ -105,7 +103,7 @@ const showPortfolioStart = async (chatId: string, replaceId?: number) => {
     } catch (e) {
         logger.error("portfolioStart Error", e);
     }
-}
+};
 
 const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: string) => {
     if (!botInstance) {
@@ -120,7 +118,7 @@ const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: str
             return;
         }
         const publicKey = getPublicKeyinFormat(wallet.privateKey);
-        const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress)
+        const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress);
         const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
         const price = await getPrice(tokenAddress);
         const caption = `<b>Portfolio ${metaData?.name}(${metaData?.symbol})\n\n</b>
@@ -129,21 +127,27 @@ const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: str
   Total Supply: ${metaData?.totalSupply} ${metaData?.symbol}
   Market Cap: $${price * (metaData?.totalSupply ?? 0)}`;
 
-        const keyboard = (tokenContractAddress: string) => [[{
-            text: `${"Sell 50 %"}`,
-            command: `pC_sell_50_${tokenContractAddress}`,
-        }, {
-            text: `${"Sell 100 %"}`,
-            command: `pC_sell_100_${tokenContractAddress}`,
-        }, {
-            text: `${"Sell X %"}`,
-            command: `pC_sell_x_${tokenContractAddress}`,
-        },], [
-            {
-                text: `👈 Back`,
-                command: `pC_back`,
-            },
-        ]
+        const keyboard = (tokenContractAddress: string) => [
+            [
+                {
+                    text: `${"Sell 50 %"}`,
+                    command: `pC_sell_50_${tokenContractAddress}`,
+                },
+                {
+                    text: `${"Sell 100 %"}`,
+                    command: `pC_sell_100_${tokenContractAddress}`,
+                },
+                {
+                    text: `${"Sell X %"}`,
+                    command: `pC_sell_x_${tokenContractAddress}`,
+                },
+            ],
+            [
+                {
+                    text: `👈 Back`,
+                    command: `pC_back`,
+                },
+            ],
         ];
 
         const reply_markup = {
@@ -167,7 +171,7 @@ const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: str
     } catch (e) {
         logger.error("PortfolioPad Error", e);
     }
-}
+};
 
 const sellPortfolio = async (chatId: string, replaceId: number, amount: string, tokenAddress: string) => {
     if (!botInstance) {
@@ -182,7 +186,7 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
             return;
         }
         const publicKey = getPublicKeyinFormat(wallet.privateKey);
-        const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress)
+        const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress);
         if (!tokenInfo) {
             logger.error("No Token Balance Error");
             logger.info("Wallet Address", { publicKey: publicKey.toBase58() });
@@ -190,7 +194,7 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
             return;
         }
         const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-        if (amount == 'x') {
+        if (amount == "x") {
             const caption = `<b>Please type token amount to sell</b>\n\n`;
             const reply_markup = {
                 force_reply: true,
@@ -209,16 +213,31 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
                 botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
 
                 if (n_msg.text) {
-                    const sellAmount = parseInt(tokenInfo.amount) * parseFloat(n_msg.text) / 100;
-                    await botInstance.sendMessage(chatId, `Selling ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) `, {
-                        parse_mode: "HTML",
-                    });
-                    const result = await jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, WSOL_ADDRESS, sellAmount, "ExactIn");
-                    if (result.confirmed) {
-                        await botInstance.sendMessage(chatId, `Successfully sell ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
-            https://solscan.io/tx/${result.txSignature}`, {
+                    const sellAmount = (parseInt(tokenInfo.amount) * parseFloat(n_msg.text)) / 100;
+                    await botInstance.sendMessage(
+                        chatId,
+                        `Selling ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) `,
+                        {
                             parse_mode: "HTML",
-                        });
+                        }
+                    );
+                    const result = await jupiter_swap(
+                        SOLANA_CONNECTION,
+                        wallet.privateKey,
+                        tokenAddress,
+                        WSOL_ADDRESS,
+                        sellAmount,
+                        "ExactIn"
+                    );
+                    if (result.confirmed) {
+                        await botInstance.sendMessage(
+                            chatId,
+                            `Successfully sell ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
+            https://solscan.io/tx/${result.txSignature}`,
+                            {
+                                parse_mode: "HTML",
+                            }
+                        );
                     } else {
                         await botInstance.sendMessage(chatId, `Failed to sell ${metaData?.name}(${metaData?.symbol}). Please try again.`, {
                             parse_mode: "HTML",
@@ -227,24 +246,31 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
                 }
             });
         } else {
-            const sellAmount = parseInt(tokenInfo.amount) * parseInt(amount) / 100;
-            await botInstance.sendMessage(chatId, `Selling ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) `, {
-                parse_mode: "HTML",
-            });
+            const sellAmount = (parseInt(tokenInfo.amount) * parseInt(amount)) / 100;
+            await botInstance.sendMessage(
+                chatId,
+                `Selling ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) `,
+                {
+                    parse_mode: "HTML",
+                }
+            );
             const result = await jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, WSOL_ADDRESS, sellAmount, "ExactIn");
             if (result.confirmed) {
-                await botInstance.sendMessage(chatId, `Successfully sell ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
-https://solscan.io/tx/${result.txSignature}`, {
-                    parse_mode: "HTML",
-                });
+                await botInstance.sendMessage(
+                    chatId,
+                    `Successfully sell ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
+https://solscan.io/tx/${result.txSignature}`,
+                    {
+                        parse_mode: "HTML",
+                    }
+                );
             } else {
                 await botInstance.sendMessage(chatId, `Failed to sell ${metaData?.name}(${metaData?.symbol}). Please try again.`, {
                     parse_mode: "HTML",
                 });
             }
         }
-
     } catch (e) {
         logger.error("PortfolioPad Error", e);
     }
-} 
+};

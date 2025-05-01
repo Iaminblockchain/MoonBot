@@ -1,44 +1,36 @@
 // manage groups
 import { Api, TelegramClient } from "telegram";
-import { logger } from '../logger';
+import { logger } from "../logger";
 import { Dialog } from "telegram/tl/custom/dialog";
 import { Chat } from "../models/chatModel";
 import { getTgClient } from "./scraper";
 
 function delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 const MAX_RETRY_ATTEMPTS = 3;
 
-export async function joinChannel(
-    client: TelegramClient,
-    chatId: string,
-    cachedDialogs: Dialog[] | null
-): Promise<void> {
+export async function joinChannel(client: TelegramClient, chatId: string, cachedDialogs: Dialog[] | null): Promise<void> {
     logger.info("joinChannel " + chatId);
 
     for (let attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt++) {
         try {
-            const result: any = await client.invoke(
-                new Api.channels.JoinChannel({ channel: chatId })
-            );
+            const result: any = await client.invoke(new Api.channels.JoinChannel({ channel: chatId }));
 
-            const channel = result?.chats && result.chats[0] as Api.Channel;
+            const channel = result?.chats && (result.chats[0] as Api.Channel);
             if (!channel) {
                 throw new Error("Channel join failed, no channel returned");
             }
 
-            logger.info('joined ' + result);
+            logger.info("joined " + result);
             return;
         } catch (e: any) {
             const floodMatch = e.message?.match(/wait of (\d+) seconds/);
 
             if (floodMatch && attempt < MAX_RETRY_ATTEMPTS - 1) {
                 const waitSeconds = parseInt(floodMatch[1], 10);
-                logger.info(
-                    `Flood wait detected. Waiting for ${waitSeconds} seconds before retrying join for ${chatId}.`
-                );
+                logger.info(`Flood wait detected. Waiting for ${waitSeconds} seconds before retrying join for ${chatId}.`);
                 await delay(waitSeconds * 1000);
             } else {
                 logger.error(`joinChannel Error (attempt ${attempt + 1}): ${e}`);
@@ -66,7 +58,7 @@ export async function joinChannelByName(
     }
 
     const channelId = entity.id;
-    const alreadyJoined = dialogs.some(dialog => {
+    const alreadyJoined = dialogs.some((dialog) => {
         const dialogEntity = dialog.entity;
         return dialogEntity instanceof Api.Channel && dialogEntity.id.equals?.(channelId);
     });
@@ -79,9 +71,7 @@ export async function joinChannelByName(
     const MAX_RETRIES = 3;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-            const result: any = await client.invoke(
-                new Api.channels.JoinChannel({ channel: entity })
-            );
+            const result: any = await client.invoke(new Api.channels.JoinChannel({ channel: entity }));
 
             const channel = result?.chats?.[0] as Api.Channel;
             if (!channel) throw new Error("Join failed: no channel returned");
