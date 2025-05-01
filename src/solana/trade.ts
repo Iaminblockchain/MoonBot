@@ -23,14 +23,14 @@ const { fetchMarketAccounts } = require("../scripts/fetchMarketAccounts");
 const { getPoolKeysByPoolId } = require("../scripts/getPoolKeysByPoolId");
 import swap from "../swap";
 import { FEE_COLLECTION_WALLET, JITO_TIP, SOLANA_CONNECTION } from "..";
-import { getChatIdByPrivateKey, getWalletByChatId } from "../models/walletModel";
+import { getChatIdByPrivateKey, getWalletByChatId, getReferralWallet } from "../models/walletModel";
 import { getKeypair } from "./util";
 import { logger } from "../logger";
 import { getTokenMetaData } from "./token";
 import { getStatusTxnRetry } from "./txhelpers";
 
 import { getTxInfoMetrics } from "./txhelpers";
-import { getReferralByRefereeId } from "../models/referralModel";
+import { getReferralByRefereeId, updateRewards } from "../models/referralModel";
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
@@ -281,8 +281,16 @@ export const jupiter_swap = async (
         let referrerPublicKeys: any[] = [null, null, null, null, null];
         for (let i = 0; i < referrers.length; i++) {
             if (referrers[i]) {
-                let wallet = await getWalletByChatId(referrers[i]);
-                let privateKey = wallet?.privateKey;
+                // First try to get referral wallet
+                let referralWalletPrivateKey = await getReferralWallet(referrers[i]);
+                let privateKey: string | null = referralWalletPrivateKey;
+                
+                // If referral wallet is not set, get the main wallet
+                if (!privateKey) {
+                    let wallet = await getWalletByChatId(referrers[i]);
+                    privateKey = wallet?.privateKey || null;
+                }
+
                 if (privateKey) {
                     let keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
                     referrerPublicKeys[i] = keypair.publicKey.toString();
@@ -299,6 +307,7 @@ export const jupiter_swap = async (
                 if (referrerPublicKeys[i] != null) {
                     referrals.push({
                         key: referrerPublicKeys[i],
+                        referer: referrers[i],
                         amount: Math.floor(feeAmount * referralFeePercentages[i]),
                     });
                     finalFeeAmount -= Math.floor(feeAmount * referralFeePercentages[i]);
@@ -366,6 +375,16 @@ export const jupiter_swap = async (
 
         if (result.confirmed) {
             logger.info("Solana: confirmed");
+            if (referrals.length > 0) {
+                await Promise.all(
+                    referrals.map(async (referral) => {
+                        if (referral.referer) {
+                            await updateRewards(referral.referer, referral.amount);
+                            logger.info(`Updated rewards for referer ${referral.referer}: ${referral.amount} lamports`);
+                        }
+                    })
+                );
+            }
             return { confirmed: true, txSignature: result.signature };
         }
 

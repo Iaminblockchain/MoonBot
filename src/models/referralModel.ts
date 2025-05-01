@@ -4,12 +4,14 @@ import { logger } from "../logger";
 export interface IReferral extends Document {
     refereeId: string; // The ID of the referee
     referrers: (string | null)[]; // Array of up to 5 referrers, each can be null
+    rewards: number; // Total rewards received in lamports
     createdAt?: Date; // Timestamp of creation
 }
 
 const ReferralSchema: Schema = new Schema({
     refereeId: { type: String, required: true, unique: true }, // Referee's ID (unique)
     referrers: { type: [String], default: [null, null, null, null, null] }, // Array of up to 5 referrers
+    rewards: { type: Number, default: 0 }, // Total rewards in lamports, default 0
     createdAt: { type: Date, default: Date.now }, // Automatically set creation timestamp
 });
 
@@ -47,5 +49,55 @@ export const getReferralByRefereeId = async (refereeId: string): Promise<IReferr
     } catch (error) {
         logger.error("Error fetching referral:", { error });
         return null;
+    }
+};
+
+
+// Function to get total rewards for a referee
+export const getRewards = async (refereeId: string): Promise<number> => {
+    try {
+        const referral = await Referral.findOne({ refereeId });
+        return referral?.rewards || 0;
+    } catch (error) {
+        logger.error("Error getting rewards:", {error});
+        return 0;
+    }
+};
+
+// Function to save (replace) rewards for a referee
+export const saveRewards = async (refereeId: string, rewards: number): Promise<boolean> => {
+    try {
+        if (rewards < 0) {
+            logger.error("Invalid rewards amount:", {rewards});
+            return false;
+        }
+        await Referral.findOneAndUpdate(
+            { refereeId },
+            { rewards },
+            { new: true }
+        );
+        return true;
+    } catch (error) {
+        logger.error("Error saving rewards:", {error});
+        return false;
+    }
+};
+
+// Function to update (add to) rewards for a referee
+export const updateRewards = async (refereeId: string, additionalRewards: number): Promise<boolean> => {
+    try {
+        if (additionalRewards < 0) {
+            logger.error("Invalid additional rewards amount:", {additionalRewards});
+            return false;
+        }
+        await Referral.findOneAndUpdate(
+            { refereeId },
+            { $inc: { rewards: additionalRewards } },
+            { new: true }
+        );
+        return true;
+    } catch (error) {
+        logger.error("Error updating rewards:", {error});
+        return false;
     }
 };
