@@ -12,6 +12,7 @@ import * as autoBuyController from "./controllers/autoBuyController";
 import * as helpController from "./controllers/helpController";
 import * as copytradeController from "./controllers/copytradeController";
 import * as referralController from "./controllers/referralController";
+import * as positionController from "./controllers/positionController";
 import { TelegramClient } from "telegram";
 import { logger } from "./logger";
 import { getSolBalance, getPublicKey } from "./solana/util";
@@ -161,8 +162,10 @@ export const init = (client: TelegramClient) => {
                 withdrawController.handleCallBackQuery(query);
             } else if (data?.startsWith("settingController_")) {
                 settingController.handleCallBackQuery(query);
-            } else if (data?.startsWith("pC_")) {
+            } else if (data?.startsWith("pC_")) {   
                 portfolioController.handleCallBackQuery(query);
+            } else if (data?.startsWith("pos_")) {
+                positionController.handleCallBackQuery(query);
             } else if (data?.startsWith("autoBuyController_")) {
                 autoBuyController.handleCallBackQuery(query);
             } else if (data?.startsWith("referralController_")) {
@@ -332,12 +335,11 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
             ],
             [
                 { text: "Copy Trade Groups/Channels", callback_data: "ct_start" },
-
-                // { text: 'Limit Orders', callback_data: "limitOrderController_start" }
+                { text: "Autobuy", callback_data: "autoBuyController_start" },
             ],
             [
-                { text: "Portfolio", callback_data: "pC_start" }, // portfolioController
-                { text: "Autobuy", callback_data: "autoBuyController_start" },
+                { text: "Portfolio", callback_data: "pC_start" },
+                { text: "Position", callback_data: "pos_start" }
             ],
             [
                 { text: "Referrals (Coming soon) 🔜", callback_data: "referralController_start" },
@@ -345,7 +347,7 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
             ],
             [
                 { text: "Wallet", callback_data: "walletController_start" },
-                { text: "Withdraw", callback_data: "wC_start" }, // withdrawController
+                { text: "Withdraw", callback_data: "wC_start" },
             ],
             [
                 { text: "Help", callback_data: "helpController_start" },
