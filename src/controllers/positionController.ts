@@ -31,6 +31,9 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
         } else if (callbackData.startsWith("pos_token_")) {
             const tokenAddress = callbackData.split("_")[2];
             showTokenInfo(callback_str, tokenAddress);
+        } else if (callbackData.startsWith("pos_closed_")) {
+            const tokenAddress = callbackData.split("_")[2];
+            showClosedTokenInfo(callback_str, tokenAddress);
         } else if (callbackData.startsWith("pos_sell_")) {
             const tokenAddress = callbackData.split("_")[2];
             handleSellPosition(callback_str, tokenAddress);
@@ -134,12 +137,118 @@ const showClosedPositions = async (chatId: string) => {
         return;
     }
 
-    // TODO: Implement closed positions logic
-    await botInstance.sendMessage(chatId, "Closed positions will be shown here", {
-        reply_markup: {
-            inline_keyboard: [[{ text: "Back", callback_data: "close" }]]
+    try {
+        const positions = await getPositionsByChatId(chatId);
+        const closedPositions = positions.filter(p => p.status === "CLOSED");
+
+        if (closedPositions.length === 0) {
+            await botInstance.sendMessage(chatId, "No closed positions found.", {
+                reply_markup: {
+                    inline_keyboard: [[{ text: "Back", callback_data: "close" }]]
+                }
+            });
+            return;
         }
-    });
+
+        // Sort positions by close time (most recent first)
+        closedPositions.sort((a, b) => (b.closeTime?.getTime() || 0) - (a.closeTime?.getTime() || 0));
+
+        // Get token metadata for all positions
+        const positionsWithMetadata = await Promise.all(
+            closedPositions.map(async (position, index) => {
+                const tokenMetaData = await getTokenMetaData(SOLANA_CONNECTION, position.tokenAddress);
+                const timeAgo = getTimeAgo(position.closeTime || new Date());
+                return {
+                    tokenAddress: position.tokenAddress,
+                    index: index + 1,
+                    tokenName: tokenMetaData?.name || "Unknown Token",
+                    tokenSymbol: tokenMetaData?.symbol || "UNKNOWN",
+                    timeAgo: timeAgo
+                };
+            })
+        );
+
+        const buttons = positionsWithMetadata.map(position => [
+            { 
+                text: `${position.index}. ${position.tokenSymbol} (closed ${position.timeAgo})`, 
+                callback_data: `pos_closed_${position.tokenAddress}` 
+            }
+        ]);
+        buttons.push([{ text: "Back", callback_data: "close" }]);
+
+        await botInstance.sendMessage(chatId, "📊 <b>Closed Positions</b>\n\nSelect a position to view details:", {
+            reply_markup: { inline_keyboard: buttons },
+            parse_mode: "HTML"
+        });
+    } catch (error) {
+        logger.error("Error in showClosedPositions", { error });
+        await botInstance.sendMessage(chatId, "❌ Error fetching closed positions");
+    }
+};
+
+const showClosedTokenInfo = async (chatId: string, tokenAddress: string) => {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in showClosedTokenInfo");
+        return;
+    }
+
+    try {
+        const position = await getPositionByTokenAddress(chatId, tokenAddress);
+        if (!position || position.status !== "CLOSED") {
+            throw new Error("Closed position not found");
+        }
+
+        const tokenMetaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
+        if (!tokenMetaData) {
+            throw new Error("Token metadata not found");
+        }
+
+        const buyTime = position.buyTime.toLocaleTimeString();
+        const takeProfitPrice = position.buyPrice * (1 + position.takeProfitPercentage / 100);
+        const stopLossPrice = position.buyPrice * (1 - position.stopLossPercentage / 100);
+
+        const message = `📊 <b>Closed Position Details</b>\n\n` +
+            `${tokenMetaData.name} (${tokenMetaData.symbol})\n` +
+            `Address: <code>${tokenAddress}</code>\n\n` +
+            `Source: ${position.signalSource ? "@" + position.signalSource : 'Manual'}\n` +
+            `Bought at: $${position.buyPrice}\n` +
+            `Take profit: ${position.takeProfitPercentage}% ($${takeProfitPrice.toFixed(4)})\n` +
+            `Stop loss: ${position.stopLossPercentage}% ($${stopLossPrice.toFixed(4)})\n\n` +
+            `Closed Price: $${position.closePrice}\n` +
+            `Close time: ${position.closeTime?.toLocaleString()}\n\n` +
+            `ROI: ${((position.closePrice! - position.buyPrice) / position.buyPrice * 100).toFixed(2)}%`;
+
+        const buttons = [
+            [{ text: "Back", callback_data: "close" }]
+        ];
+
+        await botInstance.sendMessage(chatId, message, {
+            reply_markup: { inline_keyboard: buttons },
+            parse_mode: "HTML"
+        });
+    } catch (error) {
+        logger.error("Error in showClosedTokenInfo", { error });
+        await botInstance.sendMessage(chatId, "❌ Error fetching closed position information");
+    }
+};
+
+// Helper function to get time ago string
+const getTimeAgo = (date: Date): string => {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) {
+        return `${diffInSeconds} seconds ago`;
+    } else if (diffInSeconds < 3600) {
+        const minutes = Math.floor(diffInSeconds / 60);
+        return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    } else if (diffInSeconds < 86400) {
+        const hours = Math.floor(diffInSeconds / 3600);
+        return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else {
+        const days = Math.floor(diffInSeconds / 86400);
+        return `${days} day${days > 1 ? 's' : ''} ago`;
+    }
 };
 
 const showTokenInfo = async (chatId: string, tokenAddress: string) => {
