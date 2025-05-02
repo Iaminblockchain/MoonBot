@@ -5,6 +5,7 @@ import { TELEGRAM_STRING_SESSION, TELEGRAM_API_ID, TELEGRAM_API_HASH } from "../
 import { logger } from "../logger";
 import { processMessages } from "./processMessages";
 import { TELEGRAM_PROXY } from "../index";
+import { TelegramClientParams } from "telegram/client/telegramBaseClient";
 
 async function listenChats(client: TelegramClient): Promise<void> {
     client.addEventHandler(processMessages, new NewMessage({}));
@@ -14,8 +15,11 @@ export async function getTgClient(): Promise<TelegramClient> {
     try {
         const session = new StringSession(TELEGRAM_STRING_SESSION);
 
-        const clientOptions: any = {
+        const clientOptions: TelegramClientParams = {
             connectionRetries: 5,
+            deviceModel: "iPhone 16 Pro",
+            systemVersion: "16.0",
+            appVersion: "4.3.24"
         };
 
         // Use the imported TELEGRAM_PROXY
