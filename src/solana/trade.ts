@@ -265,6 +265,17 @@ export const jupiter_swap = async (
         if (quoteResponse.error) throw new Error("Failed to fetch quote response");
         logger.info("Quote response received", quoteResponse);
 
+        // Get token decimals from metadata
+        const tokenMetaData = await getTokenMetaData(CONNECTION, outputMint);
+        if (!tokenMetaData?.decimals) {
+            logger.error("Failed to get token decimals", { outputMint });
+            throw new Error("Failed to get token decimals");
+        }
+
+        // Get raw token amount from quote response
+        const tokenAmount = parseInt(quoteResponse.outAmount);
+        logger.info("Raw token amount:", tokenAmount);
+
         let feeAmount =
             inputMint === WSOL_ADDRESS
                 ? Math.floor(parseInt(quoteResponse.inAmount) / 100)
@@ -348,28 +359,24 @@ export const jupiter_swap = async (
 
         if (!result.confirmed) {
             logger.error("All attempts failed");
-            return { confirmed: false, txSignature: null };
+            return { confirmed: false, txSignature: null, tokenAmount: 0 };
         }
 
         // After retry, check if confirmed and validate with getStatusTxnRetry
         if (result.confirmed && result.signature) {
-            //TODO needs testing
-            // Insert execution info logging
-            // const executionInfo = await getTxInfoMetrics(result.signature, CONNECTION, outputMint);
-            // if (executionInfo) logger.info("Execution info", executionInfo);
             const status = await getStatusTxnRetry(CONNECTION, result.signature);
             if (!status.success) {
                 logger.error("Txn failed after retry:", status);
-                return { confirmed: false, txSignature: result.signature };
+                return { confirmed: false, txSignature: result.signature, tokenAmount: 0 };
             }
         }
 
         if (result.confirmed) {
             logger.info("Solana: confirmed");
-            return { confirmed: true, txSignature: result.signature };
+            return { confirmed: true, txSignature: result.signature, tokenAmount };
         }
 
-        return { confirmed: false, txSignature: null };
+        return { confirmed: false, txSignature: null, tokenAmount: 0 };
     } catch (error) {
         logger.error("jupiter swap:", { error });
         logger.error(inputMint);
@@ -377,7 +384,7 @@ export const jupiter_swap = async (
         logger.error(amount);
         logger.error(swapMode);
         logger.error(error);
-        return { confirmed: false, txSignature: null };
+        return { confirmed: false, txSignature: null, tokenAmount: 0 };
     }
 };
 

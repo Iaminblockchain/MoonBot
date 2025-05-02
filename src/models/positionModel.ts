@@ -14,7 +14,7 @@ export interface Position {
     stopLossPercentage: number; // Percentage from buy price
     takeProfitPercentage: number; // Percentage from buy price
     solAmount: number;
-    tokenAmount: number;
+    tokenAmount: number; // Amount of tokens purchased
     buyTime: Date;
     status: PositionStatus;
     closeTime?: Date;
@@ -29,7 +29,7 @@ const positionSchema = new mongoose.Schema<Position>({
     stopLossPercentage: { type: Number, required: true }, // Stored as percentage (e.g., 5 for 5%)
     takeProfitPercentage: { type: Number, required: true }, // Stored as percentage (e.g., 10 for 10%)
     solAmount: { type: Number, required: true },
-    tokenAmount: { type: Number, required: true },
+    tokenAmount: { type: Number, required: true }, // Amount of tokens purchased
     buyTime: { type: Date, required: true, default: Date.now },
     status: { type: String, enum: Object.values(PositionStatus), required: true, default: PositionStatus.OPEN },
     closeTime: { type: Date },
@@ -47,16 +47,9 @@ export const calculateTakeProfitPrice = (buyPrice: number, takeProfitPercentage:
     return buyPrice * (1 + takeProfitPercentage / 100);
 };
 
-// Helper function to calculate token amount considering decimals
-export const calculateTokenAmount = (solAmount: number, buyPrice: number, tokenDecimals: number) => {
-    // Convert SOL amount to token amount
-    const tokenAmount = solAmount / buyPrice;
-    // Adjust for token decimals (e.g., if token has 9 decimals, multiply by 10^9)
-    return tokenAmount * Math.pow(10, tokenDecimals);
-};
-
 export const createPosition = async (position: Position) => {
     try {
+        // Always create a new position
         const newPosition = new PositionModel({
             ...position,
             status: PositionStatus.OPEN

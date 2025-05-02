@@ -301,7 +301,7 @@ export const autoBuyContract = async (
                 stopLossPercentage: settings.stopLoss ? settings.stopLoss : 0,
                 takeProfitPercentage: settings.takeProfit ? settings.takeProfit : 0,
                 solAmount,
-                tokenAmount: Number((solAmount / splprice).toFixed(metaData?.decimals || 6)), // Store with correct decimal precision
+                tokenAmount: result.tokenAmount || 0,
                 buyTime: new Date(),
                 status: PositionStatus.OPEN
             };
