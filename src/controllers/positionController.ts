@@ -172,6 +172,7 @@ const showTokenInfo = async (chatId: string, tokenAddress: string) => {
         const message = `📊 <b>Position Details</b>\n\n` +
             `Token: ${tokenMetaData.symbol} (${tokenMetaData.name})\n` +
             `Address: <code>${tokenAddress}</code>\n` +
+            `Source: ${position.signalSource ? "@" + position.signalSource : ''}\n` +
             `Token Amount: ${tokenAmount} ${tokenMetaData.symbol}\n` +
             `Buy Price: ${position.buyPrice}\n` +
             `Current Price: ${currentPrice}\n` +
