@@ -20,13 +20,18 @@ import { getSolBalance, getPublicKey } from "./solana/util";
 import cron from "node-cron";
 import { createReferral, getReferralByRefereeId } from "./models/referralModel";
 import { helpText } from "./util/constants";
+import { handleReferralWalletMessage } from "./controllers/referralController";
+
 export let botInstance: TelegramBot | undefined;
 
-export const enum STATE {
+export enum STATE {
+    MAIN_MENU,
+    SETTING_WALLET,
+    SETTING_REFERRAL_WALLET,
     INPUT_TOKEN,
     INPUT_BUY_AMOUNT,
     INPUT_PRIVATE_KEY,
-    INPUT_COPYTRADE,
+    INPUT_COPYTRADE
 }
 
 export type TRADE = {
@@ -133,6 +138,8 @@ export const init = (client: TelegramClient) => {
                 } else if (currentState.state == STATE.INPUT_COPYTRADE) {
                     logger.info(`INPUT_COPYTRADE`);
                     copytradeController.handleInput(msg, currentState.data);
+                } else if (currentState.state === STATE.SETTING_REFERRAL_WALLET) {
+                    await handleReferralWalletMessage(msg);
                 }
             } else {
                 // No active state: check if auto-buy is enabled and the message is a contract address.

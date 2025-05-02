@@ -45,19 +45,25 @@ const setupStatusChecks = (app: express.Application): void => {
     });
 
     app.get("/last-message", (_, res) => {
-        const minutes = 300;
+        const timeoutMinutes = 300;
         if (lastMessageLog) {
             const now = new Date();
             const secondsSince = Math.floor((now.getTime() - lastMessageLog.date.getTime()) / 1000);
 
+            // Format time as hours:minutes:seconds
+            const hours = Math.floor(secondsSince / 3600);
+            const minutes = Math.floor((secondsSince % 3600) / 60);
+            const seconds = secondsSince % 60;
+            const timeSinceLastMessage = `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
             const responseData = {
                 serverStartTime,
                 lastMessage: lastMessageLog,
-                secondsSince
+                timeSinceLastMessage
             };
 
             // If the message is older than 5 minutes (300 seconds), return 500
-            if (secondsSince > minutes) {
+            if (secondsSince > timeoutMinutes) {
                 res.status(500).json(responseData);
             } else {
                 res.status(200).json(responseData);
@@ -65,10 +71,11 @@ const setupStatusChecks = (app: express.Application): void => {
         } else {
             const secondsSinceStart = Math.floor((new Date().getTime() - serverStartTime.getTime()) / 1000);
 
-            res.status(secondsSinceStart > minutes ? 500 : 200).json({
+            // If no message has been emitted within the timeoutMinutes, return 500
+            res.status(secondsSinceStart > timeoutMinutes ? 500 : 200).json({
                 serverStartTime,
                 lastMessage: null,
-                secondsSince: null
+                timeSinceLastMessage: null
             });
         }
     });

@@ -351,7 +351,16 @@ const getBuySuccessMessage = async (
     if (!trade_type) {
         return `Buy successful: ${trx}\nTicker: ${metaData?.symbol}\nBuy Amount: ${solAmount} SOL`;
     } else if (settings) {
-        return `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource: ${tradeSignal ? tradeSignal : ""}\nTake profit:${settings!.takeProfit}%, Stop loss:${settings!.stopLoss}%`;
+        let message = `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource: ${tradeSignal ? tradeSignal : ""}`;
+
+        if (settings.takeProfit !== null) {
+            message += `\nTake profit: ${settings.takeProfit}%`;
+        }
+        if (settings.stopLoss !== null) {
+            message += `\nStop loss: ${settings.stopLoss}%`;
+        }
+
+        return message;
     } else {
         return `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource: ${tradeSignal ? tradeSignal : ""}`;
     }
