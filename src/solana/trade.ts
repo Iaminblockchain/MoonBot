@@ -284,7 +284,7 @@ export const jupiter_swap = async (
                 // First try to get referral wallet
                 let referralWalletPrivateKey = await getReferralWallet(referrers[i]);
                 let privateKey: string | null = referralWalletPrivateKey;
-                
+
                 // If referral wallet is not set, get the main wallet
                 if (!privateKey) {
                     let wallet = await getWalletByChatId(referrers[i]);

@@ -5,7 +5,7 @@ import { getPublicKeyinFormat } from "./sellController";
 import { SOLANA_CONNECTION } from "..";
 import { getAllTokensWithBalance, jupiter_swap, swapToken, WSOL_ADDRESS } from "../solana/trade";
 import { getTokenInfofromMint, getTokenMetaData } from "../solana/token";
-import { getPrice } from "./autoBuyController";
+import { getTokenPrice } from "../getPrice";
 import { logger } from "../logger";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
@@ -120,7 +120,7 @@ const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: str
         const publicKey = getPublicKeyinFormat(wallet.privateKey);
         const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress);
         const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-        const price = await getPrice(tokenAddress);
+        const price = await getTokenPrice(tokenAddress);
         const caption = `<b>Portfolio ${metaData?.name}(${metaData?.symbol})\n\n</b>
   Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}
   Price: $${price}

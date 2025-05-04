@@ -47,11 +47,7 @@ export const getChatIdByPrivateKey = async (privateKey: string): Promise<string 
 // Function to update referral wallet
 export const updateReferralWallet = async (chatId: TelegramBot.ChatId, privateKey: string): Promise<boolean> => {
     try {
-        await Wallet.findOneAndUpdate(
-            { chatId },
-            { referralWallet: privateKey },
-            { new: true }
-        );
+        await Wallet.findOneAndUpdate({ chatId }, { referralWallet: privateKey }, { new: true });
         return true;
     } catch (error) {
         logger.error("Error updating referral wallet:", { error });

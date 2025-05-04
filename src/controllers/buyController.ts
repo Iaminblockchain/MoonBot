@@ -4,7 +4,7 @@ import { SOLANA_CONNECTION } from "..";
 import * as walletdb from "../models/walletModel";
 import * as tradedb from "../models/tradeModel";
 import * as solana from "../solana/trade";
-import { getPrice } from "./autoBuyController";
+import { getTokenPrice } from "../getPrice";
 import { logger } from "../logger";
 import { getSolBalance } from "../solana/util";
 import { getTokenMetaData } from "../solana/token";
@@ -290,7 +290,7 @@ export const autoBuyContract = async (
             botInstance.sendMessage(chatId, msg);
             if (settings.takeProfit != null && settings.stopLoss) {
                 logger.info("set take profit");
-                const splprice = await getPrice(contractAddress);
+                const splprice = await getTokenPrice(contractAddress);
                 // TODO: Update SPL Price
                 //TODO split TP and SL
                 botInstance.sendMessage(

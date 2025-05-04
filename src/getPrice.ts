@@ -1,8 +1,13 @@
 const axios = require("axios");
 import { logger } from "./logger";
 
-export async function getTokenPrice(ids: string, vsToken: string | null = null, showExtraInfo: boolean = false): Promise<any> {
+export async function getTokenPrice(
+    ids: string,
+    vsToken: string | null = null,
+    showExtraInfo: boolean = false
+): Promise<number> {
     try {
+        //vstoken is SOL by default
         const params: { ids: string; vsToken?: string; showExtraInfo?: boolean } = { ids };
 
         // Use showExtraInfo if true, otherwise use vsToken if provided
@@ -20,12 +25,20 @@ export async function getTokenPrice(ids: string, vsToken: string | null = null, 
         for (const tokenId in priceData) {
             if (priceData.hasOwnProperty(tokenId)) {
                 const tokenInfo = priceData[tokenId];
-                logger.debug("Price ", { token: tokenInfo.id, price: tokenInfo.price });
-                return tokenInfo.price;
+                const price = Number(tokenInfo.price);
+
+                if (isNaN(price)) {
+                    throw new Error(`Invalid price for token ${tokenId}`);
+                }
+
+                logger.debug("Price ", { token: tokenInfo.id, price });
+                return price;
             }
         }
 
-        logger.error("price not found");
+        // If no price is found, throw an error
+        throw new Error(`No price found for token(s): ${ids}`);
+
     } catch (error) {
         logger.error("Error fetching price:", error);
         throw error;

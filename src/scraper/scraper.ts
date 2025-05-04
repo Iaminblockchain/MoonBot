@@ -19,12 +19,12 @@ export async function getTgClient(): Promise<TelegramClient> {
             connectionRetries: 5,
             deviceModel: "iPhone 16 Pro",
             systemVersion: "16.0",
-            appVersion: "4.3.24"
+            appVersion: "4.3.24",
         };
 
         // Use the imported TELEGRAM_PROXY
-        if (TELEGRAM_PROXY && TELEGRAM_PROXY.trim() !== '') {
-            const [ip, port, username, password] = TELEGRAM_PROXY.split(',').map(item => item.trim());
+        if (TELEGRAM_PROXY && TELEGRAM_PROXY.trim() !== "") {
+            const [ip, port, username, password] = TELEGRAM_PROXY.split(",").map((item) => item.trim());
             clientOptions.useWSS = false;
             clientOptions.proxy = {
                 ip: ip,

@@ -30,7 +30,7 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
         } else if (data == "referralController_set_wallet") {
             onSetReferralWallet(query);
         }
-    } catch (error) { }
+    } catch (error) {}
 };
 
 const onReferralSystemStart = async (query: TelegramBot.CallbackQuery) => {
@@ -60,12 +60,13 @@ const onReferralSystemStart = async (query: TelegramBot.CallbackQuery) => {
 
         const reply_markup = {
             inline_keyboard: [
-                [{ text: 'Set Referral Wallet', callback_data: "referralController_set_wallet" }],
-                [{ text: 'Close', callback_data: "close" }]
+                [{ text: "Set Referral Wallet", callback_data: "referralController_set_wallet" }],
+                [{ text: "Close", callback_data: "close" }],
             ],
         };
 
-        const caption = "<b>Referral system</b>\n\n" +
+        const caption =
+            "<b>Referral system</b>\n\n" +
             "1. Get <b>25%</b> of the profit from your <b>referrals</b>\n" +
             "2. Get <b>3.5%</b> of the profit from your <b>referrals' referrals</b>\n" +
             "3. Get <b>2.5%</b> of the profit from your <b>referrals' referrals' referrals</b>\n" +
@@ -99,9 +100,9 @@ const onSetReferralWallet = async (query: TelegramBot.CallbackQuery) => {
         }
 
         const promptMessage = await botInstance.sendMessage(chatId, "Input private key for your referral wallet:");
-        setState(chatId, STATE.SETTING_REFERRAL_WALLET, { 
+        setState(chatId, STATE.SETTING_REFERRAL_WALLET, {
             messageId,
-            promptMessageId: promptMessage.message_id 
+            promptMessageId: promptMessage.message_id,
         });
     } catch (error) {
         logger.error("onSetReferralWallet error:", error);
@@ -129,7 +130,7 @@ export const handleReferralWalletMessage = async (msg: TelegramBot.Message) => {
         try {
             // Validate the private key by getting the public key
             const publicKey = getPublicKey(privateKey);
-            
+
             const success = await walletdb.updateReferralWallet(chatId, privateKey);
             if (success) {
                 await botInstance.sendMessage(chatId, `Referral wallet set successfully to: <code>${publicKey}</code>`, {
@@ -147,7 +148,7 @@ export const handleReferralWalletMessage = async (msg: TelegramBot.Message) => {
         if (promptMessageId) {
             await botInstance.deleteMessage(chatId, promptMessageId);
         }
-        
+
         // Return to main menu
         setState(chatId, STATE.MAIN_MENU);
     } catch (error) {
