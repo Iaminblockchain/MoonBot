@@ -1,5 +1,7 @@
-const axios = require("axios");
+import axios from 'axios';
 import { logger } from "./logger";
+
+const BASE_URL = "https://lite-api.jup.ag/price/v2";
 
 export async function getTokenPrice(
     ids: string,
@@ -7,17 +9,17 @@ export async function getTokenPrice(
     showExtraInfo: boolean = false
 ): Promise<number> {
     try {
-        //vstoken is SOL by default
-        const params: { ids: string; vsToken?: string; showExtraInfo?: boolean } = { ids };
+        // Construct URL with ids as a query parameter
+        let url = `${BASE_URL}?ids=${encodeURIComponent(ids)}`;
 
-        // Use showExtraInfo if true, otherwise use vsToken if provided
+        // Add optional parameters if needed
         if (showExtraInfo) {
-            params.showExtraInfo = true;
+            url += `&showExtraInfo=true`;
         } else if (vsToken) {
-            params.vsToken = vsToken;
+            url += `&vsToken=${encodeURIComponent(vsToken)}`;
         }
 
-        const response = await axios.get("https://api.jup.ag/price/v2", { params });
+        const response = await axios.get(url);
 
         const priceData = response.data.data;
 

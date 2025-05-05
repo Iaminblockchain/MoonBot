@@ -14,7 +14,6 @@ import {
 import { TELEGRAM_BOT_USERNAME, SOLANA_CONNECTION } from "..";
 import * as walletdb from "../models/walletModel";
 import * as tradedb from "../models/tradeModel";
-import { getPrice } from "./autoBuyController";
 const { PublicKey, LAMPORTS_PER_SOL } = require("@solana/web3.js"); // Import PublicKey
 
 import { transcode } from "buffer";
@@ -30,7 +29,7 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
         } else if (data == "referralController_set_wallet") {
             onSetReferralWallet(query);
         }
-    } catch (error) {}
+    } catch (error) { }
 };
 
 const onReferralSystemStart = async (query: TelegramBot.CallbackQuery) => {

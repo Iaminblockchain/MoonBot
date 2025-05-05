@@ -24,8 +24,7 @@ import { getChatIdByPrivateKey, getWalletByChatId, getReferralWallet } from "../
 import { getKeypair } from "./util";
 import { logger } from "../logger";
 import { getTokenMetaData } from "./token";
-import { getStatusTxnRetry } from "./txhelpers";
-
+import { getStatusTxnRetry, getTxInfoMetrics } from "./txhelpers";
 import { getReferralByRefereeId, updateRewards } from "../models/referralModel";
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -308,8 +307,10 @@ export const jupiter_swap = async (
         if (result.confirmed && result.signature) {
             //TODO needs testing
             // Insert execution info logging
-            // const executionInfo = await getTxInfoMetrics(result.signature, CONNECTION, outputMint);
-            // if (executionInfo) logger.info("Execution info", executionInfo);
+            let executionInfo = await getTxInfoMetrics(result.signature, CONNECTION, outputMint);
+            if (executionInfo) {
+                logger.info("Execution info", executionInfo);
+            }
             const status = await getStatusTxnRetry(CONNECTION, result.signature);
             if (!status.success) {
                 logger.error("Txn failed after retry:", status);
