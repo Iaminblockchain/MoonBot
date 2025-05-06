@@ -95,11 +95,7 @@ async function resolveSignalAndChatId(signalInput: string): Promise<{ signal: st
     return { signal, chatId: chatDoc.chat_id };
 }
 
-export const editText = async (
-    chatId: string,
-    text: string,
-    opts: TelegramBot.EditMessageTextOptions = {}
-): Promise<number> => {
+export const editText = async (chatId: string, text: string, opts: TelegramBot.EditMessageTextOptions = {}): Promise<number> => {
     if (!botInstance) throw new Error("Bot instance not initialized");
 
     const msgId = opts.message_id ?? lastMessageId.get(chatId);
@@ -325,10 +321,9 @@ To manage your Copy Trade:
     });
 };
 
-
 export const toggleCopytrade = async (chatId: string | number) => {
     const trades = await copytradedb.getTradeByChatId(String(chatId));
-    const anyActive = trades.some(t => t.active);
+    const anyActive = trades.some((t) => t.active);
     const newState = !anyActive;
     await setAllCopytradeStatus(String(chatId), newState);
     return newState;
@@ -336,7 +331,7 @@ export const toggleCopytrade = async (chatId: string | number) => {
 
 export const isCopytradeEnabled = async (chatId: string | number): Promise<boolean> => {
     const trades = await copytradedb.getTradeByChatId(String(chatId));
-    return trades.some(t => t.active);
+    return trades.some((t) => t.active);
 };
 
 const removecopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {
@@ -431,73 +426,70 @@ type Spec<T> = {
 
 const makeEditor =
     <T>(spec: Spec<T>) =>
-        async (chatId: string, replaceId: number, dbId: string) => {
-            logger.info(`makeEditor called`, {
+    async (chatId: string, replaceId: number, dbId: string) => {
+        logger.info(`makeEditor called`, {
+            label: spec.label,
+            dbKey: spec.dbKey,
+            chatId,
+            replaceId,
+            dbId,
+        });
+
+        if (!botInstance) {
+            logger.error(`Bot instance not initialized in makeEditor for ${spec.label}`);
+            return;
+        }
+
+        const ask = await botInstance.sendMessage(chatId, `<b>Please type ${spec.label}</b>\n\n`, {
+            parse_mode: "HTML",
+            reply_markup: { force_reply: true },
+        });
+
+        botInstance.onReplyToMessage(ask.chat.id, ask.message_id, async (reply: TelegramBot.Message) => {
+            logger.info(`Reply received in makeEditor`, {
                 label: spec.label,
-                dbKey: spec.dbKey,
                 chatId,
-                replaceId,
-                dbId
+                replyText: reply.text,
             });
 
             if (!botInstance) {
-                logger.error(`Bot instance not initialized in makeEditor for ${spec.label}`);
+                logger.error(`Bot instance not initialized in makeEditor callback for ${spec.label}`);
                 return;
             }
 
-            const ask = await botInstance.sendMessage(chatId, `<b>Please type ${spec.label}</b>\n\n`, {
-                parse_mode: "HTML",
-                reply_markup: { force_reply: true },
-            });
+            botInstance.deleteMessage(ask.chat.id, ask.message_id);
+            botInstance.deleteMessage(reply.chat.id, reply.message_id);
+            if (!reply.text) return;
 
-            botInstance.onReplyToMessage(ask.chat.id, ask.message_id, async (reply: TelegramBot.Message) => {
-                logger.info(`Reply received in makeEditor`, {
+            try {
+                const parsedValue = spec.parse(reply.text);
+                logger.info(`Updating trade`, {
                     label: spec.label,
+                    dbKey: spec.dbKey,
+                    parsedValue,
                     chatId,
-                    replyText: reply.text
+                    dbId,
                 });
 
-                if (!botInstance) {
-                    logger.error(`Bot instance not initialized in makeEditor callback for ${spec.label}`);
-                    return;
-                }
+                await copytradedb.updateTrade({
+                    id: new mongoose.Types.ObjectId(dbId),
+                    [spec.dbKey]: parsedValue,
+                });
+                await editcopytradesignal(chatId, replaceId, dbId);
+            } catch (error: unknown) {
+                const errorMessage =
+                    error instanceof Error ? error.message : typeof error === "string" ? error : "An unknown error occurred";
 
-                botInstance.deleteMessage(ask.chat.id, ask.message_id);
-                botInstance.deleteMessage(reply.chat.id, reply.message_id);
-                if (!reply.text) return;
-
-                try {
-                    const parsedValue = spec.parse(reply.text);
-                    logger.info(`Updating trade`, {
-                        label: spec.label,
-                        dbKey: spec.dbKey,
-                        parsedValue,
-                        chatId,
-                        dbId
-                    });
-
-                    await copytradedb.updateTrade({
-                        id: new mongoose.Types.ObjectId(dbId),
-                        [spec.dbKey]: parsedValue,
-                    });
-                    await editcopytradesignal(chatId, replaceId, dbId);
-                } catch (error: unknown) {
-                    const errorMessage = error instanceof Error
-                        ? error.message
-                        : typeof error === 'string'
-                            ? error
-                            : 'An unknown error occurred';
-
-                    logger.error(`Error in makeEditor`, {
-                        label: spec.label,
-                        error: errorMessage,
-                        chatId,
-                        dbId
-                    });
-                    botInstance.sendMessage(chatId, `Error updating ${spec.label}: ${errorMessage}`);
-                }
-            });
-        };
+                logger.error(`Error in makeEditor`, {
+                    label: spec.label,
+                    error: errorMessage,
+                    chatId,
+                    dbId,
+                });
+                botInstance.sendMessage(chatId, `Error updating ${spec.label}: ${errorMessage}`);
+            }
+        });
+    };
 
 export const editBuyAmountcopytradesignal = makeEditor({ label: "buy amount (SOL)", dbKey: "amount", parse: Number });
 export const editSlippagecopytradesignal = makeEditor({ label: "max slippage (%)", dbKey: "maxSlippage", parse: Number });

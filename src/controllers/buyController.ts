@@ -5,7 +5,7 @@ import * as walletdb from "../models/walletModel";
 import * as tradedb from "../models/tradeModel";
 import * as positiondb from "../models/positionModel";
 import * as solana from "../solana/trade";
-import { getPrice } from "./autoBuyController";
+import { getTokenPrice } from "../getPrice";
 import { logger } from "../logger";
 import { getSolBalance } from "../solana/util";
 import { getTokenMetaData } from "../solana/token";
@@ -292,7 +292,7 @@ export const autoBuyContract = async (
             botInstance.sendMessage(chatId, msg);
             
             // Save position information
-            const splprice = await getPrice(contractAddress);
+            const splprice = await getTokenPrice(contractAddress);
             const position: positiondb.Position = {
                 chatId,
                 tokenAddress: contractAddress,
@@ -309,6 +309,9 @@ export const autoBuyContract = async (
 
             if (settings.takeProfit != null && settings.stopLoss) {
                 logger.info("set take profit");
+                const splprice = await getTokenPrice(contractAddress);
+                // TODO: Update SPL Price
+                //TODO split TP and SL
                 botInstance.sendMessage(
                     chatId,
                     `Auto-sell Registered: ${contractAddress}, Current Price: ${splprice}, TakeProfit Price: ${(splprice * (100 + settings.takeProfit)) / 100}(${settings.takeProfit}%), StopLoss Price: ${(splprice * (100 - settings.stopLoss)) / 100}(${settings.stopLoss}%)`

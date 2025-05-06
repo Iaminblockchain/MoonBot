@@ -362,18 +362,6 @@ export function setAutoBuySettings(chatId: string, settings: AutoBuySettings) {
     autoBuySettings.set(chatId, settings);
 }
 
-export const getPrice = async (mint: string) => {
-    try {
-        const response = await fetch(`https://api.jup.ag/price/v2?ids=${mint}&showExtraInfo=true`);
-        const res = await response.json();
-        const price = res.data[mint].price;
-        return Number(price);
-    } catch (e) {
-        logger.error("Get Price Error: ", { error: e });
-        return 0;
-    }
-};
-
 export const getSPLBalance = async (mint: string, owner: string) => {
     let tokenBalance = 0;
     try {

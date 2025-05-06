@@ -28,7 +28,7 @@ type MessageLog = {
 
 export let lastMessageLog: MessageLog | null = null;
 
-async function trackPerformance(contractAddress: string, entry_price: string): Promise<void> {
+async function trackPerformance(contractAddress: string, entry_price: number): Promise<void> {
     if (trackedContracts.has(contractAddress)) return;
     trackedContracts.add(contractAddress);
 
@@ -46,7 +46,7 @@ async function trackPerformance(contractAddress: string, entry_price: string): P
                 try {
                     const currentPrice = await getTokenPrice(contractAddress);
                     if (currentPrice && entry_price) {
-                        const performance = ((parseFloat(currentPrice) - parseFloat(entry_price)) / parseFloat(entry_price)) * 100;
+                        const performance = ((currentPrice - entry_price) / entry_price) * 100;
                         logger.info(`${label} performance for ${contractAddress}: ${performance.toFixed(2)}%`);
 
                         const updateField = `performance_${label}` as keyof ICall;
@@ -75,7 +75,7 @@ export async function contractFound(contractAddress: string, chat_id_str: string
 
     //Track the performance
 
-    let entry_price;
+    let entry_price: number | undefined;
     try {
         entry_price = await getTokenPrice(contractAddress);
         logger.info("process:  price now ", { entry_price: entry_price });
@@ -111,13 +111,12 @@ export async function contractFound(contractAddress: string, chat_id_str: string
 
 export async function processMessages(event: NewMessageEvent): Promise<void> {
     try {
-
         const messageDate = event.message.date;
         if (!messageDate) {
             logger.error("Skipping message, message date is not available");
-            return
+            return;
         }
-        const date = new Date(messageDate * 1000)
+        const date = new Date(messageDate * 1000);
 
         // First check that the message sender is a Api.User or Api.Channel
         // users that send a message in their own channel take on the chat id of the channel.

@@ -1,18 +1,25 @@
-const axios = require("axios");
+import axios from 'axios';
 import { logger } from "./logger";
 
-export async function getTokenPrice(ids: string, vsToken: string | null = null, showExtraInfo: boolean = false): Promise<any> {
-    try {
-        const params: { ids: string; vsToken?: string; showExtraInfo?: boolean } = { ids };
+const BASE_URL = "https://lite-api.jup.ag/price/v2";
 
-        // Use showExtraInfo if true, otherwise use vsToken if provided
+export async function getTokenPrice(
+    ids: string,
+    vsToken: string | null = null,
+    showExtraInfo: boolean = false
+): Promise<number> {
+    try {
+        // Construct URL with ids as a query parameter
+        let url = `${BASE_URL}?ids=${encodeURIComponent(ids)}`;
+
+        // Add optional parameters if needed
         if (showExtraInfo) {
-            params.showExtraInfo = true;
+            url += `&showExtraInfo=true`;
         } else if (vsToken) {
-            params.vsToken = vsToken;
+            url += `&vsToken=${encodeURIComponent(vsToken)}`;
         }
 
-        const response = await axios.get("https://api.jup.ag/price/v2", { params });
+        const response = await axios.get(url);
 
         const priceData = response.data.data;
 
@@ -20,12 +27,20 @@ export async function getTokenPrice(ids: string, vsToken: string | null = null, 
         for (const tokenId in priceData) {
             if (priceData.hasOwnProperty(tokenId)) {
                 const tokenInfo = priceData[tokenId];
-                logger.debug("Price ", { token: tokenInfo.id, price: tokenInfo.price });
-                return tokenInfo.price;
+                const price = Number(tokenInfo.price);
+
+                if (isNaN(price)) {
+                    throw new Error(`Invalid price for token ${tokenId}`);
+                }
+
+                logger.debug("Price ", { token: tokenInfo.id, price });
+                return price;
             }
         }
 
-        logger.error("price not found");
+        // If no price is found, throw an error
+        throw new Error(`No price found for token(s): ${ids}`);
+
     } catch (error) {
         logger.error("Error fetching price:", error);
         throw error;

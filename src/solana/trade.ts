@@ -19,17 +19,12 @@ import {
 } from "@solana/web3.js";
 import { getRandomValidator } from "./util";
 import axios from "axios";
-const { fetchMarketAccounts } = require("../scripts/fetchMarketAccounts");
-const { getPoolKeysByPoolId } = require("../scripts/getPoolKeysByPoolId");
-import swap from "../swap";
 import { FEE_COLLECTION_WALLET, JITO_TIP, SOLANA_CONNECTION } from "..";
 import { getChatIdByPrivateKey, getWalletByChatId, getReferralWallet } from "../models/walletModel";
 import { getKeypair } from "./util";
 import { logger } from "../logger";
 import { getTokenMetaData } from "./token";
-import { getStatusTxnRetry } from "./txhelpers";
-
-import { getTxInfoMetrics } from "./txhelpers";
+import { getStatusTxnRetry, getTxInfoMetrics } from "./txhelpers";
 import { getReferralByRefereeId, updateRewards } from "../models/referralModel";
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -65,58 +60,6 @@ const sendSOL = async (senderPrivateKey: string, receiverAddress: string, amount
         return null;
     }
 };
-
-export async function swapToken(
-    CONNECTION: Connection,
-    PRIVATE_KEY: string,
-    publicKey: string,
-    inputMint: string,
-    outputMint: string,
-    amount: number,
-    swapMode: "ExactIn" | "ExactOut"
-) {
-    // Fetching market data for the tokens to retrieve the pool ID
-    try {
-        logger.info("Fetching Pool details...", `  - Date:${new Date()}`);
-
-        const marketData = await fetchMarketAccounts(CONNECTION, inputMint, outputMint, "confirmed");
-        // Fetching pool keys using the retrieved pool ID (marketData.id)
-        var pool = await getPoolKeysByPoolId(marketData.id, CONNECTION);
-        pool = convertPoolFormat(pool);
-        logger.info("Pools fetched", pool, `  - Date:${new Date()}`);
-        var swapConfig = {
-            executeSwap: true, // Send tx when true, simulate tx when false
-            useVersionedTransaction: true,
-            tokenAAmount: amount,
-            tokenAAddress: inputMint,
-            tokenBAddress: outputMint,
-            maxLamports: 1500000, // Micro lamports for priority fee
-            direction: "in",
-            pool: pool,
-            maxRetries: 20,
-        };
-        let swapResp = await swap(swapConfig, PRIVATE_KEY);
-
-        let confirmed: boolean = false;
-        let signature = null;
-        if (swapResp) {
-            confirmed = swapResp.confirmed;
-            signature = swapResp.signature;
-        }
-        if (confirmed) {
-            logger.info("http://solscan.io/tx/" + signature);
-            return { confirmed: true, signature: signature };
-        } else {
-            //TODO check insufficent funds!
-            logger.info("Transaction failed (solana)");
-            logger.info("swapResp " + swapResp);
-            return { confirmed: false, signature: null };
-        }
-    } catch (e) {
-        logger.error("Transaction Failed (solana). :", { error: e });
-        return { confirmed: false, signature: null };
-    }
-}
 
 interface SwapQuote {
     inAmount: string;
@@ -295,7 +238,7 @@ export const jupiter_swap = async (
                 // First try to get referral wallet
                 let referralWalletPrivateKey = await getReferralWallet(referrers[i]);
                 let privateKey: string | null = referralWalletPrivateKey;
-                
+
                 // If referral wallet is not set, get the main wallet
                 if (!privateKey) {
                     let wallet = await getWalletByChatId(referrers[i]);
@@ -373,6 +316,12 @@ export const jupiter_swap = async (
 
         // After retry, check if confirmed and validate with getStatusTxnRetry
         if (result.confirmed && result.signature) {
+            //TODO needs testing
+            // Insert execution info logging
+            let executionInfo = await getTxInfoMetrics(result.signature, CONNECTION, outputMint);
+            if (executionInfo) {
+                logger.info("Execution info", executionInfo);
+            }
             const status = await getStatusTxnRetry(CONNECTION, result.signature);
             if (!status.success) {
                 logger.error("Txn failed after retry:", status);

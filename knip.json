@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/webpro/knip/main/schemas/v1.json",
+  "entry": [
+    "src/index.ts", 
+    "src/**/*.ts"
+  ],
+  "project": ["**/*.ts"],
+  "ignoreDependencies": [],
+  "rules": {
+    "exports": "error",
+    "files": "error",
+    "dependencies": "error",
+    "classMembers": "warn"
+  }
+} 

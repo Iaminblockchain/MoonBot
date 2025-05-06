@@ -8,8 +8,8 @@ import { logger } from "../logger";
 import { SOLANA_CONNECTION } from "..";
 import { PublicKey } from "@solana/web3.js";
 import { getPositionsByChatId, getPositionByTokenAddress, closePosition } from "../models/positionModel";
-import { getPrice } from "./autoBuyController";
 import * as solana from "../solana/trade";
+import { getTokenPrice } from "../getPrice";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     if (!botInstance) {
@@ -270,7 +270,7 @@ const showTokenInfo = async (chatId: string, tokenAddress: string) => {
         }
 
         logger.info("Token metadata found", { tokenMetaData });
-        const currentPrice = await getPrice(tokenAddress);
+        const currentPrice = await getTokenPrice(tokenAddress);
         const performance = ((currentPrice - position.buyPrice) / position.buyPrice * 100).toFixed(2);
         const stopLossPrice = position.buyPrice * (1 - position.stopLossPercentage / 100);
         const takeProfitPrice = position.buyPrice * (1 + position.takeProfitPercentage / 100);
@@ -351,7 +351,7 @@ const handleSellPosition = async (chatId: string, tokenAddress: string) => {
 
         if (result.confirmed) {
             // Get current price for closing position
-            const currentPrice = await getPrice(tokenAddress);
+            const currentPrice = await getTokenPrice(tokenAddress);
             await closePosition(chatId, tokenAddress, currentPrice);
 
             const profitLoss = (currentPrice - position.buyPrice) * position.solAmount;

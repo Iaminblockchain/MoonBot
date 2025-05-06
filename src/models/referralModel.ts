@@ -52,14 +52,13 @@ export const getReferralByRefereeId = async (refereeId: string): Promise<IReferr
     }
 };
 
-
 // Function to get total rewards for a referee
 export const getRewards = async (refereeId: string): Promise<number> => {
     try {
         const referral = await Referral.findOne({ refereeId });
         return referral?.rewards || 0;
     } catch (error) {
-        logger.error("Error getting rewards:", {error});
+        logger.error("Error getting rewards:", { error });
         return 0;
     }
 };
@@ -68,17 +67,13 @@ export const getRewards = async (refereeId: string): Promise<number> => {
 export const saveRewards = async (refereeId: string, rewards: number): Promise<boolean> => {
     try {
         if (rewards < 0) {
-            logger.error("Invalid rewards amount:", {rewards});
+            logger.error("Invalid rewards amount:", { rewards });
             return false;
         }
-        await Referral.findOneAndUpdate(
-            { refereeId },
-            { rewards },
-            { new: true }
-        );
+        await Referral.findOneAndUpdate({ refereeId }, { rewards }, { new: true });
         return true;
     } catch (error) {
-        logger.error("Error saving rewards:", {error});
+        logger.error("Error saving rewards:", { error });
         return false;
     }
 };
@@ -87,17 +82,13 @@ export const saveRewards = async (refereeId: string, rewards: number): Promise<b
 export const updateRewards = async (refereeId: string, additionalRewards: number): Promise<boolean> => {
     try {
         if (additionalRewards < 0) {
-            logger.error("Invalid additional rewards amount:", {additionalRewards});
+            logger.error("Invalid additional rewards amount:", { additionalRewards });
             return false;
         }
-        await Referral.findOneAndUpdate(
-            { refereeId },
-            { $inc: { rewards: additionalRewards } },
-            { new: true }
-        );
+        await Referral.findOneAndUpdate({ refereeId }, { $inc: { rewards: additionalRewards } }, { new: true });
         return true;
     } catch (error) {
-        logger.error("Error updating rewards:", {error});
+        logger.error("Error updating rewards:", { error });
         return false;
     }
 };

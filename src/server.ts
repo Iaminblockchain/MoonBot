@@ -54,12 +54,12 @@ const setupStatusChecks = (app: express.Application): void => {
             const hours = Math.floor(secondsSince / 3600);
             const minutes = Math.floor((secondsSince % 3600) / 60);
             const seconds = secondsSince % 60;
-            const timeSinceLastMessage = `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            const timeSinceLastMessage = `${hours}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 
             const responseData = {
                 serverStartTime,
                 lastMessage: lastMessageLog,
-                timeSinceLastMessage
+                timeSinceLastMessage,
             };
 
             // If the message is older than 5 minutes (300 seconds), return 500
@@ -75,7 +75,7 @@ const setupStatusChecks = (app: express.Application): void => {
             res.status(secondsSinceStart > timeoutMinutes ? 500 : 200).json({
                 serverStartTime,
                 lastMessage: null,
-                timeSinceLastMessage: null
+                timeSinceLastMessage: null,
             });
         }
     });

@@ -31,7 +31,7 @@ export enum STATE {
     INPUT_TOKEN,
     INPUT_BUY_AMOUNT,
     INPUT_PRIVATE_KEY,
-    INPUT_COPYTRADE
+    INPUT_COPYTRADE,
 }
 
 export type TRADE = {
