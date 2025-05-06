@@ -31,6 +31,20 @@ export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
 const whitelistedUsers: string[] = require("../util/whitelistUsers.json");
 
+import { getErrorMessage } from "../util/error";
+
+interface ReferralInfo {
+    key: string;
+    referer: string | null;
+    amount: number;
+}
+
+interface RawInstruction {
+    programId: string;
+    accounts: { pubkey: string; isSigner: boolean; isWritable: boolean }[];
+    data: string;
+}
+
 const endpoints = [
     "https://mainnet.block-engine.jito.wtf/api/v1/bundles",
     "https://amsterdam.mainnet.block-engine.jito.wtf/api/v1/bundles",
@@ -55,8 +69,8 @@ const sendSOL = async (senderPrivateKey: string, receiverAddress: string, amount
         const signature = await sendAndConfirmTransaction(SOLANA_CONNECTION, transaction, [senderKeypair]);
         logger.info("Send SOL TX: ", { signature });
         return signature;
-    } catch (error: any) {
-        logger.error("Send SOL Erro: ", { error });
+    } catch (error: unknown) {
+        logger.error("Send SOL Error: ", { error: getErrorMessage(error) });
         return null;
     }
 };
@@ -64,15 +78,21 @@ const sendSOL = async (senderPrivateKey: string, receiverAddress: string, amount
 interface SwapQuote {
     inAmount: string;
     outAmount: string;
-    [key: string]: any;
+    [key: string]: string | number | undefined;
+}
+
+interface AccountMetaData {
+    pubkey: string;
+    isSigner: boolean;
+    isWritable: boolean;
 }
 
 interface SwapInstructionsResponse {
-    tokenLedgerInstruction?: any[];
-    computeBudgetInstructions: any[];
-    setupInstructions: any[];
-    swapInstruction: any;
-    cleanupInstruction: any;
+    tokenLedgerInstruction?: RawInstruction[];
+    computeBudgetInstructions: RawInstruction[];
+    setupInstructions: RawInstruction[];
+    swapInstruction: RawInstruction;
+    cleanupInstruction: RawInstruction;
     addressLookupTableAddresses: string[];
     error?: string;
 }
@@ -106,10 +126,10 @@ async function getSwapInstructions(
     if (res.error) throw new Error("Swap-instructions error: " + res.error);
 
     // 2) helper to decode each payload into a TransactionInstruction
-    const deserialize = (instr: any) =>
+    const deserialize = (instr: RawInstruction) =>
         new TransactionInstruction({
             programId: new PublicKey(instr.programId),
-            keys: instr.accounts.map((a: any) => ({
+            keys: instr.accounts.map((a: AccountMetaData) => ({
                 pubkey: new PublicKey(a.pubkey),
                 isSigner: a.isSigner,
                 isWritable: a.isWritable,
@@ -216,21 +236,22 @@ export const jupiter_swap = async (
 
         const chatId = await getChatIdByPrivateKey(PRIVATE_KEY);
 
-        let referrers: any[] = [null, null, null, null, null];
+        let referrers: (string | null)[] = [null, null, null, null, null];
+
         if (chatId) {
             const referral = await getReferralByRefereeId(chatId);
             referrers = referral?.referrers || [null, null, null, null, null];
         }
-        let referrerPublicKeys: any[] = [null, null, null, null, null];
+        let referrerPublicKeys: (string | null)[] = [null, null, null, null, null];
         for (let i = 0; i < referrers.length; i++) {
             if (referrers[i]) {
                 // First try to get referral wallet
-                let referralWalletPrivateKey = await getReferralWallet(referrers[i]);
+                let referralWalletPrivateKey = await getReferralWallet(String(referrers[i]));
                 let privateKey: string | null = referralWalletPrivateKey;
 
                 // If referral wallet is not set, get the main wallet
                 if (!privateKey) {
-                    let wallet = await getWalletByChatId(referrers[i]);
+                    let wallet = await getWalletByChatId(String(referrers[i]));
                     privateKey = wallet?.privateKey || null;
                 }
 
@@ -240,7 +261,7 @@ export const jupiter_swap = async (
                 }
             }
         }
-        let referrals: any[] = [];
+        let referrals: ReferralInfo[] = [];
         let referralFeePercentages = [0.25, 0.035, 0.025, 0.02, 0.01];
         let finalFeeAmount = feeAmount;
         if (referrerPublicKeys.indexOf(null) > 0) {
@@ -249,7 +270,7 @@ export const jupiter_swap = async (
             for (let i = 0; i < 5; i++) {
                 if (referrerPublicKeys[i] != null) {
                     referrals.push({
-                        key: referrerPublicKeys[i],
+                        key: referrerPublicKeys[i] as string,
                         referer: referrers[i],
                         amount: Math.floor(feeAmount * referralFeePercentages[i]),
                     });
@@ -261,7 +282,7 @@ export const jupiter_swap = async (
         const { instructions, addressLookupTableAccounts } = await getSwapInstructions(quoteResponse, keypair.publicKey.toBase58());
 
         if (!whitelistedUsers.includes(keypair.publicKey.toBase58())) {
-            const feeInstructions: any[] = [];
+            const feeInstructions: TransactionInstruction[] = [];
             await Promise.all(
                 referrals.map(async (referral) => {
                     let isValid = await isValidPublicKey(CONNECTION, referral.key);
@@ -462,34 +483,6 @@ export const getAllTokensWithBalance = async (connection: Connection, owner: Pub
     }
 };
 
-function convertPoolFormat(pool: any) {
-    return {
-        id: pool.id.toString(),
-        programId: pool.programId.toString(),
-        status: pool.status.toNumber(),
-        baseDecimals: pool.baseDecimals,
-        quoteDecimals: pool.quoteDecimals,
-        lpDecimals: pool.lpDecimals,
-        baseMint: pool.baseMint.toString(),
-        quoteMint: pool.quoteMint.toString(),
-        version: pool.version,
-        authority: pool.authority.toString(),
-        openOrders: pool.openOrders.toString(),
-        baseVault: pool.baseVault.toString(),
-        quoteVault: pool.quoteVault.toString(),
-        marketProgramId: pool.marketProgramId.toString(),
-        marketId: pool.marketId.toString(),
-        marketBids: pool.marketBids.toString(),
-        marketAsks: pool.marketAsks.toString(),
-        marketEventQueue: pool.marketEventQueue.toString(),
-        marketBaseVault: pool.marketBaseVault.toString(),
-        marketQuoteVault: pool.marketQuoteVault.toString(),
-        marketAuthority: pool.marketAuthority.toString(),
-        targetOrders: pool.targetOrders.toString(),
-        lpMint: pool.lpMint.toString(),
-    };
-}
-
 const MAX_RETRIES = 3;
 
 export const submitAndConfirm = async (transaction: VersionedTransaction) => {
@@ -591,9 +584,9 @@ export const sendNativeSol = async (chatId: string, destination: string, amount:
             logger.error("Withdrawal failed.");
             return { confirmed: false };
         }
-    } catch (error: any) {
-        logger.error("withdrawSOL Error: ", { error: error });
-        return { confirmed: false, error: error.message };
+    } catch (error: unknown) {
+        logger.error("withdrawSOL Error: ", { error: getErrorMessage(error) });
+        return { confirmed: false, error: getErrorMessage(error) };
     }
 };
 
