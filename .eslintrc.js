@@ -49,9 +49,8 @@ module.exports = {
                 'src/models/copyTradeModel.ts',
                 'src/raydiumSwap.ts',
                 'src/scraper/manageGroups.ts',
-                'src/solana/trade.ts',
+                // 'src/solana/trade.ts',
                 'src/solana/txhelpers.ts',
-                // 'src/swap.ts'
             ],
             rules: {
                 '@typescript-eslint/no-explicit-any': 'off'
