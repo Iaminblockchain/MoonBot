@@ -42,7 +42,7 @@
     "knip": "^5.53.0",
     "ts-jest": "^29.3.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "typescript": "~5.3.3"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.29.0",

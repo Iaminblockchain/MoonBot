@@ -29,7 +29,7 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
         } else if (data == "referralController_set_wallet") {
             onSetReferralWallet(query);
         }
-    } catch (error) { }
+    } catch (error) {}
 };
 
 const onReferralSystemStart = async (query: TelegramBot.CallbackQuery) => {
