@@ -16,7 +16,5 @@ jobs:
       
       - name: Check for console logging statements
         run: |
-          if grep -r "console\." --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --exclude="config.ts" .; then
-            echo "::error::Found console logging statements. Please use winston logger instead."
-            exit 1
-          fi 
+          chmod +x ./scripts/check-console-logs.sh
+          ./scripts/check-console-logs.sh 
