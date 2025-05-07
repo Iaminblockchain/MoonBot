@@ -1,7 +1,6 @@
 // tx-helpers.ts
 import { Connection, ParsedTransactionWithMeta, PublicKey, SignatureStatus } from "@solana/web3.js";
 import { logger } from "../logger";
-
 /*   error codes & texts  */
 export const ERR_1001 = "Unknown instruction error";
 export const ERR_1002 = "Provided owner is not allowed";
@@ -81,6 +80,41 @@ export async function getStatusTxnRetry(
     }
     logger.error(`Max retries reached. Tx confirmation failed ${txsig}`);
     return { success: false, error: "could not confirm in time", errorcode: 1003 };
+}
+
+export async function getTx(url: string, txsig: string) {
+
+    const body = JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "getTransaction",
+        params: [
+            txsig,
+            {
+                commitment: "confirmed",
+                maxSupportedTransactionVersion: 0,
+                encoding: "json"
+            }
+        ]
+    });
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.result;
+    } catch (error) {
+        logger.error(`Error fetching transaction: ${error}`);
+        return null;
+    }
 }
 
 // get tx info
