@@ -16,6 +16,7 @@ import express from "express";
 
 dotenv.config();
 
+const PORT = Number(retrieveEnvVariable("PORT"));
 export const ALLOWED_ORIGIN = retrieveEnvVariable("allowed_origin");
 export const SETUP_BOT = retrieveEnvVariable("setup_bot") === "true";
 export const SETUP_SCRAPE = retrieveEnvVariable("setup_scrape") === "true";
@@ -226,7 +227,6 @@ const setupStartEndpoint = (app: express.Express) => {
 };
 
 const main = async () => {
-    const port = Number(process.env.PORT) || 8080;
     const app = express();
 
     logger.info("⏳ Launching server...");
@@ -254,7 +254,7 @@ const main = async () => {
         }
     }
 
-    await setupServer(app, port, START_ENDPOINT_ENABLED, () => serviceStatus.status === "started");
+    await setupServer(app, PORT, START_ENDPOINT_ENABLED, () => serviceStatus.status === "started");
     logger.info("✅ Server successfully launched");
 };
 
