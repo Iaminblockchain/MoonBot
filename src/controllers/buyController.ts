@@ -58,8 +58,11 @@ const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: number): 
             false
         );
 
-        if (result.confirmed) {
+        if (result && result.confirmed) {
             const trxLink = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "N/A";
+            //TODO get execution info
+            logger.info("execution info", { executionInfo: result.executionInfo });
+
             logger.info("onClickBuy success", { chatId, txSignature: result.txSignature });
             const msg = await getBuySuccessMessage(trxLink, trade.tokenAddress, amountSol);
             botInstance.sendMessage(chatId!, msg);
@@ -116,7 +119,7 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
                 "ExactIn",
                 false
             );
-            if (result.confirmed) {
+            if (result && result.confirmed) {
                 logger.info(`confirmed ${result}`);
                 let trx = "";
                 if (result.txSignature) {
@@ -286,11 +289,11 @@ export const autoBuyContract = async (
             settings.maxSlippage * 100
         );
 
-        if (result.confirmed) {
+        if (result && result.confirmed) {
             let trx = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "";
             const msg = await getBuySuccessMessage(trx, contractAddress, solAmount, trade_type, tradeSignal, settings);
             botInstance.sendMessage(chatId, msg);
-            
+
             // Save position information
             const splprice = await getTokenPrice(contractAddress);
             const position: positiondb.Position = {

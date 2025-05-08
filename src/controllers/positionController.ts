@@ -113,9 +113,9 @@ const showOpenPositions = async (chatId: string) => {
         logger.info(`positionsWithMetadata: `, { positionsWithMetadata });
 
         const buttons = positionsWithMetadata.map(position => [
-            { 
-                text: `${position.index}. ${position.tokenSymbol} (${position.tokenName}) - ${position.buyTime.toLocaleString()}`, 
-                callback_data: `pos_token_${position.tokenAddress}` 
+            {
+                text: `${position.index}. ${position.tokenSymbol} (${position.tokenName}) - ${position.buyTime.toLocaleString()}`,
+                callback_data: `pos_token_${position.tokenAddress}`
             }
         ]);
         logger.info(`buttons`, { buttons });
@@ -169,9 +169,9 @@ const showClosedPositions = async (chatId: string) => {
         );
 
         const buttons = positionsWithMetadata.map(position => [
-            { 
-                text: `${position.index}. ${position.tokenSymbol} (closed ${position.timeAgo})`, 
-                callback_data: `pos_closed_${position.tokenAddress}` 
+            {
+                text: `${position.index}. ${position.tokenSymbol} (closed ${position.timeAgo})`,
+                callback_data: `pos_closed_${position.tokenAddress}`
             }
         ]);
         buttons.push([{ text: "Back", callback_data: "close" }]);
@@ -236,7 +236,7 @@ const showClosedTokenInfo = async (chatId: string, tokenAddress: string) => {
 const getTimeAgo = (date: Date): string => {
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
+
     if (diffInSeconds < 60) {
         return `${diffInSeconds} seconds ago`;
     } else if (diffInSeconds < 3600) {
@@ -349,7 +349,7 @@ const handleSellPosition = async (chatId: string, tokenAddress: string) => {
             false
         );
 
-        if (result.confirmed) {
+        if (result && result.confirmed) {
             // Get current price for closing position
             const currentPrice = await getTokenPrice(tokenAddress);
             await closePosition(chatId, tokenAddress, currentPrice);

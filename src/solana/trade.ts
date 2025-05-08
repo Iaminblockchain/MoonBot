@@ -344,28 +344,29 @@ export const jupiter_swap = async (
                 logger.info("Execution info", executionInfo);
             }
             const status = await getStatusTxnRetry(CONNECTION, result.signature);
-            if (!status.success) {
+            if (status.success) {
+                logger.info("Solana: confirmed");
+
+                //set referrals
+                if (referrals.length > 0) {
+                    await Promise.all(
+                        referrals.map(async (referral) => {
+                            if (referral.referer) {
+                                await updateRewards(referral.referer, referral.amount);
+                                logger.info(`Updated rewards for referer ${referral.referer}: ${referral.amount} lamports`);
+                            }
+                        })
+                    );
+                }
+                return { confirmed: true, txSignature: result.signature, executionInfo: executionInfo };
+            } else {
                 logger.error("Txn failed after retry:", status);
                 return { confirmed: false, txSignature: result.signature, tokenAmount: 0 };
             }
+        } else {
+            logger.error("unknown state no signature");
         }
 
-        if (result.confirmed) {
-            logger.info("Solana: confirmed");
-            if (referrals.length > 0) {
-                await Promise.all(
-                    referrals.map(async (referral) => {
-                        if (referral.referer) {
-                            await updateRewards(referral.referer, referral.amount);
-                            logger.info(`Updated rewards for referer ${referral.referer}: ${referral.amount} lamports`);
-                        }
-                    })
-                );
-            }
-            return { confirmed: true, txSignature: result.signature, tokenAmount };
-        }
-
-        return { confirmed: false, txSignature: null, tokenAmount: 0 };
     } catch (error) {
         logger.error("jupiter swap:", { error });
         logger.error(inputMint);

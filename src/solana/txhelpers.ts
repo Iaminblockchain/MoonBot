@@ -83,7 +83,6 @@ export async function getStatusTxnRetry(
 }
 
 export async function getTx(url: string, txsig: string) {
-
     const body = JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
@@ -93,16 +92,16 @@ export async function getTx(url: string, txsig: string) {
             {
                 commitment: "confirmed",
                 maxSupportedTransactionVersion: 0,
-                encoding: "json"
-            }
-        ]
+                encoding: "json",
+            },
+        ],
     });
 
     try {
         const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body,
         });
 
         if (!response.ok) {
