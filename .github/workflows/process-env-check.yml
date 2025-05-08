@@ -1,4 +1,4 @@
-name: Console Log Check
+name: Process Env Usage Check
 
 on:
   pull_request:
@@ -8,13 +8,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check-console-logs:
+  check-process-env:
     runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v4
       
-      - name: Check for console logging statements
+      - name: Check process.env usage
         run: |
-          chmod +x ./scripts/check-console-logs.sh
-          ./scripts/check-console-logs.sh 
+          chmod +x ./scripts/check-process-env.sh
+          ./scripts/check-process-env.sh 
