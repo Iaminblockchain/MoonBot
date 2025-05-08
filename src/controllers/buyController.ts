@@ -3,11 +3,13 @@ import { botInstance, getChatIdandMessageId, setState, STATE, setDeleteMessageId
 import { SOLANA_CONNECTION } from "..";
 import * as walletdb from "../models/walletModel";
 import * as tradedb from "../models/tradeModel";
+import * as positiondb from "../models/positionModel";
 import * as solana from "../solana/trade";
 import { getTokenPrice } from "../getPrice";
 import { logger } from "../logger";
 import { getSolBalance } from "../solana/util";
 import { getTokenMetaData } from "../solana/token";
+import { PositionStatus } from "../models/positionModel";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     try {
@@ -288,6 +290,23 @@ export const autoBuyContract = async (
             let trx = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "";
             const msg = await getBuySuccessMessage(trx, contractAddress, solAmount, trade_type, tradeSignal, settings);
             botInstance.sendMessage(chatId, msg);
+            
+            // Save position information
+            const splprice = await getTokenPrice(contractAddress);
+            const position: positiondb.Position = {
+                chatId,
+                tokenAddress: contractAddress,
+                signalSource: tradeSignal,
+                buyPrice: splprice,
+                stopLossPercentage: settings.stopLoss ? settings.stopLoss : 0,
+                takeProfitPercentage: settings.takeProfit ? settings.takeProfit : 0,
+                solAmount,
+                tokenAmount: result.tokenAmount || 0,
+                buyTime: new Date(),
+                status: PositionStatus.OPEN
+            };
+            await positiondb.createPosition(position);
+
             if (settings.takeProfit != null && settings.stopLoss) {
                 logger.info("set take profit");
                 const splprice = await getTokenPrice(contractAddress);
