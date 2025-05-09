@@ -47,10 +47,9 @@ module.exports = {
                 'src/controllers/sellController.ts',
                 'src/controllers/withdrawController.ts',
                 'src/models/copyTradeModel.ts',
-                'src/raydiumSwap.ts',
-                'src/scraper/manageGroups.ts',
-                // 'src/solana/trade.ts',
-                'src/solana/txhelpers.ts',
+                // 'src/raydiumSwap.ts',
+                // 'src/scraper/manageGroups.ts',
+                // 'src/solana/txhelpers.ts',
             ],
             rules: {
                 '@typescript-eslint/no-explicit-any': 'off'
