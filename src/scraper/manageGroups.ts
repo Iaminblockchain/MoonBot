@@ -16,17 +16,20 @@ export async function joinChannel(client: TelegramClient, chatId: string, cached
 
     for (let attempt = 0; attempt < MAX_RETRY_ATTEMPTS; attempt++) {
         try {
-            const result: any = await client.invoke(new Api.channels.JoinChannel({ channel: chatId }));
+            const result = await client.invoke(new Api.channels.JoinChannel({ channel: chatId }));
 
-            const channel = result?.chats && (result.chats[0] as Api.Channel);
+            // Type assertion to fix the property access error
+            const typedResult = result as { chats?: Api.Channel[] };
+            const channel = typedResult?.chats?.[0] as Api.Channel;
             if (!channel) {
                 throw new Error("Channel join failed, no channel returned");
             }
 
             logger.info("joined " + result);
             return;
-        } catch (e: any) {
-            const floodMatch = e.message?.match(/wait of (\d+) seconds/);
+        } catch (e: unknown) {
+            const errorMessage = (e as Error).message || "";
+            const floodMatch = errorMessage.match(/wait of (\d+) seconds/);
 
             if (floodMatch && attempt < MAX_RETRY_ATTEMPTS - 1) {
                 const waitSeconds = parseInt(floodMatch[1], 10);
@@ -71,22 +74,25 @@ export async function joinChannelByName(
     const MAX_RETRIES = 3;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-            const result: any = await client.invoke(new Api.channels.JoinChannel({ channel: entity }));
+            const result = await client.invoke(new Api.channels.JoinChannel({ channel: entity }));
 
-            const channel = result?.chats?.[0] as Api.Channel;
+            // Type assertion for result
+            const typedResult = result as { chats?: Api.Channel[] };
+            const channel = typedResult?.chats?.[0] as Api.Channel;
             if (!channel) throw new Error("Join failed: no channel returned");
 
             logger.info(`✅ Successfully joined channel: ${channel.title} (${channel.id})`);
             return { id: channel.id.toString(), success: true };
-        } catch (e: any) {
-            const floodMatch = e.message?.match(/wait of (\d+) seconds/);
+        } catch (e: unknown) {
+            const errorMessage = (e as Error).message || "";
+            const floodMatch = errorMessage.match(/wait of (\d+) seconds/);
 
             if (floodMatch && attempt < MAX_RETRIES) {
                 const waitSeconds = parseInt(floodMatch[1], 10);
                 logger.warn(`⏳ Flood wait (${waitSeconds}s) on attempt ${attempt} for ${channelName}. Retrying...`);
                 await delay(waitSeconds * 1000);
             } else {
-                logger.error(`❌ joinChannelByName failed for ${channelName} (attempt ${attempt}): ${e?.message || e}`);
+                logger.error(`❌ joinChannelByName failed for ${channelName} (attempt ${attempt}): ${errorMessage}`);
                 break;
             }
         }

@@ -366,7 +366,6 @@ export const jupiter_swap = async (
         } else {
             logger.error("unknown state no signature");
         }
-
     } catch (error) {
         logger.error("jupiter swap:", { error });
         logger.error(inputMint);

@@ -169,7 +169,7 @@ export const init = (client: TelegramClient) => {
                 withdrawController.handleCallBackQuery(query);
             } else if (data?.startsWith("settingController_")) {
                 settingController.handleCallBackQuery(query);
-            } else if (data?.startsWith("pC_")) {   
+            } else if (data?.startsWith("pC_")) {
                 portfolioController.handleCallBackQuery(query);
             } else if (data?.startsWith("pos_")) {
                 positionController.handleCallBackQuery(query);
@@ -346,7 +346,7 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
             ],
             [
                 { text: "Portfolio", callback_data: "pC_start" },
-                { text: "Position", callback_data: "pos_start" }
+                { text: "Position", callback_data: "pos_start" },
             ],
             [
                 { text: "Referrals (Coming soon) 🔜", callback_data: "referralController_start" },

@@ -234,7 +234,7 @@ export const onClickSellWithToken = async (query: TelegramBot.CallbackQuery) => 
         //     ]
         //     botInstance.sendMessage(chatId!, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: 'HTML' })
         // }
-    } catch (error) { }
+    } catch (error) {}
 };
 
 //run through each signal and check if sell is triggered

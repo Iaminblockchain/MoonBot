@@ -3,7 +3,7 @@ import { logger } from "../logger";
 
 export enum PositionStatus {
     OPEN = "OPEN",
-    CLOSED = "CLOSED"
+    CLOSED = "CLOSED",
 }
 
 export interface Position {
@@ -33,7 +33,7 @@ const positionSchema = new mongoose.Schema<Position>({
     buyTime: { type: Date, required: true, default: Date.now },
     status: { type: String, enum: Object.values(PositionStatus), required: true, default: PositionStatus.OPEN },
     closeTime: { type: Date },
-    closePrice: { type: Number }
+    closePrice: { type: Number },
 });
 
 export const PositionModel = mongoose.model<Position>("Position", positionSchema);
@@ -52,7 +52,7 @@ export const createPosition = async (position: Position) => {
         // Always create a new position
         const newPosition = new PositionModel({
             ...position,
-            status: PositionStatus.OPEN
+            status: PositionStatus.OPEN,
         });
         const result = await newPosition.save();
         logger.info("Position created successfully", { positionId: result._id });
@@ -67,12 +67,12 @@ export const closePosition = async (chatId: string, tokenAddress: string, closeP
     try {
         const result = await PositionModel.updateOne(
             { chatId, tokenAddress, status: PositionStatus.OPEN },
-            { 
-                $set: { 
+            {
+                $set: {
                     status: PositionStatus.CLOSED,
                     closeTime: new Date(),
-                    closePrice: closePrice
-                }
+                    closePrice: closePrice,
+                },
             }
         ).exec();
         logger.info("Position closed successfully", { chatId, tokenAddress, closePrice });
@@ -103,10 +103,7 @@ export const getPositionByTokenAddress = async (chatId: string, tokenAddress: st
 
 export const updatePosition = async (chatId: string, tokenAddress: string, updates: Partial<Position>) => {
     try {
-        const result = await PositionModel.updateOne(
-            { chatId, tokenAddress },
-            { $set: updates }
-        ).exec();
+        const result = await PositionModel.updateOne({ chatId, tokenAddress }, { $set: updates }).exec();
         logger.info("Position updated successfully", { chatId, tokenAddress, updates });
         return result.modifiedCount > 0;
     } catch (error) {
@@ -124,4 +121,4 @@ export const deletePosition = async (chatId: string, tokenAddress: string) => {
         logger.error("Error deleting position", { error, chatId, tokenAddress });
         throw error;
     }
-}; 
+};

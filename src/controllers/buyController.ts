@@ -306,7 +306,7 @@ export const autoBuyContract = async (
                 solAmount,
                 tokenAmount: result.tokenAmount || 0,
                 buyTime: new Date(),
-                status: PositionStatus.OPEN
+                status: PositionStatus.OPEN,
             };
             await positiondb.createPosition(position);
 
