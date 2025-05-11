@@ -1,19 +1,5 @@
-import { retrieveEnvVariable } from "./config";
-import * as db from "./db";
 import * as dotenv from "dotenv";
-import { Connection } from "@solana/web3.js";
-import { scrape } from "./scraper/scraper";
-import * as bot from "./bot";
-import { logger } from "./logger";
-import { setupServer } from "./server";
-import { getTgClient } from "./scraper/scraper";
-import { Chat } from "./models/chatModel";
-import { botInstance } from "./bot";
-import mongoose from "mongoose";
-import { TelegramClient } from "telegram";
-import { initJoinQueue, startJoinQueue } from "./scraper/queue";
-import express from "express";
-
+import { retrieveEnvVariable } from "./config";
 dotenv.config();
 
 const PORT = Number(retrieveEnvVariable("PORT"));
@@ -33,6 +19,20 @@ export const START_ENDPOINT_ENABLED = retrieveEnvVariable("start_endpoint_enable
 export const START_ENDPOINT_API_KEY = retrieveEnvVariable("start_endpoint_api_key");
 export const TELEGRAM_BOT_USERNAME = retrieveEnvVariable("telegram_bot_username");
 export const TELEGRAM_PROXY = retrieveEnvVariable("telegram_proxy");
+
+import * as db from "./db";
+import { Connection } from "@solana/web3.js";
+import { scrape } from "./scraper/scraper";
+import * as bot from "./bot";
+import { logger } from "./logger";
+import { setupServer } from "./server";
+import { getTgClient } from "./scraper/scraper";
+import { Chat } from "./models/chatModel";
+import { botInstance } from "./bot";
+import mongoose from "mongoose";
+import { TelegramClient } from "telegram";
+import { initJoinQueue, startJoinQueue } from "./scraper/queue";
+import express from "express";
 
 export const SOLANA_CONNECTION = new Connection(SOLANA_RPC_ENDPOINT, {
     wsEndpoint: SOLANA_WSS_ENDPOINT,
