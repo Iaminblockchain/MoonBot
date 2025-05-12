@@ -1,6 +1,10 @@
 // tx-helpers.ts
 import { Connection, SignatureStatus } from "@solana/web3.js";
 import { logger } from "../logger";
+
+// Define commitment level constant
+export const COMMITMENT_LEVEL = "confirmed";
+
 /*   error codes & texts  */
 export const ERR_1001 = "Unknown instruction error";
 export const ERR_1002 = "Provided owner is not allowed";
@@ -103,7 +107,7 @@ export async function getTx(url: string, txsig: string) {
         params: [
             txsig,
             {
-                commitment: "confirmed",
+                commitment: COMMITMENT_LEVEL,
                 maxSupportedTransactionVersion: 0,
                 encoding: "json",
             },
@@ -151,7 +155,7 @@ export async function getTxInfo(txsig: string, connection: Connection, tokenMint
     for (let retry = 0; retry < maxRetries; retry++) {
         try {
             const txn = await connection.getTransaction(txsig, {
-                commitment: "finalized",
+                commitment: COMMITMENT_LEVEL,
                 maxSupportedTransactionVersion: 0,
             });
             if (txn) {
@@ -186,7 +190,6 @@ export function extractTransactionMetrics(tx: Transaction, tokenMint: string): R
     if (!message) return {};
 
     const accountKeys: string[] = message.accountKeys || [];
-    const ownerPubkey = accountKeys[0] ?? "";
 
     const meta = tx.meta ?? {
         preBalances: [],
@@ -204,9 +207,15 @@ export function extractTransactionMetrics(tx: Transaction, tokenMint: string): R
     const preTokenBalances = meta.preTokenBalances || [];
     const postTokenBalances = meta.postTokenBalances || [];
 
+    const ownerPubkey =
+        postTokenBalances.find((b) => b.mint === tokenMint)?.owner || preTokenBalances.find((b) => b.mint === tokenMint)?.owner || "";
+
     const preToken = getTokenBalance(preTokenBalances, tokenMint, ownerPubkey);
     const postToken = getTokenBalance(postTokenBalances, tokenMint, ownerPubkey);
+    logger.info(`preToken ${tokenMint}: ${preToken}  ${ownerPubkey} ${JSON.stringify(preTokenBalances)}`);
+    logger.info(`postToken ${tokenMint}: ${postToken}  ${ownerPubkey} ${JSON.stringify(postTokenBalances)}`);
     const tokenBalanceChange = postToken - preToken;
+    logger.info(`tokenBalanceChange ${tokenBalanceChange}`);
 
     /* SOL spent (lamports SOL) */
     let solBalanceChange = 0;

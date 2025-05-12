@@ -89,8 +89,17 @@ const onClickSell = async (query: TelegramBot.CallbackQuery, fraction: number, w
         );
         if (result && result.confirmed) {
             logger.info("Sell transaction result", { confirmed: result.confirmed });
-            const message = result.confirmed ? "Sell successfully" : "Sell failed";
-            await botInstance.sendMessage(chatId!, message);
+            logger.info("execution info", { executionInfo: result.executionInfo });
+            let tokenBalanceChange = 0;
+            let sol_balance_change = 0;
+            if (result.executionInfo) {
+                tokenBalanceChange = Number(result.executionInfo.token_balance_change);
+                sol_balance_change = Number(result.executionInfo.sol_balance_change);
+            }
+            const trxLink = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "N/A";
+
+            const msg = await getSellSuccessMessage(trxLink, tokenAddress, sol_balance_change, tokenBalanceChange, "Sell");
+            await botInstance.sendMessage(chatId!, msg);
         } else {
             logger.error("Sell transaction failed", { result });
             await botInstance.sendMessage(chatId!, "Sell failed");
@@ -302,4 +311,40 @@ export const autoSellHandler = () => {
             }
         });
     });
+};
+
+const getSellSuccessMessage = async (
+    trx: string,
+    tokenAddress: string,
+    solAmount: number,
+    tokenBalanceChange: number,
+    trade_type: string,
+    settings?: {
+        amount: number;
+        isPercentage: boolean;
+        maxSlippage: number;
+        takeProfit: number | null;
+        repetitiveBuy: number;
+        stopLoss: number | null;
+    },
+    tradeSignal?: string
+) => {
+    const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
+
+    // Add token balance change info to message if available
+    const tokenInfo = tokenBalanceChange ? `\nTokens sold: ${tokenBalanceChange.toLocaleString()}` : "";
+
+    const sourceInfo = tradeSignal ? `Source: ${tradeSignal}` : "";
+
+    let message = `${trade_type} successful: ${trx}\n SOL Amount: ${solAmount}\nTicker: ${metaData?.symbol}${tokenInfo}\nSource: ${sourceInfo}`;
+
+    if (settings) {
+        if (settings.takeProfit !== null) {
+            message += `\nTake profit: ${settings.takeProfit}%`;
+        }
+        if (settings.stopLoss !== null) {
+            message += `\nStop loss: ${settings.stopLoss}%`;
+        }
+    }
+    return message;
 };

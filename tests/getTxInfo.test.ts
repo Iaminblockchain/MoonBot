@@ -6,8 +6,11 @@ dotenv.config();
 
 
 describe("getTxInfo", () => {
-    const txsig = "3Prpzq4yrrh94n6v5Q6YdoYbjjy47LRokBBYoqQV4guYcVGZ7xVZER6qNgfM7THVAMGbttjinpCnxnRfAHb45Nsw";
-    const tokenMint = "UASnrvAChQ1FSFvU25Mz3Am6sYgCt4bcr4pXQJ7pump";
+    const txsig1 = "3Prpzq4yrrh94n6v5Q6YdoYbjjy47LRokBBYoqQV4guYcVGZ7xVZER6qNgfM7THVAMGbttjinpCnxnRfAHb45Nsw";
+    const txsig2 = "5JQ1Wm2TKaSp8PFxDG4yApBERQGEcYJ47mXc1yPtcW3dYJ7oTWCyvjEMg4L2ev1YpR6yfjVfA67enpeTCb64xYfh";
+    const tokenMint1 = "UASnrvAChQ1FSFvU25Mz3Am6sYgCt4bcr4pXQJ7pump";
+    const tokenMint2 = "GZXM8VD6zcPVAeimvNrfz6tajZuohTeghDiu1DkDpump";
+
 
     beforeEach(() => {
 
@@ -16,13 +19,14 @@ describe("getTxInfo", () => {
     it("should return transaction info when transaction is found", async () => {
         console.log("SOLANA_RPC_ENDPOINT:", process.env.solana_rpc_endpoint);
         let url = process.env.solana_rpc_endpoint || "https://api.mainnet-beta.solana.com";
-        const tx = await getTx(url, txsig);
+        const tx = await getTx(url, txsig1);
         expect(tx).toBeDefined();
         expect(tx).toHaveProperty("transaction");
         expect(tx.blockTime).toBeGreaterThan(0);
 
-        const tokenMint = "UASnrvAChQ1FSFvU25Mz3Am6sYgCt4bcr4pXQJ7pump";
-        const metrics = extractTransactionMetrics(tx, tokenMint);
+
+        const metrics = extractTransactionMetrics(tx, tokenMint1);
+        console.log(metrics);
 
         expect(metrics).toBeDefined();
         expect(metrics).toHaveProperty("owner_pubkey");
@@ -36,7 +40,26 @@ describe("getTxInfo", () => {
 
     });
 
-    it("should return null when transaction is not found after max retries", async () => {
+    it("should return transaction info when transaction is found", async () => {
+        console.log("SOLANA_RPC_ENDPOINT:", process.env.solana_rpc_endpoint);
+        let url = process.env.solana_rpc_endpoint || "https://api.mainnet-beta.solana.com";
+        const tx = await getTx(url, txsig2);
+        expect(tx).toBeDefined();
+        expect(tx).toHaveProperty("transaction");
+        expect(tx.blockTime).toBeGreaterThan(0);
+
+        const metrics = extractTransactionMetrics(tx, tokenMint2);
+        console.log(metrics);
+
+        expect(metrics).toBeDefined();
+        expect(metrics).toHaveProperty("owner_pubkey");
+        expect(metrics).toHaveProperty("token");
+        expect(metrics).toHaveProperty("token_balance_change");
+        expect(metrics).toHaveProperty("transaction_fee");
+        expect(metrics).toHaveProperty("sol_balance_change");
+        expect(metrics).toHaveProperty("token_creation_cost");
+        expect(metrics.sol_balance_change).toBeGreaterThan(0);
+        expect(metrics.token_balance_change).toBeGreaterThan(0);
 
     });
 }); 

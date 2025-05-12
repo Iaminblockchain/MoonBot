@@ -30,6 +30,7 @@ export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
 const whitelistedUsers: string[] = require("../util/whitelistUsers.json");
+const SOL_MINT = "So11111111111111111111111111111111111111112";
 
 import { getErrorMessage } from "../util/error";
 
@@ -337,9 +338,9 @@ export const jupiter_swap = async (
 
         // After retry, check if confirmed and validate with getStatusTxnRetry
         if (result.confirmed && result.signature) {
-            //TODO needs testing
-            // Insert execution info logging
-            let executionInfo = await getTxInfoMetrics(result.signature, CONNECTION, outputMint);
+            // execution info, distinguish between SOL and token
+            const tokenMint = inputMint === SOL_MINT ? outputMint : inputMint;
+            let executionInfo = await getTxInfoMetrics(result.signature, CONNECTION, tokenMint);
             if (executionInfo) {
                 logger.info("Execution info", executionInfo);
             }

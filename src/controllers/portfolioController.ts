@@ -232,7 +232,7 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
                     if (result && result.confirmed) {
                         await botInstance.sendMessage(
                             chatId,
-                            `Successfully sell ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
+                            `Successfully sold ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
             https://solscan.io/tx/${result.txSignature}`,
                             {
                                 parse_mode: "HTML",
@@ -258,7 +258,7 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
             if (result && result.confirmed) {
                 await botInstance.sendMessage(
                     chatId,
-                    `Successfully sell ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
+                    `Successfully sold ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
 https://solscan.io/tx/${result.txSignature}`,
                     {
                         parse_mode: "HTML",

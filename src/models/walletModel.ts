@@ -26,8 +26,10 @@ export const getWalletByChatId = async (chatId: TelegramBot.ChatId) => {
 
 export const createWallet = async (chatId: TelegramBot.ChatId, privateKey: string) => {
     try {
+        logger.info(`Creating wallet for chatId: ${chatId}`);
         const wallet = new Wallet({ chatId, privateKey });
         await wallet.save();
+        logger.info(`Wallet saved with id: ${wallet._id}`);
     } catch (error) {
         logger.error("Error creating wallet:", { error });
     }

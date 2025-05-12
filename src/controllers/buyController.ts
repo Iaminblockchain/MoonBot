@@ -60,11 +60,16 @@ const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: number): 
 
         if (result && result.confirmed) {
             const trxLink = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "N/A";
-            //TODO get execution info
             logger.info("execution info", { executionInfo: result.executionInfo });
 
-            logger.info("onClickBuy success", { chatId, txSignature: result.txSignature });
-            const msg = await getBuySuccessMessage(trxLink, trade.tokenAddress, amountSol);
+            let tokenBalanceChange = 0;
+            let sol_balance_change = 0;
+            if (result.executionInfo) {
+                tokenBalanceChange = Number(result.executionInfo.token_balance_change);
+                sol_balance_change = Number(result.executionInfo.sol_balance_change);
+            }
+            logger.info("onClickBuy success", { chatId, txSignature: result.txSignature, tokenBalanceChange });
+            const msg = await getBuySuccessMessage(trxLink, trade.tokenAddress, "Buy", tokenBalanceChange, sol_balance_change);
             botInstance.sendMessage(chatId!, msg);
         } else {
             logger.error("onClickBuy failed: not confirmed", { chatId, result });
@@ -125,7 +130,21 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
                 if (result.txSignature) {
                     trx = `http://solscan.io/tx/${result.txSignature}`;
                 }
-                const msg = await getBuySuccessMessage(trx, trade.tokenAddress, amount);
+                logger.info("execution info", { executionInfo: result.executionInfo });
+
+                let tokenBalanceChange = 0;
+                let sol_balance_change = 0;
+                if (result.executionInfo) {
+                    tokenBalanceChange = Number(result.executionInfo.token_balance_change);
+                    sol_balance_change = Number(result.executionInfo.sol_balance_change);
+                }
+                const msg = await getBuySuccessMessage(
+                    trx,
+                    trade.tokenAddress,
+                    "Buy",
+                    Number(tokenBalanceChange),
+                    Number(sol_balance_change)
+                );
                 botInstance.sendMessage(chatId!, msg);
             } else {
                 logger.error(`buy failed ${result}`);
@@ -291,7 +310,22 @@ export const autoBuyContract = async (
 
         if (result && result.confirmed) {
             let trx = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "";
-            const msg = await getBuySuccessMessage(trx, contractAddress, solAmount, trade_type, tradeSignal, settings);
+            logger.info("execution info", { executionInfo: result.executionInfo });
+            let tokenBalanceChange = 0;
+            let solBalanceChange = 0;
+            if (result.executionInfo) {
+                tokenBalanceChange = Number(result.executionInfo.token_balance_change);
+                solBalanceChange = Number(result.executionInfo.sol_balance_change);
+            }
+            const msg = await getBuySuccessMessage(
+                trx,
+                contractAddress,
+                trade_type,
+                tokenBalanceChange,
+                solBalanceChange,
+                settings,
+                tradeSignal
+            );
             botInstance.sendMessage(chatId, msg);
 
             // Save position information
@@ -341,9 +375,9 @@ export const autoBuyContract = async (
 const getBuySuccessMessage = async (
     trx: string,
     tokenAddress: string,
-    solAmount: number,
-    trade_type?: string,
-    tradeSignal?: string,
+    trade_type: string,
+    tokenBalanceChange?: number,
+    solBalanceChange?: number,
     settings?: {
         amount: number;
         isPercentage: boolean;
@@ -351,23 +385,24 @@ const getBuySuccessMessage = async (
         takeProfit: number | null;
         repetitiveBuy: number;
         stopLoss: number | null;
-    }
+    },
+    tradeSignal?: string
 ) => {
     const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-    if (!trade_type) {
-        return `Buy successful: ${trx}\nTicker: ${metaData?.symbol}\nBuy Amount: ${solAmount} SOL`;
-    } else if (settings) {
-        let message = `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource: ${tradeSignal ? tradeSignal : ""}`;
 
+    const tokenInfo = tokenBalanceChange ? `\nTokens bought: ${tokenBalanceChange.toLocaleString()}` : "";
+
+    const sourceInfo = tradeSignal ? `Source: ${tradeSignal}` : "";
+
+    let message = `${trade_type} successful: ${trx}\n SOL Amount: ${solBalanceChange}\nTicker: ${metaData?.symbol} ${tokenInfo}\n${sourceInfo}`;
+
+    if (settings) {
         if (settings.takeProfit !== null) {
             message += `\nTake profit: ${settings.takeProfit}%`;
         }
         if (settings.stopLoss !== null) {
             message += `\nStop loss: ${settings.stopLoss}%`;
         }
-
-        return message;
-    } else {
-        return `${trade_type} successful: ${trx}\nBuy Amount: ${solAmount} SOL\nTicker: ${metaData?.symbol}\nSource: ${tradeSignal ? tradeSignal : ""}`;
     }
+    return message;
 };
