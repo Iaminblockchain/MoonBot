@@ -42,7 +42,6 @@ const sensitiveValues = [
 
 // Function to sanitize sensitive values in log messages
 function sanitize(message: string): string {
-    console.log(sensitiveValues);
     let sanitized = message;
     for (const value of sensitiveValues) {
         if (value) {
