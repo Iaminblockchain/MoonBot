@@ -34,6 +34,8 @@ const SOL_MINT = "So11111111111111111111111111111111111111112";
 
 import { getErrorMessage } from "../util/error";
 
+const useJito = false;
+
 interface ReferralInfo {
     key: string;
     referer: string | null;
@@ -201,6 +203,83 @@ async function sendWithRetries(
 
     return { confirmed: false, signature: null };
 }
+
+export interface SwapResult {
+    success: boolean;
+    txSignature?: string | null;
+    token_balance_change: number;
+    sol_balance_change: number;
+    error?: string;
+}
+
+export const buy_swap = async (
+    CONNECTION: Connection,
+    PRIVATE_KEY: string,
+    tokenAddress: string,
+    amount: number,
+    slippage?: number
+): Promise<SwapResult> => {
+    const result = await jupiter_swap(CONNECTION, PRIVATE_KEY, WSOL_ADDRESS, tokenAddress, amount, "ExactIn", useJito, slippage);
+
+    if (result && result.confirmed) {
+        logger.info("execution info", { executionInfo: result.executionInfo });
+
+        let token_balance_change = 0;
+        let sol_balance_change = 0;
+        if (result.executionInfo) {
+            token_balance_change = Number(result.executionInfo.token_balance_change);
+            sol_balance_change = Number(result.executionInfo.sol_balance_change);
+        }
+
+        return {
+            success: true,
+            txSignature: result.txSignature,
+            token_balance_change: token_balance_change,
+            sol_balance_change: sol_balance_change,
+        };
+    } else {
+        return {
+            success: false,
+            token_balance_change: 0,
+            sol_balance_change: 0,
+            error: "Swap failed to confirm",
+        };
+    }
+};
+
+export const sell_swap = async (
+    CONNECTION: Connection,
+    PRIVATE_KEY: string,
+    tokenAddress: string,
+    amount: number,
+    slippage?: number
+): Promise<SwapResult> => {
+    const result = await jupiter_swap(CONNECTION, PRIVATE_KEY, tokenAddress, WSOL_ADDRESS, amount, "ExactIn", useJito);
+    if (result && result.confirmed) {
+        logger.info("execution info", { executionInfo: result.executionInfo });
+
+        let token_balance_change = 0;
+        let sol_balance_change = 0;
+        if (result.executionInfo) {
+            token_balance_change = Number(result.executionInfo.token_balance_change);
+            sol_balance_change = Number(result.executionInfo.sol_balance_change);
+        }
+        //TODO: store
+        return {
+            success: true,
+            txSignature: result.txSignature,
+            token_balance_change: token_balance_change,
+            sol_balance_change: sol_balance_change,
+        };
+    } else {
+        return {
+            success: false,
+            token_balance_change: 0,
+            sol_balance_change: 0,
+            error: "Swap failed to confirm",
+        };
+    }
+};
 
 export const jupiter_swap = async (
     CONNECTION: Connection,

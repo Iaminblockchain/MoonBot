@@ -2,8 +2,8 @@ import winston from "winston";
 import { Logtail } from "@logtail/node";
 import { LogtailTransport } from "@logtail/winston";
 import { retrieveEnvVariable } from "./config";
-import { 
-    TELEGRAM_API_ID, 
+import {
+    TELEGRAM_API_ID,
     TELEGRAM_API_HASH,
     TELEGRAM_BOT_TOKEN,
     MONGO_URI,
@@ -11,7 +11,7 @@ import {
     SOLANA_WSS_ENDPOINT,
     TELEGRAM_STRING_SESSION,
     START_ENDPOINT_API_KEY,
-    TELEGRAM_PROXY
+    TELEGRAM_PROXY,
 } from "./index";
 
 const LOGTAIL_TOKEN = retrieveEnvVariable("logtail_token");
@@ -45,7 +45,7 @@ function sanitize(message: string): string {
     let sanitized = message;
     for (const value of sensitiveValues) {
         if (value) {
-            sanitized = sanitized.split(String(value)).join('***');
+            sanitized = sanitized.split(String(value)).join("***");
         }
     }
     return sanitized;
@@ -55,13 +55,11 @@ export const logger = winston.createLogger({
     level: "info",
     format: winston.format.combine(
         winston.format.timestamp(),
-        winston.format.printf(
-            ({ timestamp, level, message, ...meta }) => {
-                const original = `${timestamp} ${level}: ${message}` + (Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "");
-                const sanitized = sanitize(original)
-                return sanitized;
-            }
-        )
+        winston.format.printf(({ timestamp, level, message, ...meta }) => {
+            const original = `${timestamp} ${level}: ${message}` + (Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "");
+            const sanitized = sanitize(original);
+            return sanitized;
+        })
     ),
     transports,
 });

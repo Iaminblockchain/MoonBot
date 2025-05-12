@@ -46,28 +46,17 @@ const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: number): 
         logger.info("onClickBuy initiated", { chatId, amountSol, token: trade.tokenAddress });
         await botInstance.sendMessage(chatId!, "Sending buy transaction");
 
-        const lamports = amountSol * 10 ** 9;
+        const amountlamports = amountSol * 10 ** 9;
         logger.info("call jupyter swap");
-        const result = await solana.jupiter_swap(
-            SOLANA_CONNECTION,
-            wallet.privateKey,
-            solana.WSOL_ADDRESS,
-            trade.tokenAddress,
-            lamports,
-            "ExactIn",
-            false
-        );
+        const result = await solana.buy_swap(SOLANA_CONNECTION, wallet.privateKey, trade.tokenAddress, amountlamports);
 
-        if (result && result.confirmed) {
+        if (result.success) {
             const trxLink = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "N/A";
-            logger.info("execution info", { executionInfo: result.executionInfo });
+            logger.info("result", { executionInfo: result });
 
-            let tokenBalanceChange = 0;
-            let sol_balance_change = 0;
-            if (result.executionInfo) {
-                tokenBalanceChange = Number(result.executionInfo.token_balance_change);
-                sol_balance_change = Number(result.executionInfo.sol_balance_change);
-            }
+            let tokenBalanceChange = result.token_balance_change;
+            let sol_balance_change = result.sol_balance_change;
+
             logger.info("onClickBuy success", { chatId, txSignature: result.txSignature, tokenBalanceChange });
             const msg = await getBuySuccessMessage(trxLink, trade.tokenAddress, "Buy", tokenBalanceChange, sol_balance_change);
             botInstance.sendMessage(chatId!, msg);
@@ -115,29 +104,22 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
             botInstance.sendMessage(chatId!, "Sending buy transaction");
             logger.info("Sending buy transaction:", { tokenAddress: trade.tokenAddress });
 
-            let result = await solana.jupiter_swap(
+            let result = await solana.buy_swap(
                 SOLANA_CONNECTION,
                 wallet.privateKey,
-                solana.WSOL_ADDRESS,
                 trade.tokenAddress,
-                parseInt((amount * 10 ** 9).toString()),
-                "ExactIn",
-                false
+                parseInt((amount * 10 ** 9).toString())
             );
-            if (result && result.confirmed) {
+            if (result.success) {
                 logger.info(`confirmed ${result}`);
                 let trx = "";
                 if (result.txSignature) {
                     trx = `http://solscan.io/tx/${result.txSignature}`;
                 }
-                logger.info("execution info", { executionInfo: result.executionInfo });
 
-                let tokenBalanceChange = 0;
-                let sol_balance_change = 0;
-                if (result.executionInfo) {
-                    tokenBalanceChange = Number(result.executionInfo.token_balance_change);
-                    sol_balance_change = Number(result.executionInfo.sol_balance_change);
-                }
+                let tokenBalanceChange = result.token_balance_change;
+                let sol_balance_change = result.sol_balance_change;
+
                 const msg = await getBuySuccessMessage(
                     trx,
                     trade.tokenAddress,
@@ -297,26 +279,19 @@ export const autoBuyContract = async (
             `${trade_type}: Sending buy transaction for Token  ${metaData?.name}(${metaData?.symbol}) : ${contractAddress} with amount ${solAmount} SOL ${tradeSignal ? `from signal @${tradeSignal} ` : ""}(Max Slippage: ${settings.maxSlippage}%)`
         );
 
-        let result = await solana.jupiter_swap(
+        let result = await solana.buy_swap(
             SOLANA_CONNECTION,
             wallet.privateKey,
-            solana.WSOL_ADDRESS,
             contractAddress,
             solAmount * 10 ** 9,
-            "ExactIn",
-            false,
             settings.maxSlippage * 100
         );
 
-        if (result && result.confirmed) {
+        if (result.success) {
             let trx = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "";
-            logger.info("execution info", { executionInfo: result.executionInfo });
-            let tokenBalanceChange = 0;
-            let solBalanceChange = 0;
-            if (result.executionInfo) {
-                tokenBalanceChange = Number(result.executionInfo.token_balance_change);
-                solBalanceChange = Number(result.executionInfo.sol_balance_change);
-            }
+            let tokenBalanceChange = Number(result.token_balance_change);
+            let solBalanceChange = Number(result.sol_balance_change);
+
             const msg = await getBuySuccessMessage(
                 trx,
                 contractAddress,
@@ -328,6 +303,7 @@ export const autoBuyContract = async (
             );
             botInstance.sendMessage(chatId, msg);
 
+            //TODO possbly in trade.ts
             // Save position information
             const splprice = await getTokenPrice(contractAddress);
             const position: positiondb.Position = {
@@ -338,7 +314,7 @@ export const autoBuyContract = async (
                 stopLossPercentage: settings.stopLoss ? settings.stopLoss : 0,
                 takeProfitPercentage: settings.takeProfit ? settings.takeProfit : 0,
                 solAmount,
-                tokenAmount: result.tokenAmount || 0,
+                tokenAmount: result.token_balance_change,
                 buyTime: new Date(),
                 status: PositionStatus.OPEN,
             };
@@ -394,7 +370,7 @@ const getBuySuccessMessage = async (
 
     const sourceInfo = tradeSignal ? `Source: ${tradeSignal}` : "";
 
-    let message = `${trade_type} successful: ${trx}\n SOL Amount: ${solBalanceChange}\nTicker: ${metaData?.symbol} ${tokenInfo}\n${sourceInfo}`;
+    let message = `${trade_type} successful\nTicker: ${metaData?.symbol}\nSOL Amount: ${solBalanceChange}\n${tokenInfo}\n${sourceInfo}\n${trx}`;
 
     if (settings) {
         if (settings.takeProfit !== null) {
