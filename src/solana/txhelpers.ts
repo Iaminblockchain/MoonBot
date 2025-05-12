@@ -1,5 +1,5 @@
 // tx-helpers.ts
-import { Connection, ParsedTransactionWithMeta, PublicKey, SignatureStatus } from "@solana/web3.js";
+import { Connection, SignatureStatus } from "@solana/web3.js";
 import { logger } from "../logger";
 /*   error codes & texts  */
 export const ERR_1001 = "Unknown instruction error";
@@ -13,7 +13,15 @@ export const ERR_6003 = "slippage: Too little SOL received to sell the given amo
 /*  helpers  */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const getTokenBalance = (tokenBalances: any[], mint: string, owner: string): number => {
+interface TokenBalance {
+    mint: string;
+    owner: string;
+    uiTokenAmount?: {
+        uiAmount: number | null;
+    };
+}
+
+const getTokenBalance = (tokenBalances: TokenBalance[], mint: string, owner: string): number => {
     for (const t of tokenBalances) {
         if (t?.mint === mint && t?.owner === owner) {
             return Number(t.uiTokenAmount?.uiAmount ?? 0);
@@ -21,6 +29,11 @@ const getTokenBalance = (tokenBalances: any[], mint: string, owner: string): num
     }
     return 0;
 };
+
+interface InstructionErrorDetail {
+    Custom?: number;
+    [key: string]: unknown;
+}
 
 // status poller
 export async function getStatusTxnRetry(
@@ -46,11 +59,11 @@ export async function getStatusTxnRetry(
             }
 
             /*  decode InstructionError  */
-            const err = status.err as any;
+            const err = status.err as { InstructionError?: [number, InstructionErrorDetail | string] };
             if (err?.InstructionError) {
-                const [, detail] = err.InstructionError as [number, any];
+                const [, detail] = err.InstructionError;
 
-                if (detail === "IllegalOwner") {
+                if (typeof detail === "string" && detail === "IllegalOwner") {
                     return { success: false, error: ERR_1002, errorcode: 1002 };
                 }
 
@@ -83,7 +96,6 @@ export async function getStatusTxnRetry(
 }
 
 export async function getTx(url: string, txsig: string) {
-
     const body = JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
@@ -93,16 +105,16 @@ export async function getTx(url: string, txsig: string) {
             {
                 commitment: "confirmed",
                 maxSupportedTransactionVersion: 0,
-                encoding: "json"
-            }
-        ]
+                encoding: "json",
+            },
+        ],
     });
 
     try {
         const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body,
         });
 
         if (!response.ok) {
@@ -117,8 +129,24 @@ export async function getTx(url: string, txsig: string) {
     }
 }
 
+interface Transaction {
+    transaction?: {
+        message: {
+            accountKeys: string[];
+        };
+    };
+    meta?: {
+        preBalances: number[];
+        postBalances: number[];
+        fee: number;
+        computeUnitsConsumed?: number;
+        preTokenBalances: TokenBalance[];
+        postTokenBalances: TokenBalance[];
+    };
+}
+
 // get tx info
-export async function getTxInfo(txsig: string, connection: Connection, tokenMint: string): Promise<Record<string, any> | null> {
+export async function getTxInfo(txsig: string, connection: Connection, tokenMint: string): Promise<Transaction | null> {
     const maxRetries = 20;
     for (let retry = 0; retry < maxRetries; retry++) {
         try {
@@ -128,8 +156,8 @@ export async function getTxInfo(txsig: string, connection: Connection, tokenMint
             });
             if (txn) {
                 // make it plain JSON – easier to work with & log
-                const plain = JSON.parse(JSON.stringify(txn)) as ParsedTransactionWithMeta;
-                return plain as any;
+                const plain = JSON.parse(JSON.stringify(txn)) as Transaction;
+                return plain;
             }
             await sleep(1000);
         } catch (e) {
@@ -153,17 +181,24 @@ export async function getTxInfoMetrics(txsig: string, connection: Connection, to
 }
 
 // extract metrics
-export function extractTransactionMetrics(tx: any, tokenMint: string): Record<string, any> {
+export function extractTransactionMetrics(tx: Transaction, tokenMint: string): Record<string, unknown> {
     const message = tx.transaction?.message;
     if (!message) return {};
 
     const accountKeys: string[] = message.accountKeys || [];
     const ownerPubkey = accountKeys[0] ?? "";
 
-    const meta = tx.meta ?? {};
-    const preBalances: number[] = meta.preBalances || [];
-    const postBalances: number[] = meta.postBalances || [];
-    const fee: number = meta.fee || 0;
+    const meta = tx.meta ?? {
+        preBalances: [],
+        postBalances: [],
+        fee: 0,
+        preTokenBalances: [],
+        postTokenBalances: [],
+    };
+
+    const preBalances: number[] = meta.preBalances;
+    const postBalances: number[] = meta.postBalances;
+    const fee: number = meta.fee;
     const computeUnits = meta.computeUnitsConsumed ?? null;
 
     const preTokenBalances = meta.preTokenBalances || [];

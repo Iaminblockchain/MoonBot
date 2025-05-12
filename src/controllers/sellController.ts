@@ -87,9 +87,14 @@ const onClickSell = async (query: TelegramBot.CallbackQuery, fraction: number, w
             "ExactIn",
             wrapUnwrapSOL
         );
-        logger.info("Sell transaction result", { confirmed: result.confirmed });
-        const message = result.confirmed ? "Sell successfully" : "Sell failed";
-        await botInstance.sendMessage(chatId!, message);
+        if (result && result.confirmed) {
+            logger.info("Sell transaction result", { confirmed: result.confirmed });
+            const message = result.confirmed ? "Sell successfully" : "Sell failed";
+            await botInstance.sendMessage(chatId!, message);
+        } else {
+            logger.error("Sell transaction failed", { result });
+            await botInstance.sendMessage(chatId!, "Sell failed");
+        }
     } catch (error: any) {
         logger.error("Sell error", { error });
         await botInstance.sendMessage(chatId!, `Sell error: ${error.message}`);
@@ -263,7 +268,7 @@ export const autoSellHandler = () => {
                         false
                     );
 
-                    if (result.confirmed) {
+                    if (result && result.confirmed) {
                         if (!botInstance) {
                             logger.error("Bot instance not initialized in autoSellHandler result handler");
                             return;

@@ -229,7 +229,7 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
                         sellAmount,
                         "ExactIn"
                     );
-                    if (result.confirmed) {
+                    if (result && result.confirmed) {
                         await botInstance.sendMessage(
                             chatId,
                             `Successfully sell ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
@@ -255,7 +255,7 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
                 }
             );
             const result = await jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, WSOL_ADDRESS, sellAmount, "ExactIn");
-            if (result.confirmed) {
+            if (result && result.confirmed) {
                 await botInstance.sendMessage(
                     chatId,
                     `Successfully sell ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 

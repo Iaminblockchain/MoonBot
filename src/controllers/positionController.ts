@@ -55,14 +55,24 @@ const showPositionMenu = async (chatId: string) => {
     const buttons = [
         [
             { text: "Open Positions", callback_data: "pos_open" },
+<<<<<<< HEAD
             { text: "Closed Positions", callback_data: "pos_closed" }
         ],
         [{ text: "Close", callback_data: "close" }]
+=======
+            { text: "Closed Positions", callback_data: "pos_closed" },
+        ],
+        [{ text: "Close", callback_data: "close" }],
+>>>>>>> develop
     ];
 
     await botInstance.sendMessage(chatId, title, {
         reply_markup: { inline_keyboard: buttons },
+<<<<<<< HEAD
         parse_mode: "HTML"
+=======
+        parse_mode: "HTML",
+>>>>>>> develop
     });
 };
 
@@ -76,13 +86,22 @@ const showOpenPositions = async (chatId: string) => {
         const positions = await getPositionsByChatId(chatId);
         logger.info("------------------>>positions<<----------------");
         logger.info(`positions`, { positions });
+<<<<<<< HEAD
         const openPositions = positions.filter(p => p.status === "OPEN");
+=======
+        const openPositions = positions.filter((p) => p.status === "OPEN");
+>>>>>>> develop
 
         if (openPositions.length === 0) {
             await botInstance.sendMessage(chatId, "No open positions found.", {
                 reply_markup: {
+<<<<<<< HEAD
                     inline_keyboard: [[{ text: "Back", callback_data: "close" }]]
                 }
+=======
+                    inline_keyboard: [[{ text: "Back", callback_data: "close" }]],
+                },
+>>>>>>> develop
             });
             return;
         }
@@ -104,7 +123,11 @@ const showOpenPositions = async (chatId: string) => {
                     status: position.status,
                     index: index + 1,
                     tokenName: tokenMetaData?.name || "Unknown Token",
+<<<<<<< HEAD
                     tokenSymbol: tokenMetaData?.symbol || "UNKNOWN"
+=======
+                    tokenSymbol: tokenMetaData?.symbol || "UNKNOWN",
+>>>>>>> develop
                 };
             })
         );
@@ -112,18 +135,30 @@ const showOpenPositions = async (chatId: string) => {
         logger.info("------------------>>positionsWithMetadata<<----------------");
         logger.info(`positionsWithMetadata: `, { positionsWithMetadata });
 
+<<<<<<< HEAD
         const buttons = positionsWithMetadata.map(position => [
             { 
                 text: `${position.index}. ${position.tokenSymbol} (${position.tokenName}) - ${position.buyTime.toLocaleString()}`, 
                 callback_data: `pos_token_${position.tokenAddress}` 
             }
+=======
+        const buttons = positionsWithMetadata.map((position) => [
+            {
+                text: `${position.index}. ${position.tokenSymbol} (${position.tokenName}) - ${position.buyTime.toLocaleString()}`,
+                callback_data: `pos_token_${position.tokenAddress}`,
+            },
+>>>>>>> develop
         ]);
         logger.info(`buttons`, { buttons });
         buttons.push([{ text: "Back", callback_data: "close" }]);
 
         await botInstance.sendMessage(chatId, "📊 <b>Open Positions</b>\n\nSelect a position to view details:", {
             reply_markup: { inline_keyboard: buttons },
+<<<<<<< HEAD
             parse_mode: "HTML"
+=======
+            parse_mode: "HTML",
+>>>>>>> develop
         });
     } catch (error) {
         logger.error("Error in showOpenPositions", { error });
@@ -139,13 +174,22 @@ const showClosedPositions = async (chatId: string) => {
 
     try {
         const positions = await getPositionsByChatId(chatId);
+<<<<<<< HEAD
         const closedPositions = positions.filter(p => p.status === "CLOSED");
+=======
+        const closedPositions = positions.filter((p) => p.status === "CLOSED");
+>>>>>>> develop
 
         if (closedPositions.length === 0) {
             await botInstance.sendMessage(chatId, "No closed positions found.", {
                 reply_markup: {
+<<<<<<< HEAD
                     inline_keyboard: [[{ text: "Back", callback_data: "close" }]]
                 }
+=======
+                    inline_keyboard: [[{ text: "Back", callback_data: "close" }]],
+                },
+>>>>>>> develop
             });
             return;
         }
@@ -163,22 +207,38 @@ const showClosedPositions = async (chatId: string) => {
                     index: index + 1,
                     tokenName: tokenMetaData?.name || "Unknown Token",
                     tokenSymbol: tokenMetaData?.symbol || "UNKNOWN",
+<<<<<<< HEAD
                     timeAgo: timeAgo
+=======
+                    timeAgo: timeAgo,
+>>>>>>> develop
                 };
             })
         );
 
+<<<<<<< HEAD
         const buttons = positionsWithMetadata.map(position => [
             { 
                 text: `${position.index}. ${position.tokenSymbol} (closed ${position.timeAgo})`, 
                 callback_data: `pos_closed_${position.tokenAddress}` 
             }
+=======
+        const buttons = positionsWithMetadata.map((position) => [
+            {
+                text: `${position.index}. ${position.tokenSymbol} (closed ${position.timeAgo})`,
+                callback_data: `pos_closed_${position.tokenAddress}`,
+            },
+>>>>>>> develop
         ]);
         buttons.push([{ text: "Back", callback_data: "close" }]);
 
         await botInstance.sendMessage(chatId, "📊 <b>Closed Positions</b>\n\nSelect a position to view details:", {
             reply_markup: { inline_keyboard: buttons },
+<<<<<<< HEAD
             parse_mode: "HTML"
+=======
+            parse_mode: "HTML",
+>>>>>>> develop
         });
     } catch (error) {
         logger.error("Error in showClosedPositions", { error });
@@ -207,15 +267,24 @@ const showClosedTokenInfo = async (chatId: string, tokenAddress: string) => {
         const takeProfitPrice = position.buyPrice * (1 + position.takeProfitPercentage / 100);
         const stopLossPrice = position.buyPrice * (1 - position.stopLossPercentage / 100);
 
+<<<<<<< HEAD
         const message = `📊 <b>Closed Position Details</b>\n\n` +
             `${tokenMetaData.name} (${tokenMetaData.symbol})\n` +
             `Address: <code>${tokenAddress}</code>\n\n` +
             `Source: ${position.signalSource ? "@" + position.signalSource : 'Manual'}\n` +
+=======
+        const message =
+            `📊 <b>Closed Position Details</b>\n\n` +
+            `${tokenMetaData.name} (${tokenMetaData.symbol})\n` +
+            `Address: <code>${tokenAddress}</code>\n\n` +
+            `Source: ${position.signalSource ? "@" + position.signalSource : "Manual"}\n` +
+>>>>>>> develop
             `Bought at: $${position.buyPrice}\n` +
             `Take profit: ${position.takeProfitPercentage}% ($${takeProfitPrice.toFixed(4)})\n` +
             `Stop loss: ${position.stopLossPercentage}% ($${stopLossPrice.toFixed(4)})\n\n` +
             `Closed Price: $${position.closePrice}\n` +
             `Close time: ${position.closeTime?.toLocaleString()}\n\n` +
+<<<<<<< HEAD
             `ROI: ${((position.closePrice! - position.buyPrice) / position.buyPrice * 100).toFixed(2)}%`;
 
         const buttons = [
@@ -225,6 +294,15 @@ const showClosedTokenInfo = async (chatId: string, tokenAddress: string) => {
         await botInstance.sendMessage(chatId, message, {
             reply_markup: { inline_keyboard: buttons },
             parse_mode: "HTML"
+=======
+            `ROI: ${(((position.closePrice! - position.buyPrice) / position.buyPrice) * 100).toFixed(2)}%`;
+
+        const buttons = [[{ text: "Back", callback_data: "close" }]];
+
+        await botInstance.sendMessage(chatId, message, {
+            reply_markup: { inline_keyboard: buttons },
+            parse_mode: "HTML",
+>>>>>>> develop
         });
     } catch (error) {
         logger.error("Error in showClosedTokenInfo", { error });
@@ -236,11 +314,16 @@ const showClosedTokenInfo = async (chatId: string, tokenAddress: string) => {
 const getTimeAgo = (date: Date): string => {
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> develop
     if (diffInSeconds < 60) {
         return `${diffInSeconds} seconds ago`;
     } else if (diffInSeconds < 3600) {
         const minutes = Math.floor(diffInSeconds / 60);
+<<<<<<< HEAD
         return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
     } else if (diffInSeconds < 86400) {
         const hours = Math.floor(diffInSeconds / 3600);
@@ -248,6 +331,15 @@ const getTimeAgo = (date: Date): string => {
     } else {
         const days = Math.floor(diffInSeconds / 86400);
         return `${days} day${days > 1 ? 's' : ''} ago`;
+=======
+        return `${minutes} minute${minutes > 1 ? "s" : ""} ago`;
+    } else if (diffInSeconds < 86400) {
+        const hours = Math.floor(diffInSeconds / 3600);
+        return `${hours} hour${hours > 1 ? "s" : ""} ago`;
+    } else {
+        const days = Math.floor(diffInSeconds / 86400);
+        return `${days} day${days > 1 ? "s" : ""} ago`;
+>>>>>>> develop
     }
 };
 
@@ -271,17 +363,29 @@ const showTokenInfo = async (chatId: string, tokenAddress: string) => {
 
         logger.info("Token metadata found", { tokenMetaData });
         const currentPrice = await getTokenPrice(tokenAddress);
+<<<<<<< HEAD
         const performance = ((currentPrice - position.buyPrice) / position.buyPrice * 100).toFixed(2);
+=======
+        const performance = (((currentPrice - position.buyPrice) / position.buyPrice) * 100).toFixed(2);
+>>>>>>> develop
         const stopLossPrice = position.buyPrice * (1 - position.stopLossPercentage / 100);
         const takeProfitPrice = position.buyPrice * (1 + position.takeProfitPercentage / 100);
 
         // Calculate token amount with decimals
         const tokenAmount = position.tokenAmount / Math.pow(10, tokenMetaData.decimals);
 
+<<<<<<< HEAD
         const message = `📊 <b>Position Details</b>\n\n` +
             `Token: ${tokenMetaData.symbol} (${tokenMetaData.name})\n` +
             `Address: <code>${tokenAddress}</code>\n` +
             `Source: ${position.signalSource ? "@" + position.signalSource : ''}\n` +
+=======
+        const message =
+            `📊 <b>Position Details</b>\n\n` +
+            `Token: ${tokenMetaData.symbol} (${tokenMetaData.name})\n` +
+            `Address: <code>${tokenAddress}</code>\n` +
+            `Source: ${position.signalSource ? "@" + position.signalSource : ""}\n` +
+>>>>>>> develop
             `Token Amount: ${tokenAmount} ${tokenMetaData.symbol}\n` +
             `Buy Price: ${position.buyPrice}\n` +
             `Current Price: ${currentPrice}\n` +
@@ -293,15 +397,25 @@ const showTokenInfo = async (chatId: string, tokenAddress: string) => {
         const buttons = [
             [
                 { text: "Sell Now", callback_data: `pos_sell_${tokenAddress}` },
+<<<<<<< HEAD
                 { text: "View on DexScreener", url: `https://dexscreener.com/solana/${tokenAddress}` }
             ],
             [{ text: "Back", callback_data: "close" }]
+=======
+                { text: "View on DexScreener", url: `https://dexscreener.com/solana/${tokenAddress}` },
+            ],
+            [{ text: "Back", callback_data: "close" }],
+>>>>>>> develop
         ];
 
         logger.info("----------------->>Buttons<<----------------");
         await botInstance.sendMessage(chatId, message, {
             reply_markup: { inline_keyboard: buttons },
+<<<<<<< HEAD
             parse_mode: "HTML"
+=======
+            parse_mode: "HTML",
+>>>>>>> develop
         });
     } catch (error) {
         logger.error("Error in showTokenInfo", { error: JSON.stringify(error) });
@@ -349,16 +463,28 @@ const handleSellPosition = async (chatId: string, tokenAddress: string) => {
             false
         );
 
+<<<<<<< HEAD
         if (result.confirmed) {
+=======
+        if (result && result.confirmed) {
+>>>>>>> develop
             // Get current price for closing position
             const currentPrice = await getTokenPrice(tokenAddress);
             await closePosition(chatId, tokenAddress, currentPrice);
 
             const profitLoss = (currentPrice - position.buyPrice) * position.solAmount;
+<<<<<<< HEAD
             const profitLossPercentage = ((currentPrice - position.buyPrice) / position.buyPrice * 100).toFixed(2);
             const profitLossText = profitLoss >= 0 ? "Profit" : "Loss";
 
             const message = `✅ <b>Position Closed Successfully!</b>\n\n` +
+=======
+            const profitLossPercentage = (((currentPrice - position.buyPrice) / position.buyPrice) * 100).toFixed(2);
+            const profitLossText = profitLoss >= 0 ? "Profit" : "Loss";
+
+            const message =
+                `✅ <b>Position Closed Successfully!</b>\n\n` +
+>>>>>>> develop
                 `Token: ${tokenMetaData.symbol} (${tokenMetaData.name})\n` +
                 `Amount Sold: ${tokenAmount} ${tokenMetaData.symbol}\n` +
                 `Buy Price: $${position.buyPrice}\n` +
@@ -369,14 +495,23 @@ const handleSellPosition = async (chatId: string, tokenAddress: string) => {
             const buttons = [
                 [
                     { text: "Open Positions", callback_data: "pos_open" },
+<<<<<<< HEAD
                     { text: "Position", callback_data: "pos_start" }
                 ]
+=======
+                    { text: "Position", callback_data: "pos_start" },
+                ],
+>>>>>>> develop
             ];
 
             await botInstance.sendMessage(chatId, message, {
                 reply_markup: { inline_keyboard: buttons },
                 parse_mode: "HTML",
+<<<<<<< HEAD
                 disable_web_page_preview: true
+=======
+                disable_web_page_preview: true,
+>>>>>>> develop
             });
         } else {
             throw new Error("Sell transaction failed");
@@ -385,4 +520,8 @@ const handleSellPosition = async (chatId: string, tokenAddress: string) => {
         logger.error("Error in handleSellPosition", { error });
         await botInstance.sendMessage(chatId, "❌ Error selling position: " + (error as Error).message);
     }
+<<<<<<< HEAD
 }; 
+=======
+};
+>>>>>>> develop

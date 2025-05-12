@@ -346,7 +346,7 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
             ],
             [
                 { text: "Portfolio", callback_data: "pC_start" },
-                { text: "Position", callback_data: "pos_start" }
+                { text: "Position", callback_data: "pos_start" },
             ],
             [
                 { text: "Referrals (Coming soon) 🔜", callback_data: "referralController_start" },
