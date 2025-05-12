@@ -9,7 +9,7 @@ getTx(txsig).then(tx => {
     const metrics = extractTransactionMetrics(tx, tokenMint);
     logger.info("Transaction Metrics:", metrics);
 }).catch(error => {
-    console.error("Error:", error);
+    logger.error("Error:", error);
 });
 
 // // Call the function and log the result
