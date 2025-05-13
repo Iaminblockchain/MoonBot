@@ -11,6 +11,41 @@ import { getSolBalance } from "../solana/util";
 import { getTokenMetaData } from "../solana/token";
 import { PositionStatus } from "../models/positionModel";
 
+const getBuySuccessMessage = async (
+    trx: string,
+    tokenAddress: string,
+    trade_type: string,
+    tokenBalanceChange?: number,
+    solBalanceChange?: number,
+    settings?: {
+        amount: number;
+        isPercentage: boolean;
+        maxSlippage: number;
+        takeProfit: number | null;
+        repetitiveBuy: number;
+        stopLoss: number | null;
+    },
+    tradeSignal?: string
+) => {
+    const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
+
+    const tokenInfo = tokenBalanceChange ? `\nTokens bought: ${tokenBalanceChange.toLocaleString()}` : "";
+
+    const sourceInfo = tradeSignal ? `Source: ${tradeSignal}` : "";
+
+    let message = `${trade_type} successful\nTicker: ${metaData?.symbol}\nSOL Amount: ${solBalanceChange}\n${tokenInfo}\n${sourceInfo}\n${trx}`;
+
+    if (settings) {
+        if (settings.takeProfit !== null) {
+            message += `\nTake profit: ${settings.takeProfit}%`;
+        }
+        if (settings.stopLoss !== null) {
+            message += `\nStop loss: ${settings.stopLoss}%`;
+        }
+    }
+    return message;
+};
+
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     try {
         const data = query.data;
@@ -28,7 +63,7 @@ export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     }
 };
 
-const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: number): Promise<void> => {
+export const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: number): Promise<void> => {
     if (!botInstance) {
         logger.error("Bot instance not initialized in onClickBuy");
         return;
@@ -64,9 +99,9 @@ const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: number): 
             logger.error("onClickBuy failed: not confirmed", { chatId, result });
             await botInstance.sendMessage(chatId!, "Buy failed");
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         logger.error("onClickBuy error", { error, chatId });
-        const msg = (error.message || "").toLowerCase();
+        const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
         const reply =
             msg.includes("insufficient") || msg.includes("balance") ? "Buy failed: insufficient balance" : "Buy failed due to error";
         await botInstance.sendMessage(chatId!, reply);
@@ -98,10 +133,10 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
         const chatId = message.chat.id;
 
         const amount = parseFloat(message.text!);
-        const wallet = await walletdb.getWalletByChatId(chatId!);
-        const trade = await tradedb.getTradeByChatId(chatId!);
+        const wallet = await walletdb.getWalletByChatId(chatId);
+        const trade = await tradedb.getTradeByChatId(chatId);
         if (wallet && trade) {
-            botInstance.sendMessage(chatId!, "Sending buy transaction");
+            botInstance.sendMessage(chatId, "Sending buy transaction");
             logger.info("Sending buy transaction:", { tokenAddress: trade.tokenAddress });
 
             let result = await solana.buy_swap(
@@ -127,16 +162,16 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
                     Number(tokenBalanceChange),
                     Number(sol_balance_change)
                 );
-                botInstance.sendMessage(chatId!, msg);
+                botInstance.sendMessage(chatId, msg);
             } else {
                 logger.error(`buy failed ${result}`);
-                botInstance.sendMessage(chatId!, "Buy failed");
+                botInstance.sendMessage(chatId, "Buy failed");
             }
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         logger.error("buyXAmount error", { error });
         const chatId = message.chat.id;
-        const msg = error.message?.toLowerCase() || "";
+        const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
         if (msg.includes("insufficient") || msg.includes("balance")) {
             botInstance.sendMessage(chatId, "Buy failed: insufficient balance");
         } else {
@@ -186,9 +221,9 @@ const onBuyControlStart = async (query: TelegramBot.CallbackQuery) => {
     try {
         const { chatId, messageId } = getChatIdandMessageId(query);
         setState(chatId!, STATE.INPUT_TOKEN);
-        botInstance.sendMessage(chatId!, "Enter token address to buy.", { parse_mode: "HTML" }).then((message: any) => {
+        botInstance.sendMessage(chatId!, "Enter token address to buy.", { parse_mode: "HTML" }).then((message: TelegramBot.Message) => {
             const messageId = message.message_id;
-            setDeleteMessageId(chatId!, messageId!);
+            setDeleteMessageId(chatId!, messageId);
         });
     } catch (error) {
         logger.error("onClickTokenLaunchButton, error: ", { error });
@@ -346,39 +381,4 @@ export const autoBuyContract = async (
     } catch (error) {
         logger.error(`autobuy error ${error}`, { chatId, settings, contractAddress, tradeSignal });
     }
-};
-
-const getBuySuccessMessage = async (
-    trx: string,
-    tokenAddress: string,
-    trade_type: string,
-    tokenBalanceChange?: number,
-    solBalanceChange?: number,
-    settings?: {
-        amount: number;
-        isPercentage: boolean;
-        maxSlippage: number;
-        takeProfit: number | null;
-        repetitiveBuy: number;
-        stopLoss: number | null;
-    },
-    tradeSignal?: string
-) => {
-    const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-
-    const tokenInfo = tokenBalanceChange ? `\nTokens bought: ${tokenBalanceChange.toLocaleString()}` : "";
-
-    const sourceInfo = tradeSignal ? `Source: ${tradeSignal}` : "";
-
-    let message = `${trade_type} successful\nTicker: ${metaData?.symbol}\nSOL Amount: ${solBalanceChange}\n${tokenInfo}\n${sourceInfo}\n${trx}`;
-
-    if (settings) {
-        if (settings.takeProfit !== null) {
-            message += `\nTake profit: ${settings.takeProfit}%`;
-        }
-        if (settings.stopLoss !== null) {
-            message += `\nStop loss: ${settings.stopLoss}%`;
-        }
-    }
-    return message;
 };

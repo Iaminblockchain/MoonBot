@@ -41,7 +41,7 @@ export const addTrade = async (chatId: TelegramBot.ChatId) => {
     }
 };
 
-export const removeTrade = async (props: any) => {
+export const removeTrade = async (props: { _id?: mongoose.Types.ObjectId }) => {
     try {
         await Trade.findOneAndDelete(props);
         return true;
@@ -51,9 +51,9 @@ export const removeTrade = async (props: any) => {
     }
 };
 
-export const updateTrade = async (props: any) => {
+export const updateTrade = async (props: { id: mongoose.Types.ObjectId | string } & Partial<ITrade>) => {
     try {
-        logger.info("updateTrade " + props);
+        logger.info("updateTrade " + JSON.stringify(props));
         const { id } = props;
         let copytrade = await Trade.findByIdAndUpdate(id, props);
         return copytrade;
@@ -62,16 +62,16 @@ export const updateTrade = async (props: any) => {
     }
 };
 
-export const findAndUpdateOne = async (filter: any, props: any) => {
+export const findAndUpdateOne = async (filter: mongoose.FilterQuery<ITrade>, props: mongoose.UpdateQuery<ITrade>) => {
     try {
         const result = await Trade.findOneAndUpdate(filter, props, { new: true, upsert: false });
         return result;
-    } catch (err: any) {
-        throw new Error(err.message);
+    } catch (err: unknown) {
+        throw new Error(err instanceof Error ? err.message : "Unknown error");
     }
 };
 
-export const findTrade = async (props: any) => {
+export const findTrade = async (props: mongoose.FilterQuery<ITrade>) => {
     try {
         let copytrade = await Trade.findOne(props);
         return copytrade;

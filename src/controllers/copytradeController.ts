@@ -41,7 +41,7 @@ export const handleInput = async (msg: TelegramBot.Message, ctx: InputCtx) => {
                 await copytradedb.updateTrade({
                     id: ctx.tradeId,
                     signal,
-                    signalChatId,
+                    signalChatId: String(signalChatId),
                 });
                 break;
             }
@@ -355,7 +355,7 @@ const editTagcopytradesignal = async (chatId: string, replaceId: number, dbId: s
     });
     setState(chatId, STATE.INPUT_COPYTRADE);
 
-    botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
+    botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: TelegramBot.Message) => {
         if (!botInstance) {
             logger.error("Bot instance not initialized in editTagcopytradesignal callback");
             return;
@@ -388,7 +388,7 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
         parse_mode: "HTML",
         reply_markup,
     });
-    botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
+    botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: TelegramBot.Message) => {
         if (!botInstance) {
             logger.error("Bot instance not initialized in editSignalcopytradesignal callback");
             return;
@@ -404,7 +404,7 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
                 await copytradedb.updateTrade({
                     id: new mongoose.Types.ObjectId(dbId),
                     signal,
-                    signalChatId,
+                    signalChatId: String(signalChatId),
                 });
                 await editcopytradesignal(chatId, replaceId, dbId);
                 await notifySuccess(chatId, "Group updated");

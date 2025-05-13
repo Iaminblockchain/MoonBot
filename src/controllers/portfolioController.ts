@@ -7,7 +7,6 @@ import { getAllTokensWithBalance, sell_swap, WSOL_ADDRESS } from "../solana/trad
 import { getTokenInfofromMint, getTokenMetaData } from "../solana/token";
 import { getTokenPrice } from "../getPrice";
 import { logger } from "../logger";
-import { SOLANA_SCHEMA, SolanaJSONRPCError } from "@solana/web3.js";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     if (!botInstance) {
@@ -204,7 +203,7 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
                 parse_mode: "HTML",
                 reply_markup,
             });
-            botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
+            botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: TelegramBot.Message) => {
                 if (!botInstance) {
                     logger.error("Bot instance not initialized in sellPortfolio onReplyToMessage callback");
                     return;

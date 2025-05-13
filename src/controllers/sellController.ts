@@ -81,9 +81,10 @@ const onClickSell = async (query: TelegramBot.CallbackQuery, fraction: number, w
             logger.error("Sell transaction failed", { result });
             await botInstance.sendMessage(chatId!, "Sell failed");
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         logger.error("Sell error", { error });
-        await botInstance.sendMessage(chatId!, `Sell error: ${error.message}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        await botInstance.sendMessage(chatId!, `Sell error: ${errorMessage}`);
     }
 };
 
