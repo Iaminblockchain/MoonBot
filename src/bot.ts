@@ -25,13 +25,14 @@ import { handleReferralWalletMessage } from "./controllers/referralController";
 export let botInstance: TelegramBot | undefined;
 
 export enum STATE {
-    MAIN_MENU,
-    SETTING_WALLET,
-    SETTING_REFERRAL_WALLET,
-    INPUT_TOKEN,
-    INPUT_BUY_AMOUNT,
-    INPUT_PRIVATE_KEY,
-    INPUT_COPYTRADE,
+    MAIN_MENU = "MAIN_MENU",
+    SETTING_WALLET = "SETTING_WALLET",
+    SETTING_REFERRAL_WALLET = "SETTING_REFERRAL_WALLET",
+    INPUT_TOKEN = "INPUT_TOKEN",
+    INPUT_BUY_AMOUNT = "INPUT_BUY_AMOUNT",
+    INPUT_PRIVATE_KEY = "INPUT_PRIVATE_KEY",
+    INPUT_COPYTRADE = "INPUT_COPYTRADE",
+    COPYTRADE_INPUT = "COPYTRADE_INPUT"
 }
 
 export type TRADE = {
@@ -53,7 +54,7 @@ export const getDeleteMessageId = (chatId: TelegramBot.ChatId) => {
     return deleteMessageId.get(chatId.toString());
 };
 
-export const setState = (chatid: TelegramBot.ChatId, newState: number, data = {}) => {
+export const setState = (chatid: TelegramBot.ChatId, newState: STATE, data = {}) => {
     state.set(chatid.toString(), { state: newState, data });
 };
 export const getState = (chatid: TelegramBot.ChatId) => {
@@ -137,6 +138,9 @@ export const init = (client: TelegramClient) => {
                     walletController.handlePrivateKey(msg);
                 } else if (currentState.state == STATE.INPUT_COPYTRADE) {
                     logger.info(`INPUT_COPYTRADE`);
+                    copytradeController.handleInput(msg, currentState.data);
+                } else if (currentState.state === STATE.COPYTRADE_INPUT) {
+                    logger.info(`COPYTRADE_INPUT`);
                     copytradeController.handleInput(msg, currentState.data);
                 } else if (currentState.state === STATE.SETTING_REFERRAL_WALLET) {
                     await handleReferralWalletMessage(msg);
