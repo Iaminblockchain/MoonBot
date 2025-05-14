@@ -231,6 +231,7 @@ export const autoSellHandler = () => {
         return;
     }
 
+    //TODO get price in batches
     trade.forEach(async (value, key) => {
         value.map(async (info: TRADE) => {
             try {

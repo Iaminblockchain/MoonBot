@@ -16,6 +16,7 @@ import {
 
 const LOGTAIL_TOKEN = retrieveEnvVariable("logtail_token");
 const LOGTAIL_ENDPOINT = retrieveEnvVariable("logtail_endpoint");
+const isTest = retrieveEnvVariable("NODE_ENV") === "test";
 
 const transports: winston.transport[] = [new winston.transports.Console(), new winston.transports.File({ filename: "app.log" })];
 
@@ -51,7 +52,7 @@ function sanitize(message: string): string {
     return sanitized;
 }
 
-export const logger = winston.createLogger({
+const winstonLogger = winston.createLogger({
     level: "info",
     format: winston.format.combine(
         winston.format.timestamp(),
@@ -63,3 +64,13 @@ export const logger = winston.createLogger({
     ),
     transports,
 });
+
+// Create a mock logger for tests
+const mockLogger = {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+};
+
+export const logger = isTest ? mockLogger : winstonLogger;

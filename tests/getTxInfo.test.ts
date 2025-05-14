@@ -1,9 +1,7 @@
 // Import necessary modules and functions
-import { Connection } from "@solana/web3.js";
 import { getTx, extractTransactionMetrics } from "../src/solana/txhelpers";
 import * as dotenv from "dotenv";
 dotenv.config();
-
 
 describe("getTxInfo", () => {
     const txsig1 = "3Prpzq4yrrh94n6v5Q6YdoYbjjy47LRokBBYoqQV4guYcVGZ7xVZER6qNgfM7THVAMGbttjinpCnxnRfAHb45Nsw";
@@ -11,10 +9,7 @@ describe("getTxInfo", () => {
     const tokenMint1 = "UASnrvAChQ1FSFvU25Mz3Am6sYgCt4bcr4pXQJ7pump";
     const tokenMint2 = "GZXM8VD6zcPVAeimvNrfz6tajZuohTeghDiu1DkDpump";
 
-
-    beforeEach(() => {
-
-    });
+    beforeEach(() => {});
 
     it("should return transaction info when transaction is found", async () => {
         console.log("SOLANA_RPC_ENDPOINT:", process.env.solana_rpc_endpoint);
@@ -24,9 +19,7 @@ describe("getTxInfo", () => {
         expect(tx).toHaveProperty("transaction");
         expect(tx.blockTime).toBeGreaterThan(0);
 
-
         const metrics = extractTransactionMetrics(tx, tokenMint1);
-        console.log(metrics);
 
         expect(metrics).toBeDefined();
         expect(metrics).toHaveProperty("owner_pubkey");
@@ -37,7 +30,6 @@ describe("getTxInfo", () => {
         expect(metrics).toHaveProperty("token_creation_cost");
         expect(metrics.sol_balance_change).toBeGreaterThan(0);
         expect(metrics.token_balance_change).toBeGreaterThan(0);
-
     });
 
     it("should return transaction info when transaction is found", async () => {
@@ -49,7 +41,6 @@ describe("getTxInfo", () => {
         expect(tx.blockTime).toBeGreaterThan(0);
 
         const metrics = extractTransactionMetrics(tx, tokenMint2);
-        console.log(metrics);
 
         expect(metrics).toBeDefined();
         expect(metrics).toHaveProperty("owner_pubkey");
@@ -60,6 +51,5 @@ describe("getTxInfo", () => {
         expect(metrics).toHaveProperty("token_creation_cost");
         expect(metrics.sol_balance_change).toBeGreaterThan(0);
         expect(metrics.token_balance_change).toBeGreaterThan(0);
-
     });
-}); 
+});
