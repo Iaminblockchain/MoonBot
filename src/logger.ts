@@ -67,10 +67,10 @@ const winstonLogger = winston.createLogger({
 
 // Create a mock logger for tests
 const mockLogger = {
-    info: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-    debug: jest.fn(),
+    info: (...args: unknown[]) => {},
+    error: (...args: unknown[]) => {},
+    warn: (...args: unknown[]) => {},
+    debug: (...args: unknown[]) => {},
 };
 
 export const logger = isTest ? mockLogger : winstonLogger;
