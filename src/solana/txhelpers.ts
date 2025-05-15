@@ -184,10 +184,25 @@ export async function getTxInfoMetrics(txsig: string, connection: Connection, to
     return metrics;
 }
 
-// extract metrics
-export function extractTransactionMetrics(tx: Transaction, tokenMint: string): Record<string, unknown> {
+export type TransactionMetrics = {
+    owner_pubkey: string;
+    token: string;
+    token_balance_change: number;
+    //SOL fee
+    transaction_fee: number;
+    sol_balance_change: number;
+    token_creation_cost: number;
+    //DEX fees
+    feesPaid: number;
+    compute_units_consumed: number | null;
+    execution_price: number;
+};
+
+export function extractTransactionMetrics(tx: Transaction, tokenMint: string): TransactionMetrics | null {
     const message = tx.transaction?.message;
-    if (!message) return {};
+    if (!message) {
+        return null;
+    }
 
     const accountKeys: string[] = message.accountKeys || [];
 
@@ -232,16 +247,27 @@ export function extractTransactionMetrics(tx: Transaction, tokenMint: string): R
         }
     }
 
-    const price = Math.abs(tokenBalanceChange) > 1e-6 ? solBalanceChange / Math.abs(tokenBalanceChange) : null;
+    let feesPaid = 0;
+    for (let i = 1; i < preBalances.length; i++) {
+        const balanceChange = (postBalances[i] - preBalances[i]) / 1e9; // Convert lamports to SOL
+        if (balanceChange > 0) {
+            feesPaid += balanceChange;
+        }
+    }
+
+    let netBalanceChangeSOL = solBalanceChange - feesPaid;
+
+    const execution_price = netBalanceChangeSOL / Math.abs(tokenBalanceChange);
 
     return {
         owner_pubkey: ownerPubkey,
         token: tokenMint,
         token_balance_change: tokenBalanceChange,
         transaction_fee: fee,
-        sol_balance_change: solBalanceChange,
+        sol_balance_change: netBalanceChangeSOL,
         token_creation_cost: tokenCreationCost,
+        feesPaid: feesPaid,
         compute_units_consumed: computeUnits,
-        price,
+        execution_price: execution_price,
     };
 }

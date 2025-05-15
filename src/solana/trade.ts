@@ -209,6 +209,7 @@ export interface SwapResult {
     txSignature?: string | null;
     token_balance_change: number;
     sol_balance_change: number;
+    execution_price: number;
     error?: string;
 }
 
@@ -226,9 +227,11 @@ export const buy_swap = async (
 
         let token_balance_change = 0;
         let sol_balance_change = 0;
+        let execution_price = 0;
         if (result.executionInfo) {
             token_balance_change = Number(result.executionInfo.token_balance_change);
             sol_balance_change = Number(result.executionInfo.sol_balance_change);
+            execution_price = Number(result.executionInfo.execution_price);
         }
 
         return {
@@ -236,12 +239,14 @@ export const buy_swap = async (
             txSignature: result.txSignature,
             token_balance_change: token_balance_change,
             sol_balance_change: sol_balance_change,
+            execution_price: execution_price,
         };
     } else {
         return {
             success: false,
             token_balance_change: 0,
             sol_balance_change: 0,
+            execution_price: 0,
             error: "Swap failed to confirm",
         };
     }
@@ -260,9 +265,11 @@ export const sell_swap = async (
 
         let token_balance_change = 0;
         let sol_balance_change = 0;
+        let execution_price = 0;
         if (result.executionInfo) {
             token_balance_change = Number(result.executionInfo.token_balance_change);
             sol_balance_change = Number(result.executionInfo.sol_balance_change);
+            execution_price = Number(result.executionInfo.execution_price);
         }
         //TODO: store
         return {
@@ -270,12 +277,14 @@ export const sell_swap = async (
             txSignature: result.txSignature,
             token_balance_change: token_balance_change,
             sol_balance_change: sol_balance_change,
+            execution_price: execution_price,
         };
     } else {
         return {
             success: false,
             token_balance_change: 0,
             sol_balance_change: 0,
+            execution_price: 0,
             error: "Swap failed to confirm",
         };
     }
