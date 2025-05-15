@@ -30,8 +30,11 @@ export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
 const whitelistedUsers: string[] = require("../util/whitelistUsers.json");
+const SOL_MINT = "So11111111111111111111111111111111111111112";
 
 import { getErrorMessage } from "../util/error";
+
+const useJito = false;
 
 interface ReferralInfo {
     key: string;
@@ -201,6 +204,83 @@ async function sendWithRetries(
     return { confirmed: false, signature: null };
 }
 
+export interface SwapResult {
+    success: boolean;
+    txSignature?: string | null;
+    token_balance_change: number;
+    sol_balance_change: number;
+    error?: string;
+}
+
+export const buy_swap = async (
+    CONNECTION: Connection,
+    PRIVATE_KEY: string,
+    tokenAddress: string,
+    amount: number,
+    slippage?: number
+): Promise<SwapResult> => {
+    const result = await jupiter_swap(CONNECTION, PRIVATE_KEY, WSOL_ADDRESS, tokenAddress, amount, "ExactIn", useJito, slippage);
+
+    if (result && result.confirmed) {
+        logger.info("execution info", { executionInfo: result.executionInfo });
+
+        let token_balance_change = 0;
+        let sol_balance_change = 0;
+        if (result.executionInfo) {
+            token_balance_change = Number(result.executionInfo.token_balance_change);
+            sol_balance_change = Number(result.executionInfo.sol_balance_change);
+        }
+
+        return {
+            success: true,
+            txSignature: result.txSignature,
+            token_balance_change: token_balance_change,
+            sol_balance_change: sol_balance_change,
+        };
+    } else {
+        return {
+            success: false,
+            token_balance_change: 0,
+            sol_balance_change: 0,
+            error: "Swap failed to confirm",
+        };
+    }
+};
+
+export const sell_swap = async (
+    CONNECTION: Connection,
+    PRIVATE_KEY: string,
+    tokenAddress: string,
+    amount: number,
+    slippage?: number
+): Promise<SwapResult> => {
+    const result = await jupiter_swap(CONNECTION, PRIVATE_KEY, tokenAddress, WSOL_ADDRESS, amount, "ExactIn", useJito);
+    if (result && result.confirmed) {
+        logger.info("execution info", { executionInfo: result.executionInfo });
+
+        let token_balance_change = 0;
+        let sol_balance_change = 0;
+        if (result.executionInfo) {
+            token_balance_change = Number(result.executionInfo.token_balance_change);
+            sol_balance_change = Number(result.executionInfo.sol_balance_change);
+        }
+        //TODO: store
+        return {
+            success: true,
+            txSignature: result.txSignature,
+            token_balance_change: token_balance_change,
+            sol_balance_change: sol_balance_change,
+        };
+    } else {
+        return {
+            success: false,
+            token_balance_change: 0,
+            sol_balance_change: 0,
+            error: "Swap failed to confirm",
+        };
+    }
+};
+
 export const jupiter_swap = async (
     CONNECTION: Connection,
     PRIVATE_KEY: string,
@@ -337,9 +417,9 @@ export const jupiter_swap = async (
 
         // After retry, check if confirmed and validate with getStatusTxnRetry
         if (result.confirmed && result.signature) {
-            //TODO needs testing
-            // Insert execution info logging
-            let executionInfo = await getTxInfoMetrics(result.signature, CONNECTION, outputMint);
+            // execution info, distinguish between SOL and token
+            const tokenMint = inputMint === SOL_MINT ? outputMint : inputMint;
+            let executionInfo = await getTxInfoMetrics(result.signature, CONNECTION, tokenMint);
             if (executionInfo) {
                 logger.info("Execution info", executionInfo);
             }

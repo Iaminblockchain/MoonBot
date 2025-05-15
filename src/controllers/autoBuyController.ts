@@ -32,7 +32,7 @@ function promptBuyAmount(chatId: string) {
 
     botInstance
         .sendMessage(chatId, 'Please enter your buy amount (e.g., "1" for 1 SOL or "10%" for 10% of your balance):')
-        .then((n_msg: any) => {
+        .then((n_msg: TelegramBot.Message) => {
             if (!botInstance) {
                 logger.error("Bot instance not initialized in promptBuyAmount callback");
                 return;
@@ -61,7 +61,7 @@ function promptBuyAmount(chatId: string) {
 
                 botInstance
                     .sendMessage(chatId, 'Please enter your maximum slippage (in %, e.g., "1" for 1%):')
-                    .then((n1_msg: any) => {
+                    .then((n1_msg: TelegramBot.Message) => {
                         if (!botInstance) {
                             logger.error("Bot instance not initialized in slippage prompt");
                             return;
@@ -84,7 +84,7 @@ function promptBuyAmount(chatId: string) {
 
                                 botInstance
                                     .sendMessage(chatId, 'Please enter your take profit (in %, e.g., "1" for 1%):')
-                                    .then((n2_msg: any) => {
+                                    .then((n2_msg: TelegramBot.Message) => {
                                         if (!botInstance) {
                                             logger.error("Bot instance not initialized in take profit prompt");
                                             return;
@@ -107,7 +107,7 @@ function promptBuyAmount(chatId: string) {
 
                                                 const answer2 = botInstance
                                                     .sendMessage(chatId, `Please enter your Stop loss percentage (e.g. "1" for 1%)`)
-                                                    .then((n3_msg: any) => {
+                                                    .then((n3_msg: TelegramBot.Message) => {
                                                         if (!botInstance) {
                                                             logger.error("Bot instance not initialized in stop loss prompt");
                                                             return;
@@ -133,7 +133,7 @@ function promptBuyAmount(chatId: string) {
                                                                         chatId,
                                                                         `Please enter your repetitive buys number (e.g. "1" The minimum value is 1)`
                                                                     )
-                                                                    .then((n4_msg: any) => {
+                                                                    .then((n4_msg: TelegramBot.Message) => {
                                                                         if (!botInstance) {
                                                                             logger.error(
                                                                                 "Bot instance not initialized in repetitive buys prompt"
@@ -199,10 +199,10 @@ function promptBuyAmount(chatId: string) {
                             }
                         });
                     })
-                    .catch((err: any) => logger.error("Error sending slippage prompt:", err));
+                    .catch((err: Error) => logger.error("Error sending slippage prompt:", err));
             });
         })
-        .catch((err: any) => logger.error("Error sending buy amount prompt:", err));
+        .catch((err: Error) => logger.error("Error sending buy amount prompt:", err));
 }
 
 /**
@@ -286,7 +286,7 @@ export function checkAutoBuy(msg: TelegramBot.Message) {
     }
 }
 
-export const setAutotradeSignal = async (chatId: string, contractAddress: string, trade?: ITrade) => {
+export const setAutotradeSignal = async (chatId: string, contractAddress: string, trade?: ITrade): Promise<void> => {
     if (!isValidAddress(contractAddress) || !trade) {
         logger.error("Invalid contract address or missing trade", { contractAddress, trade });
         return;
@@ -362,7 +362,7 @@ export function setAutoBuySettings(chatId: string, settings: AutoBuySettings) {
     autoBuySettings.set(chatId, settings);
 }
 
-export const getSPLBalance = async (mint: string, owner: string) => {
+export const getSPLBalance = async (mint: string, owner: string): Promise<number> => {
     let tokenBalance = 0;
     try {
         const mintinfo = await SOLANA_CONNECTION.getAccountInfo(new PublicKey(mint));
@@ -378,7 +378,12 @@ export const getSPLBalance = async (mint: string, owner: string) => {
         if (balance.value.uiAmount) {
             tokenBalance = parseInt(balance.value.amount);
         }
-    } catch (e) {
+    } catch (error: unknown) {
+        logger.error("Error getting SPL token balance", {
+            error: error instanceof Error ? error.message : String(error),
+            mint,
+            owner,
+        });
         tokenBalance = 0;
     }
     return tokenBalance;

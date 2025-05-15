@@ -87,6 +87,14 @@ export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: st
     trade.set(chatid.toString(), [...next]);
 };
 
+interface CallbackQueryData extends TelegramBot.CallbackQuery {
+    message?: TelegramBot.Message & {
+        chat: {
+            id: number;
+        };
+    };
+}
+
 export const init = (client: TelegramClient) => {
     copytradeController.setClient(client);
 
@@ -94,11 +102,11 @@ export const init = (client: TelegramClient) => {
     botInstance = new TelegramBot(TELEGRAM_BOT_TOKEN, { polling: true });
     botInstance
         .getMe()
-        .then((botInfo: any) => {
+        .then((botInfo: TelegramBot.User) => {
             logger.info(`Bot name: ${botInfo.username}`);
         })
-        .catch((error: any) => {
-            logger.error("Error getting bot info:", { error });
+        .catch((error: Error) => {
+            logger.error("Error getting bot info:", { error: error.message });
         });
     botInstance.setMyCommands([
         { command: "start", description: "Start bot" },
@@ -152,7 +160,7 @@ export const init = (client: TelegramClient) => {
         }
     });
 
-    botInstance.on("callback_query", (query: any) => {
+    botInstance.on("callback_query", (query: CallbackQueryData) => {
         try {
             if (!query.message) {
                 logger.error("missing message object");
@@ -191,7 +199,9 @@ export const init = (client: TelegramClient) => {
                 return;
             }
         } catch (error) {
-            logger.info({ error });
+            logger.error("Callback query error", {
+                error: error instanceof Error ? error.message : String(error),
+            });
         }
     });
 };
@@ -207,7 +217,7 @@ export const runAutoSellSchedule = () => {
     }
 };
 
-export const closeMessage = (query: TelegramBot.CallbackQuery) => {
+export const closeMessage = (query: CallbackQueryData) => {
     if (!botInstance) {
         logger.error("Bot instance not initialized in closeMessage");
         return;
@@ -216,17 +226,23 @@ export const closeMessage = (query: TelegramBot.CallbackQuery) => {
     const { chatId, messageId } = getChatIdandMessageId(query);
     if (!chatId || !messageId) return;
 
-    botInstance.deleteMessage(chatId, messageId).catch((error: any) => {
+    botInstance.deleteMessage(chatId, messageId).catch((error: Error) => {
         logger.warn(`Failed to delete message ${messageId} in chat ${chatId}: ${error.message}`);
     });
 };
-export const getChatIdandMessageId = (query: TelegramBot.CallbackQuery) => {
+
+export const getChatIdandMessageId = (query: CallbackQueryData) => {
     const chatId = query.message?.chat.id;
     const messageId = query.message?.message_id;
     return { chatId, messageId };
 };
 
-export async function switchMenu(chatId: TelegramBot.ChatId, messageId: number | undefined, title: string, json_buttons: any) {
+export async function switchMenu(
+    chatId: TelegramBot.ChatId,
+    messageId: number | undefined,
+    title: string,
+    json_buttons: Array<Array<{ text: string; callback_data: string }>>
+) {
     if (!botInstance) {
         logger.error("Bot instance not initialized in switchMenu");
         return;
@@ -241,7 +257,7 @@ export async function switchMenu(chatId: TelegramBot.ChatId, messageId: number |
 
     try {
         // Can't fetch original message content with Telegram API
-        const currentMessage = await botInstance.getChat(chatId);
+        //const currentMessage = await botInstance.getChat(chatId);
 
         // Instead, catch the specific error and ignore it
         await botInstance.editMessageText(title, {
@@ -251,14 +267,17 @@ export async function switchMenu(chatId: TelegramBot.ChatId, messageId: number |
             disable_web_page_preview: true,
             parse_mode: "HTML",
         });
-    } catch (error: any) {
-        if (error.response?.body?.description?.includes("message is not modified")) {
-            logger.info("Skipped edit: message content and markup are identical");
-        } else {
-            logger.error("Error editing message", { error });
+    } catch (error) {
+        if (error instanceof Error) {
+            if (error.message.includes("message is not modified")) {
+                logger.info("Skipped edit: message content and markup are identical");
+            } else {
+                logger.error("Error editing message", { error: error.message });
+            }
         }
     }
 }
+
 const onStartCommand = async (msg: TelegramBot.Message, match: RegExpExecArray | null) => {
     if (!botInstance) {
         logger.error("Bot instance not initialized in onStartCommand");
@@ -320,7 +339,7 @@ const onHelpCommand = (msg: TelegramBot.Message) => {
     });
 };
 
-const backToStart = async (query: TelegramBot.CallbackQuery) => {
+const backToStart = async (query: CallbackQueryData) => {
     const { chatId, messageId } = getChatIdandMessageId(query);
     const { title, buttons } = await getTitleAndButtons(chatId!);
     switchMenu(chatId!, messageId!, title, buttons);

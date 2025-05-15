@@ -3,7 +3,7 @@ import { botInstance } from "../bot";
 import { getWalletByChatId } from "../models/walletModel";
 import { getPublicKeyinFormat } from "./sellController";
 import { SOLANA_CONNECTION } from "..";
-import { getAllTokensWithBalance, jupiter_swap, WSOL_ADDRESS } from "../solana/trade";
+import { getAllTokensWithBalance, sell_swap, WSOL_ADDRESS } from "../solana/trade";
 import { getTokenInfofromMint, getTokenMetaData } from "../solana/token";
 import { getTokenPrice } from "../getPrice";
 import { logger } from "../logger";
@@ -203,7 +203,7 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
                 parse_mode: "HTML",
                 reply_markup,
             });
-            botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
+            botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: TelegramBot.Message) => {
                 if (!botInstance) {
                     logger.error("Bot instance not initialized in sellPortfolio onReplyToMessage callback");
                     return;
@@ -221,18 +221,12 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
                             parse_mode: "HTML",
                         }
                     );
-                    const result = await jupiter_swap(
-                        SOLANA_CONNECTION,
-                        wallet.privateKey,
-                        tokenAddress,
-                        WSOL_ADDRESS,
-                        sellAmount,
-                        "ExactIn"
-                    );
-                    if (result && result.confirmed) {
+
+                    const result = await sell_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, sellAmount);
+                    if (result.success) {
                         await botInstance.sendMessage(
                             chatId,
-                            `Successfully sell ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
+                            `Successfully sold ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
             https://solscan.io/tx/${result.txSignature}`,
                             {
                                 parse_mode: "HTML",
@@ -254,11 +248,12 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
                     parse_mode: "HTML",
                 }
             );
-            const result = await jupiter_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, WSOL_ADDRESS, sellAmount, "ExactIn");
-            if (result && result.confirmed) {
+            //TODO! make a function for the message
+            const result = await sell_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, sellAmount);
+            if (result.success) {
                 await botInstance.sendMessage(
                     chatId,
-                    `Successfully sell ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
+                    `Successfully sold ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
 https://solscan.io/tx/${result.txSignature}`,
                     {
                         parse_mode: "HTML",

@@ -36,25 +36,5 @@ module.exports = {
         '@typescript-eslint/ban-types': 'off',
         "@typescript-eslint/explicit-function-return-type": "off"
     },
-    overrides: [
-        {
-            files: [
-                'src/bot.ts',
-                'src/controllers/autoBuyController.ts',
-                'src/controllers/buyController.ts',
-                'src/controllers/copytradeController.ts',
-                'src/controllers/portfolioController.ts',
-                'src/controllers/sellController.ts',
-                'src/controllers/withdrawController.ts',
-                'src/models/copyTradeModel.ts',
-                // 'src/raydiumSwap.ts',
-                // 'src/scraper/manageGroups.ts',
-                // 'src/solana/txhelpers.ts',
-            ],
-            rules: {
-                '@typescript-eslint/no-explicit-any': 'off'
-            }
-        }
-    ],
     ignorePatterns: ['!src/**/*'],
 }; 

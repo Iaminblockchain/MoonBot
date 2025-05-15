@@ -339,20 +339,14 @@ const handleSellPosition = async (chatId: string, tokenAddress: string) => {
         await botInstance.sendMessage(chatId, `🔄 Processing sell order for ${tokenAmount} ${tokenMetaData.symbol}...`);
 
         // Send sell transaction
-        const result = await solana.jupiter_swap(
-            SOLANA_CONNECTION,
-            wallet.privateKey,
-            tokenAddress,
-            solana.WSOL_ADDRESS,
-            position.tokenAmount, // Use raw token amount for the swap
-            "ExactIn",
-            false
-        );
+        const result = await solana.sell_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, position.tokenAmount);
 
-        if (result && result.confirmed) {
+        if (result.success) {
             // Get current price for closing position
             const currentPrice = await getTokenPrice(tokenAddress);
             await closePosition(chatId, tokenAddress, currentPrice);
+
+            //TODO! calculation in trade.ts
 
             const profitLoss = (currentPrice - position.buyPrice) * position.solAmount;
             const profitLossPercentage = (((currentPrice - position.buyPrice) / position.buyPrice) * 100).toFixed(2);

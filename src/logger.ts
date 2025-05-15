@@ -2,8 +2,8 @@ import winston from "winston";
 import { Logtail } from "@logtail/node";
 import { LogtailTransport } from "@logtail/winston";
 import { retrieveEnvVariable } from "./config";
-import { 
-    TELEGRAM_API_ID, 
+import {
+    TELEGRAM_API_ID,
     TELEGRAM_API_HASH,
     TELEGRAM_BOT_TOKEN,
     MONGO_URI,
@@ -11,11 +11,12 @@ import {
     SOLANA_WSS_ENDPOINT,
     TELEGRAM_STRING_SESSION,
     START_ENDPOINT_API_KEY,
-    TELEGRAM_PROXY
+    TELEGRAM_PROXY,
 } from "./index";
 
 const LOGTAIL_TOKEN = retrieveEnvVariable("logtail_token");
 const LOGTAIL_ENDPOINT = retrieveEnvVariable("logtail_endpoint");
+const isTest = retrieveEnvVariable("NODE_ENV") === "test";
 
 const transports: winston.transport[] = [new winston.transports.Console(), new winston.transports.File({ filename: "app.log" })];
 
@@ -42,27 +43,34 @@ const sensitiveValues = [
 
 // Function to sanitize sensitive values in log messages
 function sanitize(message: string): string {
-    // console.log(sensitiveValues);
     let sanitized = message;
     for (const value of sensitiveValues) {
         if (value) {
-            sanitized = sanitized.split(String(value)).join('***');
+            sanitized = sanitized.split(String(value)).join("***");
         }
     }
     return sanitized;
 }
 
-export const logger = winston.createLogger({
+const winstonLogger = winston.createLogger({
     level: "info",
     format: winston.format.combine(
         winston.format.timestamp(),
-        winston.format.printf(
-            ({ timestamp, level, message, ...meta }) => {
-                const original = `${timestamp} ${level}: ${message}` + (Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "");
-                const sanitized = sanitize(original)
-                return sanitized;
-            }
-        )
+        winston.format.printf(({ timestamp, level, message, ...meta }) => {
+            const original = `${timestamp} ${level}: ${message}` + (Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "");
+            const sanitized = sanitize(original);
+            return sanitized;
+        })
     ),
     transports,
 });
+
+// Create a mock logger for tests
+const mockLogger = {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+};
+
+export const logger = isTest ? mockLogger : winstonLogger;

@@ -150,6 +150,11 @@ const withdrawStart = async (chatId: string, replaceId?: number) => {
     }
 };
 
+type TokenMetadata = {
+    name?: string | null;
+    symbol?: string | null;
+};
+
 const withdrawPad = async (chatId: string, replaceId: number, tokenAddress: string) => {
     if (!botInstance) {
         logger.error("Bot instance not initialized in withdrawPad");
@@ -164,12 +169,12 @@ const withdrawPad = async (chatId: string, replaceId: number, tokenAddress: stri
         }
         const isNativeSol = tokenAddress == "sol" ? true : false;
         let caption = "";
-        let metaData: any;
+        let metaData: TokenMetadata | null | undefined;
         if (!isNativeSol) {
             const publicKey = getPublicKeyinFormat(wallet.privateKey);
             const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress);
             metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-            caption = `<b>Withdraw ${metaData?.name}(${metaData?.symbol})\n\n</b>Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}`;
+            caption = `<b>Withdraw ${metaData?.name ?? "Unknown"}(${metaData?.symbol ?? "Unknown"})\n\n</b>Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol ?? "Token"}`;
         } else {
             const solBalance = await getSolBalance(wallet.privateKey);
             caption = `<b>Withdraw native Sol token\n\n</b>Balance: ${solBalance}(sol)`;
@@ -193,7 +198,7 @@ const withdrawPad = async (chatId: string, replaceId: number, tokenAddress: stri
             ],
             [
                 {
-                    text: `${withdrawsetting.amount && withdrawsetting.isPercentage == false ? `✅ ${withdrawsetting.amount} ${isNativeSol ? "Sol" : metaData?.symbol}` : `X ${isNativeSol ? "Sol" : metaData?.symbol}`}`,
+                    text: `${withdrawsetting.amount && withdrawsetting.isPercentage == false ? `✅ ${withdrawsetting.amount} ${isNativeSol ? "Sol" : (metaData?.symbol ?? "Token")}` : `X ${isNativeSol ? "Sol" : (metaData?.symbol ?? "Token")}`}`,
                     command: `wC_set_xm_${withdrawsetting.tokenAddress}`,
                 },
             ],
@@ -258,7 +263,7 @@ const setWithdrawAmount = async (chatId: string, replaceId: number, identifier: 
         parse_mode: "HTML",
         reply_markup,
     });
-    botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
+    botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: TelegramBot.Message) => {
         if (!botInstance) {
             logger.error("Bot instance not initialized in setWithdrawAmount onReplyToMessage callback");
             return;
@@ -304,7 +309,7 @@ const sendWithdraw = async (chatId: string, queryId: string, tokenAddress: strin
             parse_mode: "HTML",
             reply_markup,
         });
-        botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: any) => {
+        botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: TelegramBot.Message) => {
             if (!botInstance) {
                 logger.error("Bot instance not initialized in sendWithdraw onReplyToMessage callback");
                 return;
@@ -320,12 +325,18 @@ const sendWithdraw = async (chatId: string, queryId: string, tokenAddress: strin
                     });
                     return;
                 }
-                let result: any;
+
+                type WithdrawResult = {
+                    confirmed: boolean;
+                };
+
+                let result: WithdrawResult;
                 if (tokenAddress != "sol") {
                     result = await sendSPLtokens(chatId, tokenAddress, n_msg.text, withdrawsetting.amount!, withdrawsetting.isPercentage!);
                 } else {
                     result = await solana.sendNativeSol(chatId, n_msg.text, withdrawsetting.amount!, withdrawsetting.isPercentage!);
                 }
+
                 if (result.confirmed) {
                     botInstance.sendMessage(chatId, "✅ Successfully withdraw token.", {
                         parse_mode: "HTML",

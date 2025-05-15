@@ -115,7 +115,7 @@ const startServices = async () => {
         }
 
         // Check database for chats
-        const dbChats = await Chat.find({}, "chat_id");
+        const dbChats = await Chat.find({});
         logger.info("Number of chats in the DB ", { dbChats: dbChats.length });
 
         if (dbChats.length === 0) {
