@@ -364,7 +364,6 @@ export async function parseTransaction(
 			error: tokenAmount === null ? "No SPL token transfer found" : undefined,
 		};
 	} catch (error: any) {
-		console.error(`Error parsing transaction ${signature}:`, error);
 		return {
 			signature,
 			tokenAmount: null,
