@@ -1,9 +1,10 @@
 // tx-helpers.ts
-import { Connection, ParsedTransactionWithMeta, PublicKey, SignatureStatus, TransactionSignature } from "@solana/web3.js";
+import { Connection, ParsedTransactionWithMeta, PublicKey, SignatureStatus, TransactionSignature, TokenBalance } from "@solana/web3.js";
 import { logger } from "../logger";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { WSOL_ADDRESS } from "./trade";
 import { getTokenPrice } from "../getPrice";
+import { betterConsoleLog } from "telegram/Helpers";
 
 // Define commitment level constant
 export const COMMITMENT_LEVEL = "confirmed";
@@ -19,14 +20,6 @@ export const ERR_6003 = "slippage: Too little SOL received to sell the given amo
 
 /*  helpers  */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-interface TokenBalance {
-    mint: string;
-    owner: string;
-    uiTokenAmount?: {
-        uiAmount: number | null;
-    };
-}
 
 const getTokenBalance = (tokenBalances: TokenBalance[], mint: string, owner: string): number => {
     for (const t of tokenBalances) {
@@ -335,14 +328,14 @@ export async function parseTransaction(
         if (transaction.meta?.preTokenBalances && transaction.meta?.postTokenBalances) {
             const solBalanceChange = transaction.meta.preBalances[0] - transaction.meta.postBalances[0];
             const transactionFee = transaction.meta.fee || 0;
-            const netSolBalanceChange = solBalanceChange - transactionFee;
+      const netSolBalanceChange = solBalanceChange - transactionFee; 
             const solAmount = netSolBalanceChange / 1_000_000_000;
 
             const tokenPreBalance = transaction.meta.preTokenBalances.find(
-                (bal: any) => bal.mint === tokenAddress
+                (bal: TokenBalance) => bal.mint === tokenAddress
             );
             const tokenPostBalance = transaction.meta.postTokenBalances.find(
-                (bal: any) => bal.mint === tokenAddress
+                (bal: TokenBalance) => bal.mint === tokenAddress
             );
 
             if (tokenPreBalance && tokenPostBalance) {
@@ -352,7 +345,7 @@ export async function parseTransaction(
                 if (tokenAmountChange !== 0 && solAmount !== 0) {
                     // Price = SOL spent / Token received (or vice versa for sell)
                     tokenSolPrice = Math.abs(solAmount / tokenAmountChange);
-
+                    
                     let solUsdPrice = await getTokenPrice(WSOL_ADDRESS);
                     tokenUsdPrice = tokenSolPrice * solUsdPrice;
                 }
@@ -366,13 +359,13 @@ export async function parseTransaction(
             tokenUsdPrice,
             error: tokenAmount === null ? "No SPL token transfer found" : undefined,
         };
-    } catch (error: any) {
+    } catch (error) {
         return {
             signature,
             tokenAmount: null,
             tokenSolPrice: null,
             tokenUsdPrice: null,
-            error: `Failed to parse transaction: ${error.message}`,
+            error: `Failed to parse transaction`,
         };
     }
 }
