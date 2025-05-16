@@ -335,7 +335,7 @@ export async function parseTransaction(
 		if (transaction.meta?.preTokenBalances && transaction.meta?.postTokenBalances) {
 			const solBalanceChange = transaction.meta.preBalances[0] - transaction.meta.postBalances[0];
 			const transactionFee = transaction.meta.fee || 0;
-      const netSolBalanceChange = solBalanceChange - transactionFee; 
+			const netSolBalanceChange = solBalanceChange - transactionFee;
 			const solAmount = netSolBalanceChange / 1_000_000_000;
 
 			const tokenPreBalance = transaction.meta.preTokenBalances.find(
@@ -352,7 +352,7 @@ export async function parseTransaction(
 				if (tokenAmountChange !== 0 && solAmount !== 0) {
 					// Price = SOL spent / Token received (or vice versa for sell)
 					tokenSolPrice = Math.abs(solAmount / tokenAmountChange);
-					
+
 					let solUsdPrice = await getTokenPrice(WSOL_ADDRESS);
 					tokenUsdPrice = tokenSolPrice * solUsdPrice;
 				}
