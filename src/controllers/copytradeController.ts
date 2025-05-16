@@ -215,8 +215,7 @@ export const handleCallBackQuery = async (query: TelegramBot.CallbackQuery) => {
                 return showPortfolioPad(chatid);
             });
         }
-
-        if (callbackData === "ct_add_signal") {
+        else if (callbackData === "ct_add_signal") {
             return walletdb
                 .getWalletByChatId(callbackMessage.chat.id)
                 .then(async (wallet) => {
@@ -244,31 +243,26 @@ export const handleCallBackQuery = async (query: TelegramBot.CallbackQuery) => {
                     botInstance.sendMessage(chatid, "❌ Something went wrong.");
                 });
         }
-
-        if (callbackData === "ct_back") {
+        else if (callbackData === "ct_back") {
             return showPortfolioPad(chatid, msgId);
         }
-
-        if (callbackData === "ct_activate_all") {
+        else if (callbackData === "ct_activate_all") {
             await setAllCopytradeStatus(chatid, true);
             await showPortfolioPad(chatid, msgId);
         }
-        if (callbackData === "ct_deactivate_all") {
+        else if (callbackData === "ct_deactivate_all") {
             await setAllCopytradeStatus(chatid, false);
             await showPortfolioPad(chatid, msgId);
         }
-
-        if (callbackData.startsWith("ct_lim_")) {
+        else if (callbackData.startsWith("ct_lim_")) {
             const tradeId = callbackData.replace("ct_lim_", "");
             return showLimitOrderSettings(chatid, msgId, tradeId);
         }
-
-        if (callbackData.startsWith("ct_back_to_edit_")) {
+        else if (callbackData.startsWith("ct_back_to_edit_")) {
             const tradeId = callbackData.replace("ct_back_to_edit_", "");
             return editcopytradesignal(chatid, msgId, tradeId);
         }
-
-        if (callbackData.startsWith("ct_set_limit_")) {
+        else if (callbackData.startsWith("ct_set_limit_")) {
             const tradeId = callbackData.replace("ct_set_limit_", "");
             if (!botInstance) return;
             
@@ -301,8 +295,7 @@ export const handleCallBackQuery = async (query: TelegramBot.CallbackQuery) => {
             });
             return;
         }
-
-        if (callbackData.startsWith("ct_reset_steps_")) {
+        else if (callbackData.startsWith("ct_reset_steps_")) {
             const tradeId = callbackData.replace("ct_reset_steps_", "");
             
             await copytradedb.updateTrade({
@@ -316,8 +309,7 @@ export const handleCallBackQuery = async (query: TelegramBot.CallbackQuery) => {
             await showLimitOrderSettings(chatid, msgId, tradeId);
             return;
         }
-
-        if (callbackData.startsWith("ct_save_steps_")) {
+        else if (callbackData.startsWith("ct_save_steps_")) {
             const tradeId = callbackData.replace("ct_save_steps_", "");
             const currentState = getState(chatid);
             const steps = currentState?.data?.tempSteps || [];
@@ -347,8 +339,7 @@ export const handleCallBackQuery = async (query: TelegramBot.CallbackQuery) => {
             await showLimitOrderSettings(chatid, msgId, tradeId);
             return;
         }
-
-        if (callbackData.startsWith("ct_activate_lim_")) {
+        else if (callbackData.startsWith("ct_activate_lim_")) {
             const tradeId = callbackData.replace("ct_activate_lim_", "");
             const trade = await copytradedb.findTrade({ _id: new mongoose.Types.ObjectId(tradeId) });
             
