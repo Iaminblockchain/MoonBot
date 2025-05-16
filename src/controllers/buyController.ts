@@ -15,8 +15,9 @@ const getBuySuccessMessage = async (
     trx: string,
     tokenAddress: string,
     trade_type: string,
-    tokenBalanceChange?: number,
-    solBalanceChange?: number,
+    tokenBalanceChange: number,
+    solBalanceChange: number,
+    fees: number,
     settings?: {
         amount: number;
         isPercentage: boolean;
@@ -29,11 +30,12 @@ const getBuySuccessMessage = async (
 ) => {
     const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
 
-    const tokenInfo = tokenBalanceChange ? `\nTokens bought: ${tokenBalanceChange.toLocaleString()}` : "";
-
+    const tokenInfo = tokenBalanceChange ? `\nTokens bought: ${Math.abs(tokenBalanceChange).toLocaleString()}` : "";
+    const solInfo = solBalanceChange ? `\nSOL Amount: ${Math.abs(solBalanceChange).toFixed(6)}` : "";
+    const feesInfo = `\nFees: ${fees.toFixed(4)} SOL`;
     const sourceInfo = tradeSignal ? `Source: ${tradeSignal}` : "";
 
-    let message = `${trade_type} successful\nTicker: ${metaData?.symbol}\nSOL Amount: ${solBalanceChange}\n${tokenInfo}\n${sourceInfo}\n${trx}`;
+    let message = `${trade_type} successful\nTicker: ${metaData?.symbol}\n${solInfo}\n${feesInfo}\n${tokenInfo}\n${sourceInfo}\n${trx}`;
 
     if (settings) {
         if (settings.takeProfit !== null) {
@@ -93,7 +95,14 @@ export const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: nu
             let sol_balance_change = result.sol_balance_change;
 
             logger.info("onClickBuy success", { chatId, txSignature: result.txSignature, tokenBalanceChange });
-            const msg = await getBuySuccessMessage(trxLink, trade.tokenAddress, "Buy", tokenBalanceChange, sol_balance_change);
+            const msg = await getBuySuccessMessage(
+                trxLink,
+                trade.tokenAddress,
+                "Buy",
+                tokenBalanceChange,
+                sol_balance_change,
+                result.executionInfo?.feesPaid || 0
+            );
             botInstance.sendMessage(chatId!, msg);
         } else {
             logger.error("onClickBuy failed: not confirmed", { chatId, result });
@@ -160,7 +169,8 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
                     trade.tokenAddress,
                     "Buy",
                     Number(tokenBalanceChange),
-                    Number(sol_balance_change)
+                    Number(sol_balance_change),
+                    result.executionInfo?.feesPaid || 0
                 );
                 botInstance.sendMessage(chatId, msg);
             } else {
@@ -333,6 +343,7 @@ export const autoBuyContract = async (
                 trade_type,
                 tokenBalanceChange,
                 solBalanceChange,
+                result.executionInfo?.feesPaid || 0,
                 settings,
                 tradeSignal
             );
