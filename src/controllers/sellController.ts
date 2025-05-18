@@ -66,7 +66,6 @@ const onClickSell = async (query: TelegramBot.CallbackQuery, fraction: number, w
     await botInstance.sendMessage(chatId!, "Sending sell transaction");
 
     try {
-        //TODO remove wrapUnwrapSOL??
         const result = await solana.sell_swap(SOLANA_CONNECTION, privateKey, tokenAddress, amountToSell);
         if (result.success) {
             logger.info("Sell transaction result", { result });
@@ -303,11 +302,11 @@ const getSellSuccessMessage = async (
     const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
 
     // Add token balance change info to message if available
-    const tokenInfo = tokenBalanceChange ? `\nTokens sold: ${tokenBalanceChange.toLocaleString()}` : "";
+    const tokenInfo = tokenBalanceChange ? `\nTokens sold: ${Math.abs(tokenBalanceChange).toLocaleString()}` : "";
 
     const sourceInfo = tradeSignal ? `Source: ${tradeSignal}` : "";
 
-    let message = `${trade_type} successful: ${trx}\n SOL Amount: ${solAmount}\nTicker: ${metaData?.symbol}${tokenInfo}\nSource: ${sourceInfo}`;
+    let message = `${trade_type} successful: ${trx}\n SOL Amount: ${solAmount.toFixed(6)}\nTicker: ${metaData?.symbol}${tokenInfo}\nSource: ${sourceInfo}`;
 
     if (settings) {
         if (settings.takeProfit !== null) {

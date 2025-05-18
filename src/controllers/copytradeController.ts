@@ -1,7 +1,7 @@
 import TelegramBot from "node-telegram-bot-api";
 import * as walletdb from "../models/walletModel";
 import * as copytradedb from "../models/copyTradeModel";
-import { botInstance, setState, STATE, removeState } from "../bot";
+import { botInstance, setState, STATE, removeState, getState } from "../bot";
 import { TelegramClient } from "telegram";
 import { setAutotradeSignal } from "./autoBuyController";
 import mongoose from "mongoose";
@@ -17,7 +17,7 @@ export const setClient = (client: TelegramClient) => {
     tgClient = client;
 };
 
-type FieldKey = "tag" | "signal" | "amount" | "slippage" | "rep" | "sl" | "tp";
+type FieldKey = "tag" | "signal" | "amount" | "slippage" | "rep" | "sl" | "tp" | "limitOrderStep";
 
 interface InputCtx {
     field: FieldKey;
@@ -60,11 +60,78 @@ export const handleInput = async (msg: TelegramBot.Message, ctx: InputCtx) => {
             case "tp":
                 await copytradedb.updateTrade({ id: ctx.tradeId, tp: +text });
                 break;
+            case "limitOrderStep": {
+                const [sellPercentage, priceIncrement] = text.split(',').map(num => parseFloat(num.trim()));
+                
+                if (isNaN(sellPercentage) || isNaN(priceIncrement)) {
+                    if (!botInstance) return;
+                    // Delete instruction and input messages immediately
+                    botInstance.deleteMessage(chatId, ctx.replaceId);
+                    botInstance.deleteMessage(chatId, msg.message_id);
+                    await notifyError(chatId, "Invalid input format. Please use format: sellPercentage,priceIncrement");
+                    return;
+                }
+
+                const trade = await copytradedb.findTrade({ _id: new mongoose.Types.ObjectId(ctx.tradeId) });
+                if (!trade) {
+                    logger.error("No Copy Trade signal Error", { tradeId: ctx.tradeId, chatId });
+                    return;
+                }
+
+                const existingSteps = trade.limitOrderSteps || [];
+
+                // Validate price increment is greater than previous step
+                if (existingSteps.length > 0) {
+                    const lastStep = existingSteps[existingSteps.length - 1];
+                    if (priceIncrement <= lastStep.priceIncrement) {
+                        if (!botInstance) return;
+                        // Delete instruction and input messages immediately
+                        botInstance.deleteMessage(chatId, ctx.replaceId);
+                        botInstance.deleteMessage(chatId, msg.message_id);
+                        await notifyError(chatId, `Price increment (${priceIncrement}%) must be greater than the previous step (${lastStep.priceIncrement}%)`);
+                        return;
+                    }
+                }
+
+                // Calculate total sell percentage including new step
+                const totalSellPercentage = existingSteps.reduce((sum, step) => sum + step.sellPercentage, 0) + sellPercentage;
+                if (totalSellPercentage > 100) {
+                    if (!botInstance) return;
+                    // Delete instruction and input messages immediately
+                    botInstance.deleteMessage(chatId, ctx.replaceId);
+                    botInstance.deleteMessage(chatId, msg.message_id);
+                    await notifyError(chatId, `Total sell percentage (${totalSellPercentage}%) cannot exceed 100%. Current total: ${totalSellPercentage - sellPercentage}%`);
+                    return;
+                }
+
+                const newStep = {
+                    stepNumber: existingSteps.length + 1,
+                    sellPercentage,
+                    priceIncrement
+                };
+
+                await copytradedb.updateTrade({
+                    id: ctx.tradeId,
+                    limitOrder: true,
+                    limitOrderSteps: [...existingSteps, newStep]
+                });
+
+                // Delete the instruction message and user's input
+                if (botInstance) {
+                    botInstance.deleteMessage(chatId, ctx.replaceId);
+                    botInstance.deleteMessage(chatId, msg.message_id);
+                }
+
+                await notifySuccess(chatId, "Limit order step added successfully");
+                await showLimitOrderSettings(chatId, msg.message_id, ctx.tradeId);
+                break;
+            }
         }
 
         // refresh the inline‑keyboard
-        await editcopytradesignal(chatId, ctx.replaceId, ctx.tradeId);
-        //await notifySuccess(chatId, 'Updated');
+        if (ctx.field !== "limitOrderStep") {
+            await editcopytradesignal(chatId, ctx.replaceId, ctx.tradeId);
+        }
     } catch (err) {
         logger.error(err);
         await notifyError(chatId, "Update failed");
@@ -148,8 +215,7 @@ export const handleCallBackQuery = async (query: TelegramBot.CallbackQuery) => {
                 return showPortfolioPad(chatid);
             });
         }
-
-        if (callbackData === "ct_add_signal") {
+        else if (callbackData === "ct_add_signal") {
             return walletdb
                 .getWalletByChatId(callbackMessage.chat.id)
                 .then(async (wallet) => {
@@ -177,18 +243,154 @@ export const handleCallBackQuery = async (query: TelegramBot.CallbackQuery) => {
                     botInstance.sendMessage(chatid, "❌ Something went wrong.");
                 });
         }
-
-        if (callbackData === "ct_back") {
+        else if (callbackData === "ct_back") {
             return showPortfolioPad(chatid, msgId);
         }
-
-        if (callbackData === "ct_activate_all") {
+        else if (callbackData === "ct_activate_all") {
             await setAllCopytradeStatus(chatid, true);
             await showPortfolioPad(chatid, msgId);
         }
-        if (callbackData === "ct_deactivate_all") {
+        else if (callbackData === "ct_deactivate_all") {
             await setAllCopytradeStatus(chatid, false);
             await showPortfolioPad(chatid, msgId);
+        }
+        else if (callbackData.startsWith("ct_lim_")) {
+            const tradeId = callbackData.replace("ct_lim_", "");
+            return showLimitOrderSettings(chatid, msgId, tradeId);
+        }
+        else if (callbackData.startsWith("ct_back_to_edit_")) {
+            const tradeId = callbackData.replace("ct_back_to_edit_", "");
+            return editcopytradesignal(chatid, msgId, tradeId);
+        }
+        else if (callbackData.startsWith("ct_set_limit_")) {
+            const tradeId = callbackData.replace("ct_set_limit_", "");
+            if (!botInstance) return;
+            
+            const messageText = `<b>Add New Limit Order Step</b>\n\n` +
+                `Please enter the sell percentage and price increment in the format:\n` +
+                `sellPercentage,priceIncrement\n\n` +
+                `Example: 50,100 (sell 50% at 100% price increase)`;
+
+            const reply_markup = {
+                force_reply: true
+            };
+
+            const new_msg = await botInstance.sendMessage(chatid, messageText, {
+                parse_mode: "HTML",
+                reply_markup
+            });
+
+            // Delete the instruction message after 30 seconds if no response
+            setTimeout(() => {
+                if (botInstance) {
+                    botInstance.deleteMessage(chatid, new_msg.message_id);
+                }
+            }, 30000);
+
+            setState(chatid, STATE.COPYTRADE_INPUT, {
+                field: "limitOrderStep",
+                tradeId,
+                replaceId: new_msg.message_id,
+                tempSteps: []
+            });
+            return;
+        }
+        else if (callbackData.startsWith("ct_reset_steps_")) {
+            const tradeId = callbackData.replace("ct_reset_steps_", "");
+            
+            await copytradedb.updateTrade({
+                id: tradeId,
+                limitOrder: false,
+                limitOrderActive: false,
+                limitOrderSteps: []
+            });
+
+            await notifySuccess(chatid, "Limit order steps have been reset");
+            await showLimitOrderSettings(chatid, msgId, tradeId);
+            return;
+        }
+        else if (callbackData.startsWith("ct_save_steps_")) {
+            const tradeId = callbackData.replace("ct_save_steps_", "");
+            const currentState = getState(chatid);
+            const steps = currentState?.data?.tempSteps || [];
+
+            if (steps.length === 0) {
+                if (!botInstance) return;
+                await botInstance.answerCallbackQuery(query.id, {
+                    text: "Please add at least one step before saving",
+                    show_alert: true
+                });
+                return;
+            }
+
+            // Add step number
+            const numberedSteps = steps.map((step: { sellPercentage: number; priceIncrement: number }, index: number) => ({
+                ...step,
+                stepNumber: index + 1
+            }));
+
+            await copytradedb.updateTrade({
+                id: tradeId,
+                limitOrder: true,
+                limitOrderSteps: numberedSteps
+            });
+
+            await notifySuccess(chatid, "Limit order step saved successfully");
+            await showLimitOrderSettings(chatid, msgId, tradeId);
+            return;
+        }
+        else if (callbackData.startsWith("ct_activate_lim_")) {
+            const tradeId = callbackData.replace("ct_activate_lim_", "");
+            const trade = await copytradedb.findTrade({ _id: new mongoose.Types.ObjectId(tradeId) });
+            
+            if (!trade) {
+                logger.error("No Copy Trade signal Error", { tradeId, chatid });
+                return;
+            }
+
+            const steps = trade.limitOrderSteps || [];
+            
+            if (steps.length === 0) {
+                if (!botInstance) return;
+                await botInstance.answerCallbackQuery(query.id, {
+                    text: "Please add at least one step before activating",
+                    show_alert: true
+                });
+                return;
+            }
+
+            // Check if total sell percentage is 100%
+            const totalSellPercentage = steps.reduce((sum, step) => sum + step.sellPercentage, 0);
+            if (totalSellPercentage !== 100) {
+                if (!botInstance) return;
+                await botInstance.answerCallbackQuery(query.id, {
+                    text: `Total sell percentage must be 100%. Current total: ${totalSellPercentage}%`,
+                    show_alert: true
+                });
+                return;
+            }
+
+            // Check if price increments are strictly increasing
+            for (let i = 1; i < steps.length; i++) {
+                if (steps[i].priceIncrement <= steps[i-1].priceIncrement) {
+                    if (!botInstance) return;
+                    await botInstance.answerCallbackQuery(query.id, {
+                        text: `Price increments must be strictly increasing. Check steps ${i} and ${i+1}`,
+                        show_alert: true
+                    });
+                    return;
+                }
+            }
+
+            // Toggle limit order active state
+            await copytradedb.updateTrade({
+                id: tradeId,
+                limitOrderActive: !trade.limitOrderActive
+            });
+
+            await notifySuccess(chatid, trade.limitOrderActive ? "Limit order activated" : "Limit order deactivated");
+            await showLimitOrderSettings(chatid, msgId, tradeId);
+            return;
         }
 
         const actionMap: Record<string, Function> = {
@@ -552,6 +754,12 @@ const editCopyTradeKeyboard = (params: copytradedb.ITrade) => {
         ],
         [
             {
+                text: `Limit Order ${params.limitOrderActive ? "✅" : ""}`,
+                command: `ct_lim_${String(params._id)}`,
+            },
+        ],
+        [
+            {
                 text: `${params.active ? "🟢 Active" : "🔴 Pause"}`,
                 command: `ct_act_${String(params._id)}`,
             },
@@ -597,4 +805,54 @@ export const onSignal = async (chat_id: string, address: string) => {
     } catch (error) {
         logger.error("error onsignal", { chat_id, address });
     }
+};
+
+const showLimitOrderSettings = async (chatId: string, replaceId: number, dbId: string) => {
+    const trade = await copytradedb.findTrade({ _id: new mongoose.Types.ObjectId(dbId) });
+    if (!trade) {
+        logger.error("No Copy Trade signal Error", { dbId, chatId });
+        return;
+    }
+
+    const steps = trade.limitOrderSteps || [];
+    const caption = `<b>Limit Order Settings</b>\n\n` +
+        `Configure your limit order steps. Each step specifies:\n` +
+        `- Sell Percentage: How much of your remaining tokens to sell\n` +
+        `- Price Increment: At what price increase to trigger the sell\n\n` +
+        `Current Steps:\n` +
+        (steps.length === 0 ? "No steps configured" :
+            steps.map((step: { stepNumber: number; sellPercentage: number; priceIncrement: number }) =>
+                `${step.stepNumber}. Sell ${step.sellPercentage}% at ${step.priceIncrement}% price increase`
+            ).join('\n')) +
+        `\n\nStatus: ${trade.limitOrderActive ? "🟢 Active" : "🔴 Inactive"}`;
+
+    const keyboard = [
+        [{
+            text: "Add New Step",
+            callback_data: `ct_set_limit_${dbId}`
+        }],
+        [{
+            text: "Reset",
+            callback_data: `ct_reset_steps_${dbId}`
+        }],
+        [{
+            text: trade.limitOrderActive ? "Unactivate" : "Activate",
+            callback_data: `ct_activate_lim_${dbId}`
+        }],
+        [{
+            text: "👈 Back",
+            callback_data: `ct_back_to_edit_${dbId}`
+        }]
+    ];
+
+    const reply_markup = {
+        inline_keyboard: keyboard
+    };
+
+    await editText(chatId, caption, {
+        parse_mode: "HTML",
+        disable_web_page_preview: false,
+        reply_markup,
+        message_id: replaceId
+    });
 };

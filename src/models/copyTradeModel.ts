@@ -2,6 +2,12 @@ import mongoose, { Schema, model, Document } from "mongoose";
 import TelegramBot from "node-telegram-bot-api";
 import { logger } from "../logger";
 
+export interface LimitOrderStep {
+    stepNumber: number;
+    sellPercentage: number;
+    priceIncrement: number;
+}
+
 export interface ITrade extends Document {
     chatId: string;
     tag: string | null;
@@ -13,6 +19,9 @@ export interface ITrade extends Document {
     sl: number;
     repetitiveBuy: number;
     active: boolean;
+    limitOrder: boolean;
+    limitOrderActive: boolean;
+    limitOrderSteps: LimitOrderStep[];
 }
 
 const TradeSchema: Schema = new Schema({
@@ -26,6 +35,13 @@ const TradeSchema: Schema = new Schema({
     sl: { type: Number, default: null },
     repetitiveBuy: { type: Number, default: 1 },
     active: { type: Boolean, default: false },
+    limitOrder: { type: Boolean, default: false },
+    limitOrderActive: { type: Boolean, default: false },
+    limitOrderSteps: [{
+        stepNumber: { type: Number, required: true },
+        sellPercentage: { type: Number, required: true },
+        priceIncrement: { type: Number, required: true }
+    }]
 });
 
 // TradeSchema.index({ chatId: 1, signal: 1 }, { unique: true });
