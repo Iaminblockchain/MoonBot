@@ -1,6 +1,10 @@
 // tx-helpers.ts
-import { Connection, SignatureStatus } from "@solana/web3.js";
+import { Connection, ParsedTransactionWithMeta, PublicKey, SignatureStatus, TransactionSignature, TokenBalance } from "@solana/web3.js";
 import { logger } from "../logger";
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { WSOL_ADDRESS } from "./trade";
+import { getTokenPrice } from "../getPrice";
+import { betterConsoleLog } from "telegram/Helpers";
 
 // Define commitment level constant
 export const COMMITMENT_LEVEL = "confirmed";
@@ -16,14 +20,6 @@ export const ERR_6003 = "slippage: Too little SOL received to sell the given amo
 
 /*  helpers  */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-interface TokenBalance {
-    mint: string;
-    owner: string;
-    uiTokenAmount?: {
-        uiAmount: number | null;
-    };
-}
 
 const getTokenBalance = (tokenBalances: TokenBalance[], mint: string, owner: string): number => {
     for (const t of tokenBalances) {
@@ -181,13 +177,29 @@ export async function getTxInfoMetrics(txsig: string, connection: Connection, to
         return;
     }
     const metrics = extractTransactionMetrics(tx, tokenMint);
-    return metrics;
+    const parsedTransaction = await parseTransaction(txsig, tokenMint, connection);
+    const execution_price = parsedTransaction.tokenSolPrice;
+    return { ...metrics, ...parsedTransaction, execution_price };
 }
 
-// extract metrics
-export function extractTransactionMetrics(tx: Transaction, tokenMint: string): Record<string, unknown> {
+export type TransactionMetrics = {
+    owner_pubkey: string;
+    token: string;
+    token_balance_change: number;
+    //SOL fee
+    transaction_fee: number;
+    sol_balance_change: number;
+    token_creation_cost: number;
+    //DEX fees
+    feesPaid: number;
+    compute_units_consumed: number | null;
+};
+
+export function extractTransactionMetrics(tx: Transaction, tokenMint: string): TransactionMetrics | null {
     const message = tx.transaction?.message;
-    if (!message) return {};
+    if (!message) {
+        return null;
+    }
 
     const accountKeys: string[] = message.accountKeys || [];
 
@@ -232,16 +244,128 @@ export function extractTransactionMetrics(tx: Transaction, tokenMint: string): R
         }
     }
 
-    const price = Math.abs(tokenBalanceChange) > 1e-6 ? solBalanceChange / Math.abs(tokenBalanceChange) : null;
+    let feesPaid = 0;
+    for (let i = 1; i < preBalances.length; i++) {
+        const balanceChange = (postBalances[i] - preBalances[i]) / 1e9; // Convert lamports to SOL
+        if (balanceChange > 0) {
+            feesPaid += balanceChange;
+        }
+    }
+
+    let netBalanceChangeSOL = solBalanceChange - feesPaid;
+
+    const execution_price = netBalanceChangeSOL / Math.abs(tokenBalanceChange);
 
     return {
         owner_pubkey: ownerPubkey,
         token: tokenMint,
         token_balance_change: tokenBalanceChange,
         transaction_fee: fee,
-        sol_balance_change: solBalanceChange,
+        sol_balance_change: netBalanceChangeSOL,
         token_creation_cost: tokenCreationCost,
+        feesPaid: feesPaid,
         compute_units_consumed: computeUnits,
-        price,
     };
+}
+
+
+
+
+interface TransactionResult {
+    signature: string;
+    tokenAmount: number | null;
+    tokenSolPrice: number | null;
+    tokenUsdPrice: number | null;
+    error?: string;
+}
+
+// Function to fetch and parse transaction details
+export async function parseTransaction(
+    signature: TransactionSignature,
+    tokenAddress: string,
+    connection: Connection
+): Promise<TransactionResult> {
+    try {
+        // Fetch the transaction
+        const transaction: ParsedTransactionWithMeta | null = await connection.getParsedTransaction(signature, {
+            commitment: "confirmed",
+            maxSupportedTransactionVersion: 0,
+        });
+
+        if (!transaction) {
+            return {
+                signature,
+                tokenAmount: null,
+                tokenSolPrice: null,
+                tokenUsdPrice: null,
+                error: "Transaction not found or not confirmed",
+            };
+        }
+
+        // Extract token amount from SPL token transfers
+        let tokenAmount: number | null = null;
+        const tokenMint = new PublicKey(tokenAddress);
+
+        if (transaction.meta?.innerInstructions) {
+            for (const inner of transaction.meta.innerInstructions) {
+                for (const ix of inner.instructions) {
+                    if ("parsed" in ix && ix.programId.equals(TOKEN_PROGRAM_ID)) {
+                        const parsedInfo = ix.parsed.info;
+                        if (
+                            parsedInfo.mint === tokenAddress &&
+                            (ix.parsed.type === "transfer" || ix.parsed.type === "transferChecked")
+                        ) {
+                            tokenAmount = parsedInfo.tokenAmount.uiAmount || parseFloat(parsedInfo.amount) / Math.pow(10, parsedInfo.tokenAmount.decimals);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Estimate token price (for swap transactions)
+        let tokenSolPrice: number | null = null;
+        let tokenUsdPrice: number | null = null;
+        if (transaction.meta?.preTokenBalances && transaction.meta?.postTokenBalances) {
+            const solBalanceChange = transaction.meta.preBalances[0] - transaction.meta.postBalances[0];
+            const transactionFee = transaction.meta.fee || 0;
+      const netSolBalanceChange = solBalanceChange - transactionFee; 
+            const solAmount = netSolBalanceChange / 1_000_000_000;
+
+            const tokenPreBalance = transaction.meta.preTokenBalances.find(
+                (bal: TokenBalance) => bal.mint === tokenAddress
+            );
+            const tokenPostBalance = transaction.meta.postTokenBalances.find(
+                (bal: TokenBalance) => bal.mint === tokenAddress
+            );
+
+            if (tokenPreBalance && tokenPostBalance) {
+                const tokenAmountChange =
+                    (tokenPostBalance.uiTokenAmount.uiAmount || 0) -
+                    (tokenPreBalance.uiTokenAmount.uiAmount || 0);
+                if (tokenAmountChange !== 0 && solAmount !== 0) {
+                    // Price = SOL spent / Token received (or vice versa for sell)
+                    tokenSolPrice = Math.abs(solAmount / tokenAmountChange);
+                    
+                    let solUsdPrice = await getTokenPrice(WSOL_ADDRESS);
+                    tokenUsdPrice = tokenSolPrice * solUsdPrice;
+                }
+            }
+        }
+
+        return {
+            signature,
+            tokenAmount,
+            tokenSolPrice,
+            tokenUsdPrice,
+            error: tokenAmount === null ? "No SPL token transfer found" : undefined,
+        };
+    } catch (error) {
+        return {
+            signature,
+            tokenAmount: null,
+            tokenSolPrice: null,
+            tokenUsdPrice: null,
+            error: `Failed to parse transaction`,
+        };
+    }
 }

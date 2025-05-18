@@ -24,8 +24,9 @@ import { getChatIdByPrivateKey, getWalletByChatId, getReferralWallet } from "../
 import { getKeypair } from "./util";
 import { logger } from "../logger";
 import { getTokenMetaData } from "./token";
-import { getStatusTxnRetry, getTxInfoMetrics } from "./txhelpers";
+import { getStatusTxnRetry, getTxInfoMetrics, TransactionMetrics } from "./txhelpers";
 import { getReferralByRefereeId, updateRewards } from "../models/referralModel";
+
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const LAMPORTS = LAMPORTS_PER_SOL;
@@ -56,6 +57,13 @@ const endpoints = [
     "https://tokyo.mainnet.block-engine.jito.wtf/api/v1/bundles",
 ];
 
+/**
+ * Sends SOL from one wallet to another
+ * @param senderPrivateKey - Private key of the sender wallet
+ * @param receiverAddress - Public key of the receiver wallet
+ * @param amount - Amount of SOL to send
+ * @returns Transaction signature if successful, null if failed
+ */
 const sendSOL = async (senderPrivateKey: string, receiverAddress: string, amount: number) => {
     try {
         let privateKey_nums = bs58.decode(senderPrivateKey);
@@ -209,7 +217,9 @@ export interface SwapResult {
     txSignature?: string | null;
     token_balance_change: number;
     sol_balance_change: number;
+    execution_price: number;
     error?: string;
+    executionInfo?: TransactionMetrics;
 }
 
 export const buy_swap = async (
@@ -226,9 +236,11 @@ export const buy_swap = async (
 
         let token_balance_change = 0;
         let sol_balance_change = 0;
+        let execution_price = 0;
         if (result.executionInfo) {
             token_balance_change = Number(result.executionInfo.token_balance_change);
             sol_balance_change = Number(result.executionInfo.sol_balance_change);
+            execution_price = Number(result.executionInfo.execution_price);
         }
 
         return {
@@ -236,12 +248,14 @@ export const buy_swap = async (
             txSignature: result.txSignature,
             token_balance_change: token_balance_change,
             sol_balance_change: sol_balance_change,
+            execution_price: execution_price,
         };
     } else {
         return {
             success: false,
             token_balance_change: 0,
             sol_balance_change: 0,
+            execution_price: 0,
             error: "Swap failed to confirm",
         };
     }
@@ -260,9 +274,11 @@ export const sell_swap = async (
 
         let token_balance_change = 0;
         let sol_balance_change = 0;
+        let execution_price = 0;
         if (result.executionInfo) {
             token_balance_change = Number(result.executionInfo.token_balance_change);
             sol_balance_change = Number(result.executionInfo.sol_balance_change);
+            execution_price = Number(result.executionInfo.execution_price);
         }
         //TODO: store
         return {
@@ -270,17 +286,31 @@ export const sell_swap = async (
             txSignature: result.txSignature,
             token_balance_change: token_balance_change,
             sol_balance_change: sol_balance_change,
+            execution_price: execution_price,
         };
     } else {
         return {
             success: false,
             token_balance_change: 0,
             sol_balance_change: 0,
+            execution_price: 0,
             error: "Swap failed to confirm",
         };
     }
 };
 
+/**
+ * Executes a swap transaction using Jupiter aggregator
+ * @param CONNECTION - Solana connection instance
+ * @param PRIVATE_KEY - User's private key
+ * @param inputMint - Input token mint address
+ * @param outputMint - Output token mint address
+ * @param amount - Amount to swap
+ * @param swapMode - "ExactIn" or "ExactOut" swap mode
+ * @param isJito - Whether to use Jito for transaction
+ * @param slippage - Slippage tolerance in basis points (default: 500)
+ * @returns Swap result with transaction details
+ */
 export const jupiter_swap = async (
     CONNECTION: Connection,
     PRIVATE_KEY: string,
@@ -458,12 +488,13 @@ export const jupiter_swap = async (
 };
 
 /**
- * Executes and confirms a Jito transaction.
- * @param {Transaction} transaction - The transaction to be executed and confirmed.
- * @param {Account} payer - The payer account for the transaction.
- * @param {Blockhash} lastestBlockhash - The latest blockhash.
- * @param {number} jitofee - The fee for the Jito transaction.
- * @returns {Promise<{ confirmed: boolean, signature: string | null }>} - A promise that resolves to an object containing the confirmation status and the transaction signature.
+ * Executes and confirms a transaction through Jito
+ * @param CONNECTION - Solana connection instance
+ * @param transaction - Transaction to execute
+ * @param payer - Payer keypair
+ * @param lastestBlockhash - Latest blockhash info
+ * @param jitofee - Jito fee amount
+ * @returns Confirmation status and signature
  */
 export async function jito_executeAndConfirm(
     CONNECTION: Connection,
@@ -520,10 +551,11 @@ export async function jito_executeAndConfirm(
 }
 
 /**
- * Confirms a transaction on the Solana blockchain.
- * @param {string} signature - The signature of the transaction.
- * @param {object} latestBlockhash - The latest blockhash information.
- * @returns {object} - An object containing the confirmation status and the transaction signature.
+ * Confirms a Jito transaction on Solana
+ * @param CONNECTION - Solana connection instance
+ * @param signature - Transaction signature
+ * @param latestBlockhash - Latest blockhash info
+ * @returns Confirmation status and signature
  */
 async function jito_confirm(CONNECTION: Connection, signature: string, latestBlockhash: BlockhashWithExpiryBlockHeight) {
     logger.info("Confirming the jito transaction...");
@@ -531,6 +563,12 @@ async function jito_confirm(CONNECTION: Connection, signature: string, latestBlo
     return { confirmed: true, signature };
 }
 
+/**
+ * Gets token decimals for a given mint address
+ * @param connection - Solana connection instance
+ * @param mintAddress - Token mint address
+ * @returns Number of decimals or null if failed
+ */
 export async function getDecimals(connection: Connection, mintAddress: PublicKey) {
     try {
         const info = await connection.getParsedAccountInfo(mintAddress);
@@ -542,6 +580,12 @@ export async function getDecimals(connection: Connection, mintAddress: PublicKey
     }
 }
 
+/**
+ * Retrieves all tokens with non-zero balance for a wallet
+ * @param connection - Solana connection instance
+ * @param owner - Owner's public key
+ * @returns Array of token balances with metadata
+ */
 export const getAllTokensWithBalance = async (connection: Connection, owner: PublicKey) => {
     try {
         const tokenAccounts = await connection.getParsedTokenAccountsByOwner(owner, {
@@ -576,6 +620,11 @@ export const getAllTokensWithBalance = async (connection: Connection, owner: Pub
 
 const MAX_RETRIES = 3;
 
+/**
+ * Submits and confirms a transaction with retries
+ * @param transaction - Transaction to submit
+ * @returns Confirmation status and signature
+ */
 export const submitAndConfirm = async (transaction: VersionedTransaction) => {
     try {
         const signature = await SOLANA_CONNECTION.sendRawTransaction(transaction.serialize(), {
@@ -596,6 +645,16 @@ export const submitAndConfirm = async (transaction: VersionedTransaction) => {
     }
 };
 
+/**
+ * Confirms a transaction with timeout and polling
+ * @param connection - Solana connection instance
+ * @param signature - Transaction signature
+ * @param desiredConfirmationStatus - Desired confirmation status
+ * @param timeout - Timeout in milliseconds
+ * @param pollInterval - Polling interval in milliseconds
+ * @param searchTransactionHistory - Whether to search transaction history
+ * @returns Signature status
+ */
 const confirmTransaction = async (
     connection: Connection,
     signature: TransactionSignature,
@@ -638,6 +697,14 @@ const confirmTransaction = async (
     throw new Error(`Transaction confirmation timeout after ${timeout}ms`);
 };
 
+/**
+ * Sends native SOL to a destination address
+ * @param chatId - User's chat ID
+ * @param destination - Destination wallet address
+ * @param amount - Amount to send
+ * @param isPercentage - Whether amount is a percentage of balance
+ * @returns Transaction confirmation status
+ */
 export const sendNativeSol = async (chatId: string, destination: string, amount: number, isPercentage: boolean) => {
     try {
         // Fetch the wallet associated with the chat ID
@@ -681,6 +748,12 @@ export const sendNativeSol = async (chatId: string, destination: string, amount:
     }
 };
 
+/**
+ * Validates if a public key exists on Solana
+ * @param connection - Solana connection instance
+ * @param publicKeyString - Public key to validate
+ * @returns Boolean indicating if public key is valid
+ */
 export const isValidPublicKey = async (connection: Connection, publicKeyString: string): Promise<boolean> => {
     try {
         // Validate the format of the public key
