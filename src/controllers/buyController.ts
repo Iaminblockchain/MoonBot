@@ -381,10 +381,10 @@ export const autoBuyContract = async (
                 botInstance.sendMessage(
                     chatId,
                     `Auto-sell Registered!\n\n` +
-                    `Token: <code>${contractAddress}</code>\n` +
-                    `Current Price: ${splprice.toFixed(9)} SOL\n` +
-                    `Take Profit: ${((splprice * (100 + settings.takeProfit)) / 100).toFixed(9)} SOL (${settings.takeProfit}%)\n` +
-                    `Stop Loss: ${((splprice * (100 - settings.stopLoss)) / 100).toFixed(9)} SOL (${settings.stopLoss}%)`,
+                        `Token: <code>${contractAddress}</code>\n` +
+                        `Current Price: ${splprice.toFixed(9)} SOL\n` +
+                        `Take Profit: ${((splprice * (100 + settings.takeProfit)) / 100).toFixed(9)} SOL (${settings.takeProfit}%)\n` +
+                        `Stop Loss: ${((splprice * (100 - settings.stopLoss)) / 100).toFixed(9)} SOL (${settings.stopLoss}%)`,
                     { parse_mode: "HTML" }
                 );
                 //set SL and TP in DB which will be queried

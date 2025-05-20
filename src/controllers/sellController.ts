@@ -116,7 +116,7 @@ const onClickSell = async (query: TelegramBot.CallbackQuery, fraction: number, w
                 `✅ <b>Position Closed Successfully!</b>\n\n` +
                 `Token: ${tokenMetaData.symbol} (${tokenMetaData.name})\n` +
                 `Amount Sold: ${tokenAmount} ${tokenMetaData.symbol}\n` +
-                `Buy Price: ${position.buyPriceSol?.toFixed(9) || '0'} SOL ($${position.buyPriceUsd?.toFixed(6) || '0'})\n` +
+                `Buy Price: ${position.buyPriceSol?.toFixed(9) || "0"} SOL ($${position.buyPriceUsd?.toFixed(6) || "0"})\n` +
                 `Sell Price: ${trxInfo.tokenSolPrice.toFixed(9)} SOL ($${trxInfo.tokenUsdPrice.toFixed(6)})\n` +
                 `${profitLossText}: ${Math.abs(profitLoss).toFixed(6)} SOL (${profitLossPercentage}%)\n` +
                 `Transaction: http://solscan.io/tx/${result.txSignature}`;
@@ -304,20 +304,20 @@ export const autoSellHandler = () => {
                             botInstance.sendMessage(
                                 key,
                                 `Auto-Sell Success\n\n` +
-                                `Token: ${metadata?.name} (${metadata?.symbol})\n` +
-                                `Address: <code>${info.contractAddress}</code>\n` +
-                                `Price: ${price.toFixed(9)} SOL\n` +
-                                `Gain: ${((price / info.startPrice - 1) * 100).toFixed(1)}%`,
+                                    `Token: ${metadata?.name} (${metadata?.symbol})\n` +
+                                    `Address: <code>${info.contractAddress}</code>\n` +
+                                    `Price: ${price.toFixed(9)} SOL\n` +
+                                    `Gain: ${((price / info.startPrice - 1) * 100).toFixed(1)}%`,
                                 { parse_mode: "HTML" }
                             );
                         } else if (price < info.lowPrice) {
                             botInstance.sendMessage(
                                 key,
                                 `Auto-Sell Success\n\n` +
-                                `Token: ${metadata?.name} (${metadata?.symbol})\n` +
-                                `Address: <code>${info.contractAddress}</code>\n` +
-                                `Price: ${price.toFixed(9)} SOL\n` +
-                                `Loss: ${((1 - price / info.startPrice) * 100).toFixed(1)}%`,
+                                    `Token: ${metadata?.name} (${metadata?.symbol})\n` +
+                                    `Address: <code>${info.contractAddress}</code>\n` +
+                                    `Price: ${price.toFixed(9)} SOL\n` +
+                                    `Loss: ${((1 - price / info.startPrice) * 100).toFixed(1)}%`,
                                 { parse_mode: "HTML" }
                             );
                         }

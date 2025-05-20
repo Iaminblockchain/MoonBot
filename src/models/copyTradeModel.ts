@@ -37,11 +37,13 @@ const TradeSchema: Schema = new Schema({
     active: { type: Boolean, default: false },
     limitOrder: { type: Boolean, default: false },
     limitOrderActive: { type: Boolean, default: false },
-    limitOrderSteps: [{
-        stepNumber: { type: Number, required: true },
-        sellPercentage: { type: Number, required: true },
-        priceIncrement: { type: Number, required: true }
-    }]
+    limitOrderSteps: [
+        {
+            stepNumber: { type: Number, required: true },
+            sellPercentage: { type: Number, required: true },
+            priceIncrement: { type: Number, required: true },
+        },
+    ],
 });
 
 // TradeSchema.index({ chatId: 1, signal: 1 }, { unique: true });
