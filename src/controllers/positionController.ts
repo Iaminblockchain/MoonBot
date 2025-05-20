@@ -2,14 +2,16 @@ import TelegramBot from "node-telegram-bot-api";
 import { botInstance } from "../bot";
 import { getWalletByChatId } from "../models/walletModel";
 import { getPublicKeyinFormat } from "./sellController";
-import { getAllTokensWithBalance } from "../solana/trade";
+import { getAllTokensWithBalance, WSOL_ADDRESS } from "../solana/trade";
 import { getTokenInfofromMint, getTokenMetaData } from "../solana/token";
 import { logger } from "../logger";
 import { SOLANA_CONNECTION } from "..";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, Keypair } from "@solana/web3.js";
 import { getPositionsByChatId, getPositionByTokenAddress, closePosition } from "../models/positionModel";
 import * as solana from "../solana/trade";
 import { getTokenPrice } from "../getPrice";
+import { parseTransaction } from "../solana/txhelpers";
+import bs58 from "bs58";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     if (!botInstance) {
@@ -96,7 +98,8 @@ const showOpenPositions = async (chatId: string) => {
                 const tokenMetaData = await getTokenMetaData(SOLANA_CONNECTION, position.tokenAddress);
                 return {
                     tokenAddress: position.tokenAddress,
-                    buyPrice: position.buyPrice,
+                    buyPriceUsd: position.buyPriceUsd,
+                    buyPriceSol: position.buyPriceSol,
                     stopLossPercentage: position.stopLossPercentage,
                     takeProfitPercentage: position.takeProfitPercentage,
                     solAmount: position.solAmount,
@@ -204,20 +207,20 @@ const showClosedTokenInfo = async (chatId: string, tokenAddress: string) => {
         }
 
         const buyTime = position.buyTime.toLocaleTimeString();
-        const takeProfitPrice = position.buyPrice * (1 + position.takeProfitPercentage / 100);
-        const stopLossPrice = position.buyPrice * (1 - position.stopLossPercentage / 100);
+        const takeProfitPrice = position.buyPriceSol * (1 + position.takeProfitPercentage / 100);
+        const stopLossPrice = position.buyPriceSol * (1 - position.stopLossPercentage / 100);
 
         const message =
             `📊 <b>Closed Position Details</b>\n\n` +
             `${tokenMetaData.name} (${tokenMetaData.symbol})\n` +
             `Address: <code>${tokenAddress}</code>\n\n` +
             `Source: ${position.signalSource ? "@" + position.signalSource : "Manual"}\n` +
-            `Bought at: $${position.buyPrice}\n` +
-            `Take profit: ${position.takeProfitPercentage}% ($${takeProfitPrice.toFixed(4)})\n` +
-            `Stop loss: ${position.stopLossPercentage}% ($${stopLossPrice.toFixed(4)})\n\n` +
-            `Closed Price: $${position.closePrice}\n` +
+            `Bought at: ${position.buyPriceSol} SOL\n` +
+            `Take profit: ${position.takeProfitPercentage}% (${takeProfitPrice.toFixed(4)} SOL)\n` +
+            `Stop loss: ${position.stopLossPercentage}% (${stopLossPrice.toFixed(4)} SOL)\n\n` +
+            `Closed Price: ${position.closePriceSol} SOL\n` +
             `Close time: ${position.closeTime?.toLocaleString()}\n\n` +
-            `ROI: ${(((position.closePrice! - position.buyPrice) / position.buyPrice) * 100).toFixed(2)}%`;
+            `ROI: ${(((position.closePriceSol! - position.buyPriceSol) / position.buyPriceSol) * 100).toFixed(2)}%`;
 
         const buttons = [[{ text: "Back", callback_data: "close" }]];
 
@@ -269,10 +272,11 @@ const showTokenInfo = async (chatId: string, tokenAddress: string) => {
         }
 
         logger.info("Token metadata found", { tokenMetaData });
-        const currentPrice = await getTokenPrice(tokenAddress);
-        const performance = (((currentPrice - position.buyPrice) / position.buyPrice) * 100).toFixed(2);
-        const stopLossPrice = position.buyPrice * (1 - position.stopLossPercentage / 100);
-        const takeProfitPrice = position.buyPrice * (1 + position.takeProfitPercentage / 100);
+        const currentUSDPrice = await getTokenPrice(tokenAddress);
+        const currentSOLPrice = currentUSDPrice * (await getTokenPrice(WSOL_ADDRESS));
+        const performance = (((currentSOLPrice - position.buyPriceSol) / position.buyPriceSol) * 100).toFixed(2);
+        const stopLossPrice = position.buyPriceSol * (1 - position.stopLossPercentage / 100);
+        const takeProfitPrice = position.buyPriceSol * (1 + position.takeProfitPercentage / 100);
 
         // Calculate token amount with decimals
         const tokenAmount = position.tokenAmount / Math.pow(10, tokenMetaData.decimals);
@@ -283,8 +287,8 @@ const showTokenInfo = async (chatId: string, tokenAddress: string) => {
             `Address: <code>${tokenAddress}</code>\n` +
             `Source: ${position.signalSource ? "@" + position.signalSource : ""}\n` +
             `Token Amount: ${tokenAmount} ${tokenMetaData.symbol}\n` +
-            `Buy Price: ${position.buyPrice}\n` +
-            `Current Price: ${currentPrice}\n` +
+            `Buy Price: ${position.buyPriceSol} SOL\n` +
+            `Current Price: ${currentSOLPrice} SOL\n` +
             `Performance: ${performance}%\n` +
             `Stop Loss: ${position.stopLossPercentage}% (${stopLossPrice})\n` +
             `Take Profit: ${position.takeProfitPercentage}% (${takeProfitPrice})\n` +
@@ -339,26 +343,28 @@ const handleSellPosition = async (chatId: string, tokenAddress: string) => {
         await botInstance.sendMessage(chatId, `🔄 Processing sell order for ${tokenAmount} ${tokenMetaData.symbol}...`);
 
         // Send sell transaction
+        const keypair = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
         const result = await solana.sell_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, position.tokenAmount);
 
         if (result.success) {
             // Get current price for closing position
-            const currentPrice = await getTokenPrice(tokenAddress);
-            await closePosition(chatId, tokenAddress, currentPrice);
+            const trxInfo = await parseTransaction(result.txSignature!, tokenAddress, keypair.publicKey.toString(), SOLANA_CONNECTION);
+            const currentPrice = trxInfo.tokenSolPrice || 0;
+            await closePosition(chatId, tokenAddress, trxInfo.tokenUsdPrice || 0, trxInfo.tokenSolPrice || 0);
 
             //TODO! calculation in trade.ts
 
-            const profitLoss = (currentPrice - position.buyPrice) * position.solAmount;
-            const profitLossPercentage = (((currentPrice - position.buyPrice) / position.buyPrice) * 100).toFixed(2);
+            const profitLoss = (currentPrice - position.buyPriceSol) * position.solAmount;
+            const profitLossPercentage = (((currentPrice - position.buyPriceSol) / position.buyPriceSol) * 100).toFixed(2);
             const profitLossText = profitLoss >= 0 ? "Profit" : "Loss";
 
             const message =
                 `✅ <b>Position Closed Successfully!</b>\n\n` +
                 `Token: ${tokenMetaData.symbol} (${tokenMetaData.name})\n` +
                 `Amount Sold: ${tokenAmount} ${tokenMetaData.symbol}\n` +
-                `Buy Price: $${position.buyPrice}\n` +
-                `Sell Price: $${currentPrice}\n` +
-                `${profitLossText}: $${Math.abs(profitLoss).toFixed(10)} (${profitLossPercentage}%)\n` +
+                `Buy Price: ${position.buyPriceSol} SOL\n` +
+                `Sell Price: ${currentPrice} SOL\n` +
+                `${profitLossText}: ${Math.abs(profitLoss).toFixed(10)} SOL (${profitLossPercentage}%)\n` +
                 `Transaction: http://solscan.io/tx/${result.txSignature}`;
 
             const buttons = [
