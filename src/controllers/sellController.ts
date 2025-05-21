@@ -266,7 +266,7 @@ export const onClickSellWithToken = async (query: TelegramBot.CallbackQuery) => 
         //     ]
         //     botInstance.sendMessage(chatId!, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: 'HTML' })
         // }
-    } catch (error) {}
+    } catch (error) { }
 };
 
 //run through each signal and check if sell is triggered
@@ -280,7 +280,12 @@ export const autoSellHandler = () => {
     trade.forEach(async (value, key) => {
         value.map(async (info: TRADE) => {
             try {
-                const price = (await getTokenPrice(info.contractAddress)) / (await getTokenPrice(WSOL_ADDRESS));
+                const wsolPrice = await getTokenPrice(WSOL_ADDRESS);
+                if (wsolPrice === 0) {
+                    logger.error("WSOL price is zero. Skipping auto-sell check.", { chatId: key, address: info.contractAddress });
+                    return;
+                }
+                const price = (await getTokenPrice(info.contractAddress)) / wsolPrice;
                 // botInstance.sendMessage(key!, `Auto-sell Check: ${info.contractAddress}, Current Price: ${price}, Target Price: ${info.targetPrice}`);
                 logger.debug("Auto-sell check", { chatId: key, address: info.contractAddress, price });
                 if (price > info.targetPrice || price < info.lowPrice) {
@@ -304,20 +309,20 @@ export const autoSellHandler = () => {
                             botInstance.sendMessage(
                                 key,
                                 `Auto-Sell Success\n\n` +
-                                    `Token: ${metadata?.name} (${metadata?.symbol})\n` +
-                                    `Address: <code>${info.contractAddress}</code>\n` +
-                                    `Price: ${price.toFixed(9)} SOL\n` +
-                                    `Gain: ${((price / info.startPrice - 1) * 100).toFixed(1)}%`,
+                                `Token: ${metadata?.name} (${metadata?.symbol})\n` +
+                                `Address: <code>${info.contractAddress}</code>\n` +
+                                `Price: ${price.toFixed(9)} SOL\n` +
+                                `Gain: ${((price / info.startPrice - 1) * 100).toFixed(1)}%`,
                                 { parse_mode: "HTML" }
                             );
                         } else if (price < info.lowPrice) {
                             botInstance.sendMessage(
                                 key,
                                 `Auto-Sell Success\n\n` +
-                                    `Token: ${metadata?.name} (${metadata?.symbol})\n` +
-                                    `Address: <code>${info.contractAddress}</code>\n` +
-                                    `Price: ${price.toFixed(9)} SOL\n` +
-                                    `Loss: ${((1 - price / info.startPrice) * 100).toFixed(1)}%`,
+                                `Token: ${metadata?.name} (${metadata?.symbol})\n` +
+                                `Address: <code>${info.contractAddress}</code>\n` +
+                                `Price: ${price.toFixed(9)} SOL\n` +
+                                `Loss: ${((1 - price / info.startPrice) * 100).toFixed(1)}%`,
                                 { parse_mode: "HTML" }
                             );
                         }
