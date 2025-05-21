@@ -10,6 +10,10 @@ import { logger } from "../logger";
 import { getSolBalance } from "../solana/util";
 import { getTokenMetaData } from "../solana/token";
 import { PositionStatus } from "../models/positionModel";
+import { WSOL_ADDRESS } from "../solana/trade";
+import { parseTransaction } from "../solana/txhelpers";
+import { Keypair } from "@solana/web3.js";
+import bs58 from "bs58";
 
 const getBuySuccessMessage = async (
     trx: string,
@@ -32,7 +36,7 @@ const getBuySuccessMessage = async (
 
     const tokenInfo = tokenBalanceChange ? `\nTokens bought: ${Math.abs(tokenBalanceChange).toLocaleString()}` : "";
     const solInfo = solBalanceChange ? `\nSOL Amount: ${Math.abs(solBalanceChange).toFixed(6)}` : "";
-    const feesInfo = `\nFees: ${fees.toFixed(4)} SOL`;
+    const feesInfo = `\nFees: ${fees.toFixed(9)} SOL`;
     const sourceInfo = tradeSignal ? `Source: ${tradeSignal}` : "";
 
     let message = `${trade_type} successful\nTicker: ${metaData?.symbol}\n${solInfo}\n${feesInfo}\n${tokenInfo}\n${sourceInfo}\n${trx}`;
@@ -349,14 +353,17 @@ export const autoBuyContract = async (
             );
             botInstance.sendMessage(chatId, msg);
 
+            const keypair = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
+            const trxInfo = await parseTransaction(result.txSignature!, contractAddress, keypair.publicKey.toString(), SOLANA_CONNECTION);
+
             //TODO possbly in trade.ts
             // Save position information
-            const splprice = await getTokenPrice(contractAddress);
             const position: positiondb.Position = {
                 chatId,
                 tokenAddress: contractAddress,
                 signalSource: tradeSignal,
-                buyPrice: splprice,
+                buyPriceUsd: trxInfo.tokenUsdPrice || 0,
+                buyPriceSol: trxInfo.tokenSolPrice || 0,
                 stopLossPercentage: settings.stopLoss ? settings.stopLoss : 0,
                 takeProfitPercentage: settings.takeProfit ? settings.takeProfit : 0,
                 solAmount,
@@ -368,12 +375,17 @@ export const autoBuyContract = async (
 
             if (settings.takeProfit != null && settings.stopLoss) {
                 logger.info("set take profit");
-                const splprice = await getTokenPrice(contractAddress);
+                const splprice = trxInfo.tokenSolPrice || 0;
                 // TODO: Update SPL Price
                 //TODO split TP and SL
                 botInstance.sendMessage(
                     chatId,
-                    `Auto-sell Registered: ${contractAddress}, Current Price: ${splprice}, TakeProfit Price: ${(splprice * (100 + settings.takeProfit)) / 100}(${settings.takeProfit}%), StopLoss Price: ${(splprice * (100 - settings.stopLoss)) / 100}(${settings.stopLoss}%)`
+                    `Auto-sell Registered!\n\n` +
+                        `Token: <code>${contractAddress}</code>\n` +
+                        `Current Price: ${splprice.toFixed(9)} SOL\n` +
+                        `Take Profit: ${((splprice * (100 + settings.takeProfit)) / 100).toFixed(9)} SOL (${settings.takeProfit}%)\n` +
+                        `Stop Loss: ${((splprice * (100 - settings.stopLoss)) / 100).toFixed(9)} SOL (${settings.stopLoss}%)`,
+                    { parse_mode: "HTML" }
                 );
                 //set SL and TP in DB which will be queried
                 setTradeState(

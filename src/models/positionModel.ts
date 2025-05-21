@@ -10,7 +10,8 @@ export interface Position {
     chatId: string;
     tokenAddress: string;
     signalSource?: string; // For copy trading
-    buyPrice: number;
+    buyPriceUsd: number;
+    buyPriceSol: number;
     stopLossPercentage: number; // Percentage from buy price
     takeProfitPercentage: number; // Percentage from buy price
     solAmount: number;
@@ -18,14 +19,16 @@ export interface Position {
     buyTime: Date;
     status: PositionStatus;
     closeTime?: Date;
-    closePrice?: number;
+    closePriceUsd?: number;
+    closePriceSol?: number;
 }
 
 const positionSchema = new mongoose.Schema<Position>({
     chatId: { type: String, required: true },
     tokenAddress: { type: String, required: true },
     signalSource: { type: String },
-    buyPrice: { type: Number, required: true },
+    buyPriceUsd: { type: Number, required: true },
+    buyPriceSol: { type: Number, required: true },
     stopLossPercentage: { type: Number, required: true }, // Stored as percentage (e.g., 5 for 5%)
     takeProfitPercentage: { type: Number, required: true }, // Stored as percentage (e.g., 10 for 10%)
     solAmount: { type: Number, required: true },
@@ -33,7 +36,8 @@ const positionSchema = new mongoose.Schema<Position>({
     buyTime: { type: Date, required: true, default: Date.now },
     status: { type: String, enum: Object.values(PositionStatus), required: true, default: PositionStatus.OPEN },
     closeTime: { type: Date },
-    closePrice: { type: Number },
+    closePriceUsd: { type: Number },
+    closePriceSol: { type: Number },
 });
 
 export const PositionModel = mongoose.model<Position>("Position", positionSchema);
@@ -63,7 +67,7 @@ export const createPosition = async (position: Position) => {
     }
 };
 
-export const closePosition = async (chatId: string, tokenAddress: string, closePrice: number) => {
+export const closePosition = async (chatId: string, tokenAddress: string, closePriceUsd: number, closePriceSol: number) => {
     try {
         const result = await PositionModel.updateOne(
             { chatId, tokenAddress, status: PositionStatus.OPEN },
@@ -71,11 +75,12 @@ export const closePosition = async (chatId: string, tokenAddress: string, closeP
                 $set: {
                     status: PositionStatus.CLOSED,
                     closeTime: new Date(),
-                    closePrice: closePrice,
+                    closePriceUsd: closePriceUsd,
+                    closePriceSol: closePriceSol,
                 },
             }
         ).exec();
-        logger.info("Position closed successfully", { chatId, tokenAddress, closePrice });
+        logger.info("Position closed successfully", { chatId, tokenAddress, closePriceUsd, closePriceSol });
         return result.modifiedCount > 0;
     } catch (error) {
         logger.error("Error closing position", { error, chatId, tokenAddress });
