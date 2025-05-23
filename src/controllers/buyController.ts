@@ -5,7 +5,6 @@ import * as walletdb from "../models/walletModel";
 import * as tradedb from "../models/tradeModel";
 import * as positiondb from "../models/positionModel";
 import * as solana from "../solana/trade";
-import { getTokenPrice } from "../getPrice";
 import { logger } from "../logger";
 import { getSolBalance } from "../solana/util";
 import { getTokenMetaData } from "../solana/token";

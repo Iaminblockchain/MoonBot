@@ -1,3 +1,5 @@
+export const JUPYTER_BASE_URL = "https://lite-api.jup.ag";
+
 export const helpText = `
 <b>You clicked “HELP”? Good job. Let’s get you started!</b>
 You already figured out Telegram and how to click buttons, you’re already ahead of 99% of crypto users. Setting up Moonbot is a walk in the park from here.

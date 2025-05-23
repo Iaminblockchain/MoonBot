@@ -9,7 +9,7 @@ import { SOLANA_CONNECTION } from "..";
 import { PublicKey, Keypair } from "@solana/web3.js";
 import { getPositionsByChatId, getPositionByTokenAddress, closePosition } from "../models/positionModel";
 import * as solana from "../solana/trade";
-import { getTokenPrice } from "../getPrice";
+import { getTokenPriceUSD } from "../solana/getPrice";
 import { parseTransaction } from "../solana/txhelpers";
 import bs58 from "bs58";
 
@@ -272,8 +272,8 @@ const showTokenInfo = async (chatId: string, tokenAddress: string) => {
         }
 
         logger.info("Token metadata found", { tokenMetaData });
-        const currentUSDPrice = await getTokenPrice(tokenAddress);
-        const currentSOLPrice = currentUSDPrice * (await getTokenPrice(WSOL_ADDRESS));
+        const currentUSDPrice = await getTokenPriceUSD(tokenAddress);
+        const currentSOLPrice = currentUSDPrice * (await getTokenPriceUSD(WSOL_ADDRESS));
         const performance = (((currentSOLPrice - position.buyPriceSol) / position.buyPriceSol) * 100).toFixed(2);
         const stopLossPrice = position.buyPriceSol * (1 - position.stopLossPercentage / 100);
         const takeProfitPrice = position.buyPriceSol * (1 + position.takeProfitPercentage / 100);

@@ -1,13 +1,13 @@
 import axios from "axios";
-import { logger } from "./logger";
+import { logger } from "../logger";
+import { JUPYTER_BASE_URL } from "../util/constants";
 
-const BASE_URL = "https://lite-api.jup.ag/price/v2";
 const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 
-export async function getTokenPrice(ids: string, vsToken: string | null = null, showExtraInfo: boolean = false): Promise<number> {
+export async function getTokenPriceUSD(ids: string, vsToken: string | null = null, showExtraInfo: boolean = false): Promise<number> {
     try {
         // Construct URL with ids as a query parameter
-        let url = `${BASE_URL}?ids=${encodeURIComponent(ids)}`;
+        let url = `${JUPYTER_BASE_URL}/price/v2?ids=${encodeURIComponent(ids)}`;
 
         // Add optional parameters if needed
         if (showExtraInfo) {
@@ -56,7 +56,7 @@ export async function getTokenPriceBatch(ids: string[]): Promise<Map<string, num
 
         // Join all token IDs with commas
         const idsString = ids.join(",");
-        const url = `${BASE_URL}?ids=${encodeURIComponent(idsString)}&vsToken=${WSOL_ADDRESS}`;
+        const url = `${JUPYTER_BASE_URL}/price/v2?ids=${encodeURIComponent(idsString)}&vsToken=${WSOL_ADDRESS}`;
 
         const response = await axios.get(url);
         const priceData = response.data.data;

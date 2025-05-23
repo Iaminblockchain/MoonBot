@@ -26,6 +26,7 @@ import { logger } from "../logger";
 import { getTokenMetaData } from "./token";
 import { getStatusTxnRetry, getTxInfoMetrics, TransactionMetrics } from "./txhelpers";
 import { getReferralByRefereeId, updateRewards } from "../models/referralModel";
+import { JUPYTER_BASE_URL } from "../util/constants";
 
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -117,7 +118,8 @@ async function getSwapInstructions(
     addressLookupTableAccounts: AddressLookupTableAccount[];
 }> {
     // 1) fetch the raw instruction payloads
-    const res = await fetch("https://api.jup.ag/swap/v1/swap-instructions", {
+    let url = `${JUPYTER_BASE_URL}/swap/v1/swap-instructions`;
+    const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -316,8 +318,9 @@ export const jupiter_swap = async (
         logger.info(`jupiter_swap ${inputMint} ${outputMint} ${amount} ${swapMode}`);
         const feePayer = new PublicKey(FEE_COLLECTION_WALLET);
         const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
+        let baseUrl = `${JUPYTER_BASE_URL}/swap/v1/quote`;
         const quoteUrl =
-            `https://api.jup.ag/swap/v1/quote` +
+            baseUrl +
             `?inputMint=${inputMint}` +
             `&outputMint=${outputMint}` +
             `&amount=${Math.floor(amount)}` +

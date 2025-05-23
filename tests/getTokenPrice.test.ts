@@ -1,17 +1,17 @@
-import { getTokenPrice, getTokenPriceBatch } from "../src/getPrice";
+import { getTokenPriceUSD, getTokenPriceBatch } from "../src/solana/getPrice";
 
-describe("getTokenPrice", () => {
+describe("getTokenPriceUSD", () => {
     it("should fetch and return token price", async () => {
         const tokenAddress = "So11111111111111111111111111111111111111112";
 
-        const price = await getTokenPrice(tokenAddress);
+        const price = await getTokenPriceUSD(tokenAddress);
 
         expect(price).toBeGreaterThan(0);
     });
 
     it("should fetch price for another token", async () => {
         const tokenAddress = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263";
-        const price = await getTokenPrice(tokenAddress);
+        const price = await getTokenPriceUSD(tokenAddress);
 
         expect(price).toBeGreaterThan(0);
     });

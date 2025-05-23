@@ -10,7 +10,7 @@ import bs58 from "bs58";
 const { PublicKey } = require("@solana/web3.js"); // Import PublicKey
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { autoBuySettings, getSPLBalance } from "./autoBuyController";
-import { getTokenPrice } from "../getPrice";
+import { getTokenPriceUSD } from "../solana/getPrice";
 import { logger } from "../logger";
 import { getTokenMetaData } from "../solana/token";
 import { parseTransaction } from "../solana/txhelpers";
@@ -280,12 +280,12 @@ export const autoSellHandler = () => {
     trade.forEach(async (value, key) => {
         value.map(async (info: TRADE) => {
             try {
-                const wsolPrice = await getTokenPrice(WSOL_ADDRESS);
+                const wsolPrice = await getTokenPriceUSD(WSOL_ADDRESS);
                 if (wsolPrice === 0) {
                     logger.error("WSOL price is zero. Skipping auto-sell check.", { chatId: key, address: info.contractAddress });
                     return;
                 }
-                const price = (await getTokenPrice(info.contractAddress)) / wsolPrice;
+                const price = (await getTokenPriceUSD(info.contractAddress)) / wsolPrice;
                 // botInstance.sendMessage(key!, `Auto-sell Check: ${info.contractAddress}, Current Price: ${price}, Target Price: ${info.targetPrice}`);
                 logger.debug("Auto-sell check", { chatId: key, address: info.contractAddress, price });
                 if (price > info.targetPrice || price < info.lowPrice) {

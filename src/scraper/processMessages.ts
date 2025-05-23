@@ -3,7 +3,7 @@ import { IChat, Chat } from "../models/chatModel";
 import { NewMessageEvent } from "telegram/events";
 import { logger } from "../logger";
 import { v4 as uuidv4 } from "uuid";
-import { getTokenPrice } from "../getPrice";
+import { getTokenPriceUSD } from "../solana/getPrice";
 import { onSignal } from "../controllers/copytradeController";
 import { Api } from "telegram";
 import { convertChatIdToMTProto } from "../scraper/manageGroups";
@@ -44,7 +44,7 @@ async function trackPerformance(contractAddress: string, entry_price: number): P
         setTimeout(
             async () => {
                 try {
-                    const currentPrice = await getTokenPrice(contractAddress);
+                    const currentPrice = await getTokenPriceUSD(contractAddress);
                     if (currentPrice && entry_price) {
                         const performance = ((currentPrice - entry_price) / entry_price) * 100;
                         logger.info(`${label} performance for ${contractAddress}: ${performance.toFixed(2)}%`);
@@ -77,7 +77,7 @@ export async function contractFound(contractAddress: string, chat_id_str: string
 
     let entry_price: number | undefined;
     try {
-        entry_price = await getTokenPrice(contractAddress);
+        entry_price = await getTokenPriceUSD(contractAddress);
         logger.info("process:  price now ", { entry_price: entry_price });
     } catch (err) {
         logger.error("process: error getting price ", { contractAddress: contractAddress });

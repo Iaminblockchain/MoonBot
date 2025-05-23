@@ -3,7 +3,7 @@ import { Connection, ParsedTransactionWithMeta, PublicKey, SignatureStatus, Tran
 import { logger } from "../logger";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { WSOL_ADDRESS } from "./trade";
-import { getTokenPrice } from "../getPrice";
+import { getTokenPriceUSD } from "./getPrice";
 import { betterConsoleLog } from "telegram/Helpers";
 
 // Define commitment level constant
@@ -344,7 +344,7 @@ export async function parseTransaction(
                 // Price = SOL spent / Token received (or vice versa for sell)
                 tokenSolPrice = Math.abs(solAmount / tokenAmountChange);
 
-                let solUsdPrice = await getTokenPrice(WSOL_ADDRESS);
+                let solUsdPrice = await getTokenPriceUSD(WSOL_ADDRESS);
                 tokenUsdPrice = tokenSolPrice * solUsdPrice;
             }
         }
