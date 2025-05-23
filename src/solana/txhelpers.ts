@@ -269,6 +269,7 @@ interface TransactionResult {
     tokenAmount: number | null;
     tokenSolPrice: number | null;
     tokenUsdPrice: number | null;
+    transactionFee: number | null;
     error?: string;
 }
 
@@ -292,6 +293,7 @@ export async function parseTransaction(
                 tokenAmount: null,
                 tokenSolPrice: null,
                 tokenUsdPrice: null,
+                transactionFee: null,
                 error: "Transaction not found or not confirmed",
             };
         }
@@ -318,9 +320,10 @@ export async function parseTransaction(
         // Estimate token price (for swap transactions)
         let tokenSolPrice: number | null = null;
         let tokenUsdPrice: number | null = null;
+        let transactionFee: number | null = null;
         if (transaction.meta?.preTokenBalances && transaction.meta?.postTokenBalances) {
             const solBalanceChange = transaction.meta.preBalances[0] - transaction.meta.postBalances[0];
-            const transactionFee = transaction.meta.fee || 0;
+            transactionFee = transaction.meta.fee || 0;
             const netSolBalanceChange = solBalanceChange - transactionFee;
             const solAmount = netSolBalanceChange / 1_000_000_000;
 
@@ -351,6 +354,7 @@ export async function parseTransaction(
             tokenAmount,
             tokenSolPrice,
             tokenUsdPrice,
+            transactionFee: transactionFee ? transactionFee / 1_000_000_000 : 0,
             error: tokenAmount === null ? "No SPL token transfer found" : undefined,
         };
     } catch (error) {
@@ -359,6 +363,7 @@ export async function parseTransaction(
             tokenAmount: null,
             tokenSolPrice: null,
             tokenUsdPrice: null,
+            transactionFee: null,
             error: `Failed to parse transaction.`,
         };
     }
