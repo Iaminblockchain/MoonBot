@@ -270,6 +270,7 @@ interface TransactionResult {
     tokenSolPrice: number | null;
     tokenUsdPrice: number | null;
     transactionFee: number | null;
+    netBuySolAmount: number | null;
     error?: string;
 }
 
@@ -294,6 +295,7 @@ export async function parseTransaction(
                 tokenSolPrice: null,
                 tokenUsdPrice: null,
                 transactionFee: null,
+                netBuySolAmount: null,
                 error: "Transaction not found or not confirmed",
             };
         }
@@ -321,10 +323,12 @@ export async function parseTransaction(
         let tokenSolPrice: number | null = null;
         let tokenUsdPrice: number | null = null;
         let transactionFee: number | null = null;
+        let netBuySolAmount: number | null = null;
         if (transaction.meta?.preTokenBalances && transaction.meta?.postTokenBalances) {
             const solBalanceChange = transaction.meta.preBalances[0] - transaction.meta.postBalances[0];
             transactionFee = transaction.meta.fee || 0;
             const netSolBalanceChange = solBalanceChange - transactionFee;
+            netBuySolAmount = netSolBalanceChange / 1_000_000_000;
             const solAmount = netSolBalanceChange / 1_000_000_000;
 
             // Filter balances by wallet's public key
@@ -355,6 +359,7 @@ export async function parseTransaction(
             tokenSolPrice,
             tokenUsdPrice,
             transactionFee: transactionFee ? transactionFee / 1_000_000_000 : 0,
+            netBuySolAmount,
             error: tokenAmount === null ? "No SPL token transfer found" : undefined,
         };
     } catch (error) {
@@ -364,6 +369,7 @@ export async function parseTransaction(
             tokenSolPrice: null,
             tokenUsdPrice: null,
             transactionFee: null,
+            netBuySolAmount: null,
             error: `Failed to parse transaction.`,
         };
     }

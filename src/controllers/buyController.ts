@@ -111,7 +111,7 @@ export const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: nu
                 trade.tokenAddress,
                 "Buy",
                 tokenBalanceChange,
-                sol_balance_change,
+                trxInfo.netBuySolAmount || 0,
                 trxInfo.transactionFee || 0
             );
             botInstance.sendMessage(chatId!, msg);
@@ -188,7 +188,7 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
                     trade.tokenAddress,
                     "Buy",
                     Number(tokenBalanceChange),
-                    Number(sol_balance_change),
+                    trxInfo.netBuySolAmount || 0,
                     trxInfo.transactionFee || 0
                 );
                 botInstance.sendMessage(chatId, msg);
@@ -363,7 +363,7 @@ export const autoBuyContract = async (
                 contractAddress,
                 trade_type,
                 tokenBalanceChange,
-                solBalanceChange,
+                trxInfo.netBuySolAmount || 0,
                 trxInfo.transactionFee || 0,
                 settings,
                 tradeSignal
