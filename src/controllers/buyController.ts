@@ -98,6 +98,7 @@ export const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: nu
             let sol_balance_change = result.sol_balance_change;
 
             logger.info("onClickBuy success", { chatId, txSignature: result.txSignature, tokenBalanceChange });
+
             const keypair = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
             const trxInfo = await parseTransaction(
                 result.txSignature!,
@@ -110,7 +111,7 @@ export const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: nu
                 trade.tokenAddress,
                 "Buy",
                 tokenBalanceChange,
-                sol_balance_change,
+                trxInfo.netBuySolAmount || 0,
                 trxInfo.transactionFee || 0
             );
             botInstance.sendMessage(chatId!, msg);
@@ -182,12 +183,13 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
                     SOLANA_CONNECTION
                 );
 
+
                 const msg = await getBuySuccessMessage(
                     trx,
                     trade.tokenAddress,
                     "Buy",
                     Number(tokenBalanceChange),
-                    Number(sol_balance_change),
+                    trxInfo.netBuySolAmount || 0,
                     trxInfo.transactionFee || 0
                 );
                 botInstance.sendMessage(chatId, msg);
@@ -362,7 +364,7 @@ export const autoBuyContract = async (
                 contractAddress,
                 trade_type,
                 tokenBalanceChange,
-                solBalanceChange,
+                trxInfo.netBuySolAmount || 0,
                 trxInfo.transactionFee || 0,
                 settings,
                 tradeSignal
