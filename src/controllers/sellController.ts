@@ -266,7 +266,7 @@ export const onClickSellWithToken = async (query: TelegramBot.CallbackQuery) => 
         //     ]
         //     botInstance.sendMessage(chatId!, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: 'HTML' })
         // }
-    } catch (error) { }
+    } catch (error) {}
 };
 
 //run through each signal and check if sell is triggered
@@ -309,20 +309,20 @@ export const autoSellHandler = () => {
                             botInstance.sendMessage(
                                 key,
                                 `Auto-Sell Success\n\n` +
-                                `Token: ${metadata?.name} (${metadata?.symbol})\n` +
-                                `Address: <code>${info.contractAddress}</code>\n` +
-                                `Price: ${price.toFixed(9)} SOL\n` +
-                                `Gain: ${((price / info.startPrice - 1) * 100).toFixed(1)}%`,
+                                    `Token: ${metadata?.name} (${metadata?.symbol})\n` +
+                                    `Address: <code>${info.contractAddress}</code>\n` +
+                                    `Price: ${price.toFixed(9)} SOL\n` +
+                                    `Gain: ${((price / info.startPrice - 1) * 100).toFixed(1)}%`,
                                 { parse_mode: "HTML" }
                             );
                         } else if (price < info.lowPrice) {
                             botInstance.sendMessage(
                                 key,
                                 `Auto-Sell Success\n\n` +
-                                `Token: ${metadata?.name} (${metadata?.symbol})\n` +
-                                `Address: <code>${info.contractAddress}</code>\n` +
-                                `Price: ${price.toFixed(9)} SOL\n` +
-                                `Loss: ${((1 - price / info.startPrice) * 100).toFixed(1)}%`,
+                                    `Token: ${metadata?.name} (${metadata?.symbol})\n` +
+                                    `Address: <code>${info.contractAddress}</code>\n` +
+                                    `Price: ${price.toFixed(9)} SOL\n` +
+                                    `Loss: ${((1 - price / info.startPrice) * 100).toFixed(1)}%`,
                                 { parse_mode: "HTML" }
                             );
                         }
