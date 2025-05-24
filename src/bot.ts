@@ -1,6 +1,6 @@
 import { TELEGRAM_BOT_TOKEN } from ".";
 import TelegramBot from "node-telegram-bot-api";
-import * as solana from "./solana/trade";
+
 import * as walletDb from "./models/walletModel";
 import * as buyController from "./controllers/buyController";
 import * as sellController from "./controllers/sellController";
@@ -17,10 +17,10 @@ import { TelegramClient } from "telegram";
 import { logger } from "./logger";
 import { getSolBalance, getPublicKey } from "./solana/util";
 
-import cron from "node-cron";
 import { createReferral, getReferralByRefereeId } from "./models/referralModel";
 import { helpText } from "./util/constants";
 import { handleReferralWalletMessage } from "./controllers/referralController";
+import { TRADE } from "./types/trade";
 
 export let botInstance: TelegramBot | undefined;
 
@@ -34,13 +34,6 @@ export enum STATE {
     INPUT_COPYTRADE = "INPUT_COPYTRADE",
     COPYTRADE_INPUT = "COPYTRADE_INPUT",
 }
-
-export type TRADE = {
-    contractAddress: string;
-    startPrice: number;
-    targetPrice: number;
-    lowPrice: number;
-};
 
 export const state = new Map();
 export const deleteMessageId = new Map();
@@ -73,11 +66,12 @@ export const setTradeState = (
     contractAddress: string,
     startPrice: number,
     targetPrice: number,
-    lowPrice: number
+    stopPrice: number,
+    amount: number
 ) => {
     const prev = trade.get(chatid.toString());
-    if (prev) trade.set(chatid.toString(), [...prev, { contractAddress, targetPrice, lowPrice, startPrice }]);
-    else trade.set(chatid.toString(), [{ contractAddress, targetPrice, lowPrice, startPrice }]);
+    if (prev) trade.set(chatid.toString(), [...prev, { contractAddress, targetPrice, stopPrice, startPrice, amount }]);
+    else trade.set(chatid.toString(), [{ contractAddress, targetPrice, stopPrice, startPrice, amount }]);
 };
 
 export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: string) => {
@@ -119,8 +113,6 @@ export const init = (client: TelegramClient) => {
     botInstance.onText(/\/wallet/, onWalletCommand);
     botInstance.onText(/\/help/, onHelpCommand);
     botInstance.onText(/\/autobuy/, autoBuyController.onAutoBuyCommand);
-
-    runAutoSellSchedule();
 
     botInstance.on("message", async (msg: TelegramBot.Message) => {
         const chatId = msg.chat.id;
@@ -204,17 +196,6 @@ export const init = (client: TelegramClient) => {
             });
         }
     });
-};
-
-export const runAutoSellSchedule = () => {
-    const scheduler = "*/5 * * * * *"; // every 5 seconds
-    try {
-        cron.schedule(scheduler, () => {
-            sellController.autoSellHandler();
-        }).start();
-    } catch (error) {
-        logger.error(`Error running the Schedule Job for Auto Sell: ${error}`);
-    }
 };
 
 export const closeMessage = (query: CallbackQueryData) => {

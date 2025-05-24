@@ -28,12 +28,6 @@ import { getStatusTxnRetry, getTxInfoMetrics, TransactionMetrics } from "./txhel
 import { getReferralByRefereeId, updateRewards } from "../models/referralModel";
 import { JUPYTER_BASE_URL } from "../util/constants";
 
-export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
-export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
-export const LAMPORTS = LAMPORTS_PER_SOL;
-const whitelistedUsers: string[] = require("../util/whitelistUsers.json");
-const SOL_MINT = "So11111111111111111111111111111111111111112";
-
 import { getErrorMessage } from "../util/error";
 
 const useJito = false;
@@ -57,6 +51,20 @@ const endpoints = [
     "https://ny.mainnet.block-engine.jito.wtf/api/v1/bundles",
     "https://tokyo.mainnet.block-engine.jito.wtf/api/v1/bundles",
 ];
+
+export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
+export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+export const LAMPORTS = LAMPORTS_PER_SOL;
+const whitelistedUsers: string[] = require("../util/whitelistUsers.json");
+const SOL_MINT = "So11111111111111111111111111111111111111112";
+export const MIN_SOL_BALANCE = 0.005 * LAMPORTS_PER_SOL; // 0.005 SOL in lamports
+// levels
+// https://www.helius.dev/blog/solana-commitment-levels
+// processed
+// confirmed
+// finalized
+
+export const DEFAULT_CONFIRMATION_STATUS: TransactionConfirmationStatus = "confirmed";
 
 /**
  * Sends SOL from one wallet to another
@@ -184,41 +192,112 @@ async function sendWithRetries(
     instructions: TransactionInstruction[],
     lookupTables: AddressLookupTableAccount[],
     useJito: boolean
-): Promise<{ confirmed: boolean; signature: string | null }> {
+): Promise<{
+    confirmed: boolean;
+    signature: string | null;
+    error?: string;
+}> {
+    // Check balance before attempting transaction
+    const balance = await connection.getBalance(payer.publicKey);
+    const balanceInSol = balance / LAMPORTS_PER_SOL;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("processed");
-        const messageV0 = new TransactionMessage({
-            payerKey: payer.publicKey,
-            recentBlockhash: blockhash,
-            instructions,
-        }).compileToV0Message(lookupTables);
-        const tx = new VersionedTransaction(messageV0);
-        tx.sign([payer]);
+        try {
+            logger.info(`TRADE sendWithRetries Current wallet balance: ${balanceInSol.toFixed(4)} SOL`);
 
-        // call Jito or RPC
-        const raw = useJito
-            ? await jito_executeAndConfirm(connection, tx, payer, { blockhash, lastValidBlockHeight }, JITO_TIP)
-            : await submitAndConfirm(tx);
+            if (balance < MIN_SOL_BALANCE) {
+                logger.error(`TRADE sendWithRetries Insufficient funds: Wallet has ${balanceInSol.toFixed(4)} SOL} SOL`);
+                return {
+                    confirmed: false,
+                    signature: null,
+                    error: `Insufficient funds: Wallet has ${balanceInSol.toFixed(4)} SOL, minimum required: ${(MIN_SOL_BALANCE / LAMPORTS_PER_SOL).toFixed(4)} SOL`,
+                };
+            }
 
-        // normalize signature to string|null
-        const confirmed = raw.confirmed;
-        const signature = raw.signature ?? null;
+            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("processed");
+            const messageV0 = new TransactionMessage({
+                payerKey: payer.publicKey,
+                recentBlockhash: blockhash,
+                instructions,
+            }).compileToV0Message(lookupTables);
+            const tx = new VersionedTransaction(messageV0);
+            tx.sign([payer]);
 
-        if (confirmed) {
-            return { confirmed, signature };
+            // call Jito or RPC
+            const raw = useJito
+                ? await jito_executeAndConfirm(connection, tx, payer, { blockhash, lastValidBlockHeight }, JITO_TIP)
+                : await submitAndConfirm(tx);
+
+            // normalize signature to string|null
+            const confirmed = raw.confirmed;
+            const signature = raw.signature ?? null;
+
+            if (confirmed) {
+                return { confirmed, signature };
+            }
+
+            // Get detailed error information if available
+            if (signature) {
+                const status = await connection.getSignatureStatus(signature);
+                if (status.value?.err) {
+                    let errorDetails = JSON.stringify(status.value.err);
+
+                    // Check for insufficient funds error
+                    if (
+                        errorDetails.includes("InsufficientFunds") ||
+                        errorDetails.includes("insufficient funds") ||
+                        errorDetails.includes("0x1") ||
+                        errorDetails.includes("Custom:1")
+                    ) {
+                        errorDetails = `Insufficient funds to complete the transaction. Current balance: ${balanceInSol.toFixed(4)} SOL`;
+                    }
+
+                    logger.error(`Transaction failed with error: ${errorDetails}`);
+                    return { confirmed: false, signature, error: errorDetails };
+                }
+            } else {
+                logger.error(`Transaction failed to confirm. No signature returned.`);
+            }
+
+            logger.info(`Attempt ${attempt} failed, retrying...`);
+        } catch (error) {
+            let errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+            // Check for insufficient funds in the error message
+            if (
+                errorMessage.includes("InsufficientFunds") ||
+                errorMessage.includes("insufficient funds") ||
+                errorMessage.includes("0x1") ||
+                errorMessage.includes("Custom:1")
+            ) {
+                const balance = await connection.getBalance(payer.publicKey);
+                const balanceInSol = balance / LAMPORTS_PER_SOL;
+                errorMessage = `Insufficient funds to complete the transaction. Current balance: ${balanceInSol.toFixed(4)} SOL`;
+            }
+
+            logger.error(`Error in attempt ${attempt}: ${errorMessage}`);
+            if (attempt === MAX_ATTEMPTS) {
+                return { confirmed: false, signature: null, error: `Failed after ${MAX_ATTEMPTS} attempts: ${errorMessage}` };
+            }
         }
-
-        logger.info(`Attempt ${attempt} failed, retrying…`);
     }
 
-    return { confirmed: false, signature: null };
+    return { confirmed: false, signature: null, error: "All attempts failed without specific error information" };
 }
 
-export interface SwapResult {
+interface SwapResult {
     success: boolean;
     txSignature?: string | null;
     token_balance_change: number;
     sol_balance_change: number;
+    execution_price: number;
+    error?: string;
+    executionInfo?: TransactionMetrics;
+}
+
+interface JupiterSwapResult {
+    confirmed: boolean;
+    txSignature: string | null;
+    tokenAmount?: number;
     error?: string;
     executionInfo?: TransactionMetrics;
 }
@@ -232,14 +311,16 @@ export const buy_swap = async (
 ): Promise<SwapResult> => {
     const result = await jupiter_swap(CONNECTION, PRIVATE_KEY, WSOL_ADDRESS, tokenAddress, amount, "ExactIn", useJito, slippage);
 
-    if (result && result.confirmed) {
+    if (result?.confirmed) {
         logger.info("execution info", { executionInfo: result.executionInfo });
 
         let token_balance_change = 0;
         let sol_balance_change = 0;
+        let execution_price = 0;
         if (result.executionInfo) {
             token_balance_change = Number(result.executionInfo.token_balance_change);
             sol_balance_change = Number(result.executionInfo.sol_balance_change);
+            execution_price = Number(result.executionInfo.execution_price);
         }
 
         return {
@@ -247,13 +328,22 @@ export const buy_swap = async (
             txSignature: result.txSignature,
             token_balance_change: token_balance_change,
             sol_balance_change: sol_balance_change,
+            execution_price: execution_price,
         };
     } else {
+        // Get current balance for error message
+        const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
+        const balance = await CONNECTION.getBalance(keypair.publicKey);
+        const balanceInSol = balance / LAMPORTS_PER_SOL;
+
+        // add balance context
+        const errorMsg = result?.error || "Swap failed to confirm";
         return {
             success: false,
             token_balance_change: 0,
             sol_balance_change: 0,
-            error: "Swap failed to confirm",
+            execution_price: 0,
+            error: `${errorMsg}\nCurrent balance: ${balanceInSol.toFixed(4)} SOL`,
         };
     }
 };
@@ -265,29 +355,57 @@ export const sell_swap = async (
     amount: number,
     slippage?: number
 ): Promise<SwapResult> => {
+    // Check balance before proceeding with sell
+    const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
+    const balance = await CONNECTION.getBalance(keypair.publicKey);
+    const balanceInSol = balance / LAMPORTS_PER_SOL;
+
+    // For sells, we need to ensure enough SOL for fees
+    const feeAmount = Math.floor(amount / 100); // 1% fee
+    const totalRequired = feeAmount;
+    if (balance < totalRequired) {
+        const errorMsg = `Insufficient SOL balance for fees: ${balanceInSol.toFixed(4)} SOL, required: ${(totalRequired / LAMPORTS_PER_SOL).toFixed(4)} SOL`;
+        logger.error(errorMsg);
+        return {
+            success: false,
+            token_balance_change: 0,
+            sol_balance_change: 0,
+            execution_price: 0,
+            error: errorMsg,
+        };
+    }
+
     const result = await jupiter_swap(CONNECTION, PRIVATE_KEY, tokenAddress, WSOL_ADDRESS, amount, "ExactIn", useJito);
-    if (result && result.confirmed) {
+    if (result?.confirmed) {
         logger.info("execution info", { executionInfo: result.executionInfo });
 
         let token_balance_change = 0;
         let sol_balance_change = 0;
+        let execution_price = 0;
         if (result.executionInfo) {
             token_balance_change = Number(result.executionInfo.token_balance_change);
             sol_balance_change = Number(result.executionInfo.sol_balance_change);
+            execution_price = Number(result.executionInfo.execution_price);
         }
-        //TODO: store
         return {
             success: true,
             txSignature: result.txSignature,
             token_balance_change: token_balance_change,
             sol_balance_change: sol_balance_change,
+            execution_price: execution_price,
         };
     } else {
+        // Get current balance for error message
+        const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
+        const balance = await CONNECTION.getBalance(keypair.publicKey);
+        const balanceInSol = balance / LAMPORTS_PER_SOL;
+
         return {
             success: false,
             token_balance_change: 0,
             sol_balance_change: 0,
-            error: "Swap failed to confirm",
+            execution_price: 0,
+            error: result?.error || `Swap failed to confirm. Current balance: ${balanceInSol.toFixed(4)} SOL`,
         };
     }
 };
@@ -313,11 +431,23 @@ export const jupiter_swap = async (
     swapMode: "ExactIn" | "ExactOut",
     isJito: boolean = true,
     slippage: number = 500
-) => {
+): Promise<JupiterSwapResult> => {
     try {
         logger.info(`jupiter_swap ${inputMint} ${outputMint} ${amount} ${swapMode}`);
         const feePayer = new PublicKey(FEE_COLLECTION_WALLET);
         const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
+
+        // Check balance before proceeding
+        const balance = await CONNECTION.getBalance(keypair.publicKey);
+        const balanceInSol = balance / LAMPORTS_PER_SOL;
+        logger.info(`TRADE: Current wallet balance before swap: ${balanceInSol.toFixed(4)} SOL`);
+
+        if (balance < MIN_SOL_BALANCE) {
+            const errorMsg = `Insufficient SOL balance: ${balanceInSol.toFixed(4)} SOL, minimum required: ${(MIN_SOL_BALANCE / LAMPORTS_PER_SOL).toFixed(4)} SOL`;
+            logger.error(errorMsg);
+            return { confirmed: false, txSignature: null, tokenAmount: 0, error: errorMsg };
+        }
+
         let baseUrl = `${JUPYTER_BASE_URL}/swap/v1/quote`;
         const quoteUrl =
             baseUrl +
@@ -327,29 +457,42 @@ export const jupiter_swap = async (
             `&slippageBps=${slippage}` +
             `&swapMode=${swapMode}`;
 
-        logger.info("Fetching quote from Jupiter:", quoteUrl);
-        const quoteResponse = await fetch(quoteUrl).then((res) => res.json());
-        if (quoteResponse.error) throw new Error("Failed to fetch quote response");
-        logger.info("Quote response received", quoteResponse);
+        logger.info(`TRADE Fetching quote from Jupiter: ${inputMint}`, quoteUrl);
+        const quoteResponse = await fetch(quoteUrl);
+        if (!quoteResponse.ok) {
+            const text = await quoteResponse.text();
+            let errlog = `Quote API error (${quoteResponse.status}): ${text}`;
+            logger.error(errlog);
+            return { confirmed: false, txSignature: null, tokenAmount: 0, error: errlog };
+        }
+        const quoteData = await quoteResponse.json();
+        if (quoteData.error) {
+            let errlog = `Quote error: ${quoteData.error}`;
+            logger.error(errlog);
+            return { confirmed: false, txSignature: null, tokenAmount: 0, error: errlog };
+        }
+        logger.info(`TRADE Quote response received ${quoteData}`);
 
         // Get token decimals from metadata
         const tokenMetaData = await getTokenMetaData(CONNECTION, outputMint);
         if (!tokenMetaData?.decimals) {
-            logger.error("Failed to get token decimals", { outputMint });
-            throw new Error("Failed to get token decimals");
+            const errlog = "Failed to get token decimals";
+            logger.error(errlog, { outputMint });
+            return { confirmed: false, txSignature: null, tokenAmount: 0, error: errlog };
         }
+        logger.info(`TRADE tokenMetaData ${tokenMetaData}`);
 
         // Get raw token amount from quote response
-        const tokenAmount = parseInt(quoteResponse.outAmount);
+        const tokenAmount = parseInt(quoteData.outAmount);
         logger.info("Raw token amount:", tokenAmount);
 
         let feeAmount =
-            inputMint === WSOL_ADDRESS
-                ? Math.floor(parseInt(quoteResponse.inAmount) / 100)
-                : Math.floor(parseInt(quoteResponse.outAmount) / 100);
+            inputMint === WSOL_ADDRESS ? Math.floor(parseInt(quoteData.inAmount) / 100) : Math.floor(parseInt(quoteData.outAmount) / 100);
         logger.info("Calculated feeAmount:", feeAmount);
 
         const chatId = await getChatIdByPrivateKey(PRIVATE_KEY);
+        logger.info(`TRADE getswapinstructions`);
+        const { instructions, addressLookupTableAccounts } = await getSwapInstructions(quoteData, keypair.publicKey.toBase58());
 
         let referrers: (string | null)[] = [null, null, null, null, null];
 
@@ -394,8 +537,6 @@ export const jupiter_swap = async (
             }
         }
 
-        const { instructions, addressLookupTableAccounts } = await getSwapInstructions(quoteResponse, keypair.publicKey.toBase58());
-
         if (!whitelistedUsers.includes(keypair.publicKey.toBase58())) {
             const feeInstructions: TransactionInstruction[] = [];
             await Promise.all(
@@ -432,52 +573,68 @@ export const jupiter_swap = async (
         const transaction = new VersionedTransaction(messageV0);
         transaction.sign([keypair]);
 
+        logger.info(`TRADE sendWithRetries`);
         const result = await sendWithRetries(CONNECTION, keypair, instructions, addressLookupTableAccounts, isJito);
 
         if (!result.confirmed) {
-            logger.error("All attempts failed");
-            return { confirmed: false, txSignature: null, tokenAmount: 0 };
+            const errorMsg = result.error || "Swap failed to confirm";
+            logger.error(errorMsg, {
+                balance: balanceInSol.toFixed(4),
+                //required: (totalRequired / LAMPORTS_PER_SOL).toFixed(4),
+                slippage: `${slippage / 100}%`,
+            });
+            return { confirmed: false, txSignature: null, tokenAmount: 0, error: errorMsg };
         }
 
-        // After retry, check if confirmed and validate with getStatusTxnRetry
-        if (result.confirmed && result.signature) {
-            // execution info, distinguish between SOL and token
-            const tokenMint = inputMint === SOL_MINT ? outputMint : inputMint;
-            let executionInfo = await getTxInfoMetrics(result.signature, CONNECTION, tokenMint);
-            if (executionInfo) {
-                logger.info("Execution info", executionInfo);
-            }
-            const status = await getStatusTxnRetry(CONNECTION, result.signature);
-            if (status.success) {
-                logger.info("Solana: confirmed");
+        // Return immediately with signature if we have one
+        if (result.signature) {
+            // Start confirmation process in background
+            (async () => {
+                try {
+                    // execution info, distinguish between SOL and token
+                    const tokenMint = inputMint === SOL_MINT ? outputMint : inputMint;
+                    let executionInfo = await getTxInfoMetrics(result.signature!, CONNECTION, tokenMint);
+                    if (executionInfo) {
+                        logger.info("Execution info", executionInfo);
+                    }
+                    const status = await getStatusTxnRetry(CONNECTION, result.signature!);
+                    if (status.success) {
+                        logger.info("Solana: confirmed");
 
-                //set referrals
-                if (referrals.length > 0) {
-                    await Promise.all(
-                        referrals.map(async (referral) => {
-                            if (referral.referer) {
-                                await updateRewards(referral.referer, referral.amount);
-                                logger.info(`Updated rewards for referer ${referral.referer}: ${referral.amount} lamports`);
-                            }
-                        })
-                    );
+                        //set referrals
+                        if (referrals.length > 0) {
+                            await Promise.all(
+                                referrals.map(async (referral) => {
+                                    if (referral.referer) {
+                                        await updateRewards(referral.referer, referral.amount);
+                                        logger.info(`Updated rewards for referer ${referral.referer}: ${referral.amount} lamports`);
+                                    }
+                                })
+                            );
+                        }
+                    } else {
+                        logger.error("Txn failed after retry:", status);
+                    }
+                } catch (error) {
+                    logger.error("Error in background confirmation:", error);
                 }
-                return { confirmed: true, txSignature: result.signature, executionInfo: executionInfo };
-            } else {
-                logger.error("Txn failed after retry:", status);
-                return { confirmed: false, txSignature: result.signature, tokenAmount: 0 };
-            }
+            })();
+
+            return { confirmed: true, txSignature: result.signature };
         } else {
-            logger.error("unknown state no signature");
+            logger.error("TRADE unknown state no signature");
+            return { confirmed: false, txSignature: null, tokenAmount: 0, error: "No signature received" };
         }
     } catch (error) {
-        logger.error("jupiter swap:", { error });
-        logger.error(inputMint);
-        logger.error(outputMint);
-        logger.error(amount);
-        logger.error(swapMode);
-        logger.error(error);
-        return { confirmed: false, txSignature: null, tokenAmount: 0 };
+        const errorMsg = error instanceof Error ? error.message : "Unknown error occurred";
+        logger.error(`TRADE jupiter swap error: ${errorMsg}`, {
+            error: errorMsg,
+            inputMint,
+            outputMint,
+            amount: amount / LAMPORTS_PER_SOL,
+            swapMode,
+        });
+        return { confirmed: false, txSignature: null, tokenAmount: 0, error: errorMsg };
     }
 };
 
@@ -621,20 +778,50 @@ const MAX_RETRIES = 3;
  */
 export const submitAndConfirm = async (transaction: VersionedTransaction) => {
     try {
+        logger.info(`TRADE submitAndConfirm`);
         const signature = await SOLANA_CONNECTION.sendRawTransaction(transaction.serialize(), {
             skipPreflight: true,
             maxRetries: MAX_RETRIES,
         });
-        await confirmTransaction(SOLANA_CONNECTION, signature);
+        logger.info(`TRADE signature ${signature}`);
 
-        return {
-            confirmed: true,
-            signature,
-        };
+        try {
+            await confirmTransaction(SOLANA_CONNECTION, signature);
+            return {
+                confirmed: true,
+                signature,
+            };
+        } catch (confirmError) {
+            // Get detailed error information
+            const status = await SOLANA_CONNECTION.getSignatureStatus(signature);
+            let errorDetails = status.value?.err ? JSON.stringify(status.value.err) : "Unknown confirmation error";
+
+            // Check for insufficient funds error
+            if (errorDetails.includes("InsufficientFunds") || errorDetails.includes("insufficient funds")) {
+                errorDetails = "Insufficient funds to complete the transaction";
+            }
+
+            logger.error(`Transaction confirmation failed: ${errorDetails}`);
+            return {
+                confirmed: false,
+                signature,
+                error: `Transaction confirmation failed: ${errorDetails}`,
+            };
+        }
     } catch (e) {
-        logger.error("Error om submit:", { error: e });
+        let errorMessage = e instanceof Error ? e.message : "Unknown error";
+
+        // Check for insufficient funds in the error message
+        if (errorMessage.includes("InsufficientFunds") || errorMessage.includes("insufficient funds") || errorMessage.includes("0x1")) {
+            // 0x1 is the error code for insufficient funds
+            errorMessage = "Insufficient funds to complete the transaction";
+        }
+
+        logger.error(`Error on submit: ${errorMessage}`, { error: e });
         return {
             confirmed: false,
+            signature: null,
+            error: `Transaction submission failed: ${errorMessage}`,
         };
     }
 };
@@ -652,43 +839,91 @@ export const submitAndConfirm = async (transaction: VersionedTransaction) => {
 const confirmTransaction = async (
     connection: Connection,
     signature: TransactionSignature,
-    desiredConfirmationStatus: TransactionConfirmationStatus = "confirmed",
-    timeout: number = 30000,
-    pollInterval: number = 1000,
-    searchTransactionHistory: boolean = false
+    desiredConfirmationStatus: TransactionConfirmationStatus = DEFAULT_CONFIRMATION_STATUS,
+    timeout: number = 20000,
+    pollInterval: number = 2000,
+    searchTransactionHistory: boolean = true
 ): Promise<SignatureStatus> => {
     const start = Date.now();
+    logger.info(`Starting transaction confirmation for signature: ${signature}`, {
+        desiredStatus: desiredConfirmationStatus,
+        timeout,
+        pollInterval,
+    });
 
     while (Date.now() - start < timeout) {
-        const { value: statuses } = await connection.getSignatureStatuses([signature], { searchTransactionHistory });
+        try {
+            const { value: statuses } = await connection.getSignatureStatuses([signature], { searchTransactionHistory });
+            logger.info(`Transaction status check: ${signature}`, {
+                signature,
+                statuses,
+                elapsedTime: Date.now() - start,
+            });
 
-        if (!statuses || statuses.length === 0) {
-            throw new Error("Failed to get signature status");
-        }
+            if (!statuses || statuses.length === 0) {
+                logger.warn(`No status found for signature ${signature}, retrying...`);
+                await new Promise((resolve) => setTimeout(resolve, pollInterval));
+                continue;
+            }
 
-        const status = statuses[0];
+            const status = statuses[0];
 
-        if (status === null) {
+            if (status === null) {
+                logger.debug(`Status is null for signature ${signature}, waiting for confirmation...`);
+                await new Promise((resolve) => setTimeout(resolve, pollInterval));
+                continue;
+            }
+
+            //Transfer: insufficient lamports 1161504, need 2039280
+            //Program returned error: custom program error: 0x1
+
+            if (status.err) {
+                const errorDetails = JSON.stringify(status.err);
+                logger.error(`Transaction failed with error:`, {
+                    signature,
+                    error: errorDetails,
+                    confirmationStatus: status.confirmationStatus,
+                });
+                throw new Error(`Transaction failed: ${errorDetails}`);
+            }
+
+            if (status.confirmationStatus && status.confirmationStatus === desiredConfirmationStatus) {
+                logger.info(`Transaction confirmed with status ${status.confirmationStatus}:`, {
+                    signature,
+                    confirmationStatus: status.confirmationStatus,
+                    elapsedTime: Date.now() - start,
+                });
+                return status;
+            }
+
+            if (status.confirmationStatus === DEFAULT_CONFIRMATION_STATUS) {
+                logger.info(`Transaction confirmed status ${status.confirmationStatus}:`, {
+                    signature,
+                    confirmationStatus: status.confirmationStatus,
+                    elapsedTime: Date.now() - start,
+                });
+                return status;
+            }
+
+            logger.debug(`Waiting for confirmation, current status: ${status.confirmationStatus}`);
             await new Promise((resolve) => setTimeout(resolve, pollInterval));
-            continue;
+        } catch (error) {
+            logger.error(`Error checking transaction status:`, {
+                signature,
+                error: error instanceof Error ? error.message : String(error),
+                elapsedTime: Date.now() - start,
+            });
+            throw error;
         }
-
-        if (status.err) {
-            throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
-        }
-
-        if (status.confirmationStatus && status.confirmationStatus === desiredConfirmationStatus) {
-            return status;
-        }
-
-        if (status.confirmationStatus === "finalized") {
-            return status;
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
     }
 
-    throw new Error(`Transaction confirmation timeout after ${timeout}ms`);
+    const error = `Transaction confirmation timeout after ${timeout}ms`;
+    logger.error(error, {
+        signature,
+        elapsedTime: Date.now() - start,
+        desiredStatus: desiredConfirmationStatus,
+    });
+    throw new Error(error);
 };
 
 /**
@@ -760,4 +995,103 @@ export const isValidPublicKey = async (connection: Connection, publicKeyString: 
         logger.error("Invalid public key:", { error });
         return false; // Return false if the public key is invalid or does not exist
     }
+};
+
+/**
+ * Executes a swap operation with retries and timeout
+ * @param connection - Solana connection instance
+ * @param privateKey - User's private key
+ * @param tokenAddress - Token address to swap
+ * @param amount - Amount to swap
+ * @param isBuy - Whether this is a buy operation (true) or sell operation (false)
+ * @param slippage - Optional slippage tolerance
+ * @returns Swap result with transaction details
+ */
+export const executeSwapWithRetry = async (
+    connection: Connection,
+    privateKey: string,
+    tokenAddress: string,
+    amount: number,
+    isBuy: boolean,
+    slippage?: number
+): Promise<SwapResult> => {
+    const MAX_RETRIES = 3;
+    const MAX_RETRY_TIMEOUT = 20000; // 20 seconds total timeout for retries
+    let retryCount = 0;
+    const startTime = Date.now();
+    let lastError: string | null = null;
+
+    // Check SOL balance before proceeding
+    const keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
+    const solBalance = await connection.getBalance(keypair.publicKey);
+    const solBalanceInSol = solBalance / LAMPORTS_PER_SOL;
+    const MIN_SOL_BALANCE = 0.01 * LAMPORTS_PER_SOL; // 0.01 SOL in lamports
+
+    logger.info(`Checking wallet balance for swap operation: ${solBalanceInSol.toFixed(4)} SOL`);
+
+    if (solBalance < MIN_SOL_BALANCE) {
+        const errorMsg = `Insufficient SOL balance for swap operation. Required: 0.01 SOL, Current: ${solBalanceInSol.toFixed(4)} SOL`;
+        logger.warn(errorMsg);
+        return {
+            success: false,
+            token_balance_change: 0,
+            sol_balance_change: 0,
+            execution_price: 0,
+            error: errorMsg,
+        };
+    }
+
+    while (retryCount < MAX_RETRIES) {
+        try {
+            const swapResult = isBuy
+                ? await buy_swap(connection, privateKey, tokenAddress, amount, slippage)
+                : await sell_swap(connection, privateKey, tokenAddress, amount, slippage);
+
+            if (swapResult.success) {
+                return swapResult;
+            }
+
+            // Store the error message from the failed attempt
+            lastError = swapResult.error || "Unknown error occurred";
+
+            // Check if we've exceeded the total timeout
+            if (Date.now() - startTime > MAX_RETRY_TIMEOUT) {
+                logger.warn(`Swap operation timed out after ${retryCount} retries for ${tokenAddress}`);
+                return {
+                    success: false,
+                    token_balance_change: 0,
+                    sol_balance_change: 0,
+                    execution_price: 0,
+                    error: `Swap operation timed out after ${retryCount} retries. Last error: ${lastError}`,
+                };
+            }
+
+            retryCount++;
+            if (retryCount < MAX_RETRIES) {
+                await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount));
+            }
+        } catch (error) {
+            lastError = error instanceof Error ? error.message : "Unknown error occurred";
+            logger.error(`Error in swap attempt ${retryCount + 1} for ${tokenAddress}:`, error);
+            retryCount++;
+            if (retryCount >= MAX_RETRIES || Date.now() - startTime > MAX_RETRY_TIMEOUT) {
+                return {
+                    success: false,
+                    token_balance_change: 0,
+                    sol_balance_change: 0,
+                    execution_price: 0,
+                    error: `Failed after ${retryCount} attempts. Last error: ${lastError}`,
+                };
+            }
+            await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount));
+        }
+    }
+
+    return {
+        success: false,
+        token_balance_change: 0,
+        sol_balance_change: 0,
+        execution_price: 0,
+        error: `All ${MAX_RETRIES} swap attempts failed. Last error: ${lastError}`,
+    };
 };

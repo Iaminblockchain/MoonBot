@@ -14,6 +14,13 @@ const jito_Validators = [
     "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
 ];
 
+export const formatPrice = (price: number): string => {
+    // Convert to fixed string with 9 decimals and remove trailing zeros
+    const formatted = price.toFixed(9);
+    // Remove trailing zeros after decimal point
+    return formatted.replace(/\.?0+$/, "");
+};
+
 export async function getRandomValidator() {
     const res = jito_Validators[Math.floor(Math.random() * jito_Validators.length)];
     return new PublicKey(res);

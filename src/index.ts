@@ -1,5 +1,6 @@
 import * as dotenv from "dotenv";
 import { retrieveEnvVariable } from "./config";
+import { runAutoSellSchedule } from "./controllers/autoSellController";
 dotenv.config();
 
 const PORT = Number(retrieveEnvVariable("PORT"));
@@ -137,6 +138,8 @@ const startServices = async () => {
         if (SETUP_BOT) {
             logger.info("Starting TG bot...");
             bot.init(client);
+
+            runAutoSellSchedule();
         } else {
             logger.info("TG bot setup skipped (SETUP_BOT=false)");
         }

@@ -180,18 +180,17 @@ export async function getTxInfoMetrics(txsig: string, connection: Connection, to
     return { ...metrics };
 }
 
-export type TransactionMetrics = {
+export interface TransactionMetrics {
     owner_pubkey: string;
     token: string;
     token_balance_change: number;
-    //SOL fee
     transaction_fee: number;
     sol_balance_change: number;
     token_creation_cost: number;
-    //DEX fees
     feesPaid: number;
     compute_units_consumed: number | null;
-};
+    execution_price: number;
+}
 
 export function extractTransactionMetrics(tx: Transaction, tokenMint: string): TransactionMetrics | null {
     const message = tx.transaction?.message;
@@ -261,6 +260,7 @@ export function extractTransactionMetrics(tx: Transaction, tokenMint: string): T
         token_creation_cost: tokenCreationCost,
         feesPaid: feesPaid,
         compute_units_consumed: computeUnits,
+        execution_price: 0,
     };
 }
 

@@ -1,21 +1,21 @@
 import TelegramBot from "node-telegram-bot-api";
-import { botInstance, getChatIdandMessageId, trade, TRADE, removeTradeState } from "../bot";
+import { botInstance, getChatIdandMessageId, trade, removeTradeState } from "../bot";
 import { SOLANA_CONNECTION } from "..";
 import * as walletdb from "../models/walletModel";
-import * as tradedb from "../models/tradeModel";
 import * as positiondb from "../models/positionModel";
 import * as solana from "../solana/trade";
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 const { PublicKey } = require("@solana/web3.js"); // Import PublicKey
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { autoBuySettings, getSPLBalance } from "./autoBuyController";
+import { getSPLBalance } from "./autoBuyController";
 import { getTokenPriceUSD } from "../solana/getPrice";
 import { logger } from "../logger";
 import { getTokenMetaData } from "../solana/token";
 import { parseTransaction } from "../solana/txhelpers";
 import { closePosition } from "../models/positionModel";
 import { WSOL_ADDRESS } from "../solana/trade";
+import { TRADE } from "../types/trade";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     if (!botInstance) {
@@ -288,7 +288,7 @@ export const autoSellHandler = () => {
                 const price = (await getTokenPriceUSD(info.contractAddress)) / wsolPrice;
                 // botInstance.sendMessage(key!, `Auto-sell Check: ${info.contractAddress}, Current Price: ${price}, Target Price: ${info.targetPrice}`);
                 logger.debug("Auto-sell check", { chatId: key, address: info.contractAddress, price });
-                if (price > info.targetPrice || price < info.lowPrice) {
+                if (price > info.targetPrice || price < info.stopPrice) {
                     const wallet = await walletdb.getWalletByChatId(key);
                     if (!wallet) return;
                     const walletData = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
@@ -315,7 +315,7 @@ export const autoSellHandler = () => {
                                     `Gain: ${((price / info.startPrice - 1) * 100).toFixed(1)}%`,
                                 { parse_mode: "HTML" }
                             );
-                        } else if (price < info.lowPrice) {
+                        } else if (price < info.stopPrice) {
                             botInstance.sendMessage(
                                 key,
                                 `Auto-Sell Success\n\n` +
