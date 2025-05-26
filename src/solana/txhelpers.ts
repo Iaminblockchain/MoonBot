@@ -190,6 +190,17 @@ export interface TransactionMetrics {
     feesPaid: number;
     compute_units_consumed: number | null;
     execution_price: number;
+    timing?: {
+        intervals: {
+            priceCheckDuration: number;
+            walletFetchDuration: number;
+            balanceCheckDuration: number;
+            swapDuration: number;
+            metadataFetchDuration: number;
+            messageSendDuration: number;
+            totalDuration: number;
+        };
+    };
 }
 
 export function extractTransactionMetrics(tx: Transaction, tokenMint: string): TransactionMetrics | null {

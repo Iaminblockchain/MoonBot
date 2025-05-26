@@ -27,8 +27,8 @@ import { getTokenMetaData } from "./token";
 import { getStatusTxnRetry, getTxInfoMetrics, TransactionMetrics } from "./txhelpers";
 import { getReferralByRefereeId, updateRewards } from "../models/referralModel";
 import { JUPYTER_BASE_URL } from "../util/constants";
-
 import { getErrorMessage } from "../util/error";
+import { calculateIntervals, createTimingMetrics } from "./timecalc";
 
 const useJito = false;
 
@@ -302,6 +302,36 @@ interface JupiterSwapResult {
     executionInfo?: TransactionMetrics;
 }
 
+/**
+ * Constructs the Jupiter quote URL with the given parameters
+ * @param inputMint - Input token mint address
+ * @param outputMint - Output token mint address
+ * @param amount - Amount to swap
+ * @param slippage - Slippage tolerance in basis points (defaults to 500 = 5%)
+ * @param swapMode - "ExactIn" or "ExactOut" swap mode
+ * @returns The complete Jupiter quote URL
+ */
+const constructJupiterQuoteUrl = (
+    inputMint: string,
+    outputMint: string,
+    amount: number,
+    slippage: number | undefined,
+    swapMode: "ExactIn" | "ExactOut"
+): string => {
+    const baseUrl = `${JUPYTER_BASE_URL}/swap/v1/quote`;
+    const DEFAULT_SLIPPAGE = 500; // 5% default slippage
+
+    const params = new URLSearchParams({
+        inputMint,
+        outputMint,
+        amount: Math.floor(amount).toString(),
+        slippageBps: (slippage ?? DEFAULT_SLIPPAGE).toString(),
+        swapMode,
+    });
+
+    return `${baseUrl}?${params.toString()}`;
+};
+
 export const buy_swap = async (
     CONNECTION: Connection,
     PRIVATE_KEY: string,
@@ -309,42 +339,148 @@ export const buy_swap = async (
     amount: number,
     slippage?: number
 ): Promise<SwapResult> => {
-    const result = await jupiter_swap(CONNECTION, PRIVATE_KEY, WSOL_ADDRESS, tokenAddress, amount, "ExactIn", useJito, slippage);
+    const timingMetrics = createTimingMetrics();
+    try {
+        // Set priceCheckTime at the start
+        timingMetrics.priceCheckTime = Date.now();
 
-    if (result?.confirmed) {
-        logger.info("execution info", { executionInfo: result.executionInfo });
+        // Check balance and get wallet info
+        const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
+        timingMetrics.walletFetchTime = Date.now();
 
-        let token_balance_change = 0;
-        let sol_balance_change = 0;
-        let execution_price = 0;
-        if (result.executionInfo) {
-            token_balance_change = Number(result.executionInfo.token_balance_change);
-            sol_balance_change = Number(result.executionInfo.sol_balance_change);
-            execution_price = Number(result.executionInfo.execution_price);
+        const balance = await CONNECTION.getBalance(keypair.publicKey);
+        timingMetrics.balanceCheckTime = Date.now();
+
+        const balanceInSol = balance / LAMPORTS_PER_SOL;
+        logger.info(`TRADE: Current wallet balance before swap: ${balanceInSol.toFixed(4)} SOL`);
+
+        if (balance < MIN_SOL_BALANCE) {
+            const errorMsg = `Insufficient SOL balance: ${balanceInSol.toFixed(4)} SOL, minimum required: ${(MIN_SOL_BALANCE / LAMPORTS_PER_SOL).toFixed(4)} SOL`;
+            logger.error(errorMsg);
+            return {
+                success: false,
+                token_balance_change: 0,
+                sol_balance_change: 0,
+                execution_price: 0,
+                error: errorMsg,
+            };
         }
 
-        return {
-            success: true,
-            txSignature: result.txSignature,
-            token_balance_change: token_balance_change,
-            sol_balance_change: sol_balance_change,
-            execution_price: execution_price,
-        };
-    } else {
-        // Get current balance for error message
-        const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
-        const balance = await CONNECTION.getBalance(keypair.publicKey);
-        const balanceInSol = balance / LAMPORTS_PER_SOL;
+        timingMetrics.swapStartTime = Date.now();
+        const result = await jupiter_swap(CONNECTION, PRIVATE_KEY, WSOL_ADDRESS, tokenAddress, amount, "ExactIn", useJito, slippage);
+        timingMetrics.swapEndTime = Date.now();
 
-        // add balance context
-        const errorMsg = result?.error || "Swap failed to confirm";
-        return {
-            success: false,
-            token_balance_change: 0,
-            sol_balance_change: 0,
-            execution_price: 0,
-            error: `${errorMsg}\nCurrent balance: ${balanceInSol.toFixed(4)} SOL`,
-        };
+        if (result?.confirmed) {
+            logger.info("execution info", { executionInfo: result.executionInfo });
+
+            let token_balance_change = 0;
+            let sol_balance_change = 0;
+            let execution_price = 0;
+            if (result.executionInfo) {
+                token_balance_change = Number(result.executionInfo.token_balance_change);
+                sol_balance_change = Number(result.executionInfo.sol_balance_change);
+                execution_price = Number(result.executionInfo.execution_price);
+            }
+
+            // Get metadata for logging
+            const metaData = await getTokenMetaData(CONNECTION, tokenAddress);
+            timingMetrics.metadataFetchTime = Date.now();
+
+            // Set final timestamps
+            timingMetrics.messageSendTime = Date.now();
+            timingMetrics.endTime = Date.now();
+
+            // Calculate intervals once after all timestamps are set
+            const timingIntervals = calculateIntervals(timingMetrics).intervals;
+
+            // Use the same timingIntervals for all logging and response
+            logger.info("Buy swap completed successfully", {
+                token: metaData?.symbol,
+                token_balance_change,
+                sol_balance_change,
+                execution_price,
+                timing: timingIntervals,
+            });
+
+            logger.info("Buy transaction details", {
+                status: "SUCCESS",
+                token: metaData?.symbol,
+                tokenAddress,
+                amount: amount / LAMPORTS_PER_SOL,
+                txSignature: result.txSignature,
+                tokenBalanceChange: token_balance_change,
+                solBalanceChange: sol_balance_change,
+                executionPrice: execution_price,
+                slippage: slippage ? `${slippage / 100}%` : "default",
+                timing: timingIntervals,
+            });
+
+            return {
+                success: true,
+                txSignature: result.txSignature,
+                token_balance_change: token_balance_change,
+                sol_balance_change: sol_balance_change,
+                execution_price: execution_price,
+                executionInfo: {
+                    owner_pubkey: keypair.publicKey.toString(),
+                    token: tokenAddress,
+                    token_balance_change: token_balance_change,
+                    transaction_fee: result.executionInfo?.transaction_fee ?? 0,
+                    sol_balance_change: sol_balance_change,
+                    token_creation_cost: result.executionInfo?.token_creation_cost ?? 0,
+                    feesPaid: result.executionInfo?.feesPaid ?? 0,
+                    compute_units_consumed: result.executionInfo?.compute_units_consumed ?? null,
+                    execution_price: execution_price,
+                    timing: { intervals: timingIntervals },
+                },
+            };
+        } else {
+            // Get current balance for error message
+            const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
+            const balance = await CONNECTION.getBalance(keypair.publicKey);
+            const balanceInSol = balance / LAMPORTS_PER_SOL;
+
+            // Set final timestamps
+            timingMetrics.messageSendTime = Date.now();
+            timingMetrics.endTime = Date.now();
+
+            // Calculate intervals once
+            const timingIntervals = calculateIntervals(timingMetrics).intervals;
+
+            logger.error("Buy transaction failed", {
+                status: "FAILED",
+                tokenAddress,
+                amount: amount / LAMPORTS_PER_SOL,
+                error: result?.error || "Unknown error",
+                slippage: slippage ? `${slippage / 100}%` : "default",
+                timing: timingIntervals,
+            });
+
+            return {
+                success: false,
+                token_balance_change: 0,
+                sol_balance_change: 0,
+                execution_price: 0,
+                error: `${result?.error || "Swap failed to confirm"}\nCurrent balance: ${balanceInSol.toFixed(4)} SOL`,
+            };
+        }
+    } catch (error) {
+        // Set final timestamps
+        timingMetrics.messageSendTime = Date.now();
+        timingMetrics.endTime = Date.now();
+
+        // Calculate intervals once
+        const timingIntervals = calculateIntervals(timingMetrics).intervals;
+
+        logger.error("Buy transaction error", {
+            status: "ERROR",
+            tokenAddress,
+            amount: amount / LAMPORTS_PER_SOL,
+            error: error instanceof Error ? error.message : "Unknown error",
+            slippage: slippage ? `${slippage / 100}%` : "default",
+            timing: timingIntervals,
+        });
+        throw error;
     }
 };
 
@@ -355,58 +491,110 @@ export const sell_swap = async (
     amount: number,
     slippage?: number
 ): Promise<SwapResult> => {
-    // Check balance before proceeding with sell
-    const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
-    const balance = await CONNECTION.getBalance(keypair.publicKey);
-    const balanceInSol = balance / LAMPORTS_PER_SOL;
-
-    // For sells, we need to ensure enough SOL for fees
-    const feeAmount = Math.floor(amount / 100); // 1% fee
-    const totalRequired = feeAmount;
-    if (balance < totalRequired) {
-        const errorMsg = `Insufficient SOL balance for fees: ${balanceInSol.toFixed(4)} SOL, required: ${(totalRequired / LAMPORTS_PER_SOL).toFixed(4)} SOL`;
-        logger.error(errorMsg);
-        return {
-            success: false,
-            token_balance_change: 0,
-            sol_balance_change: 0,
-            execution_price: 0,
-            error: errorMsg,
-        };
-    }
-
-    const result = await jupiter_swap(CONNECTION, PRIVATE_KEY, tokenAddress, WSOL_ADDRESS, amount, "ExactIn", useJito);
-    if (result?.confirmed) {
-        logger.info("execution info", { executionInfo: result.executionInfo });
-
-        let token_balance_change = 0;
-        let sol_balance_change = 0;
-        let execution_price = 0;
-        if (result.executionInfo) {
-            token_balance_change = Number(result.executionInfo.token_balance_change);
-            sol_balance_change = Number(result.executionInfo.sol_balance_change);
-            execution_price = Number(result.executionInfo.execution_price);
-        }
-        return {
-            success: true,
-            txSignature: result.txSignature,
-            token_balance_change: token_balance_change,
-            sol_balance_change: sol_balance_change,
-            execution_price: execution_price,
-        };
-    } else {
-        // Get current balance for error message
+    const timingMetrics = createTimingMetrics();
+    try {
+        // Check balance before proceeding with sell
         const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
+        timingMetrics.walletFetchTime = Date.now();
+
         const balance = await CONNECTION.getBalance(keypair.publicKey);
+        timingMetrics.balanceCheckTime = Date.now();
+
         const balanceInSol = balance / LAMPORTS_PER_SOL;
 
-        return {
-            success: false,
-            token_balance_change: 0,
-            sol_balance_change: 0,
-            execution_price: 0,
-            error: result?.error || `Swap failed to confirm. Current balance: ${balanceInSol.toFixed(4)} SOL`,
-        };
+        // For sells, we need to ensure enough SOL for fees
+        // Fixed SOL fee
+        const minfeeAmount = 0.005 * LAMPORTS_PER_SOL;
+        const totalRequired = minfeeAmount;
+        if (balance < totalRequired) {
+            const errorMsg = `Insufficient SOL balance for fees: ${balanceInSol.toFixed(4)} SOL, required: ${(totalRequired / LAMPORTS_PER_SOL).toFixed(4)} SOL`;
+            logger.error(errorMsg);
+            return {
+                success: false,
+                token_balance_change: 0,
+                sol_balance_change: 0,
+                execution_price: 0,
+                error: errorMsg,
+            };
+        }
+
+        timingMetrics.swapStartTime = Date.now();
+        const result = await jupiter_swap(CONNECTION, PRIVATE_KEY, tokenAddress, WSOL_ADDRESS, amount, "ExactIn", useJito);
+        timingMetrics.swapEndTime = Date.now();
+
+        if (result?.confirmed) {
+            logger.info("execution info", { executionInfo: result.executionInfo });
+
+            let token_balance_change = 0;
+            let sol_balance_change = 0;
+            let execution_price = 0;
+            if (result.executionInfo) {
+                token_balance_change = Number(result.executionInfo.token_balance_change);
+                sol_balance_change = Number(result.executionInfo.sol_balance_change);
+                execution_price = Number(result.executionInfo.execution_price);
+            }
+
+            // Get metadata for logging
+            const metaData = await getTokenMetaData(CONNECTION, tokenAddress);
+            timingMetrics.metadataFetchTime = Date.now();
+
+            logger.info("Sell swap completed successfully", {
+                token: metaData?.symbol,
+                token_balance_change,
+                sol_balance_change,
+                execution_price,
+                timing: calculateIntervals(timingMetrics).intervals,
+            });
+
+            timingMetrics.messageSendTime = Date.now();
+            timingMetrics.endTime = Date.now();
+
+            return {
+                success: true,
+                txSignature: result.txSignature,
+                token_balance_change: token_balance_change,
+                sol_balance_change: sol_balance_change,
+                execution_price: execution_price,
+                executionInfo: {
+                    owner_pubkey: keypair.publicKey.toString(),
+                    token: tokenAddress,
+                    token_balance_change: token_balance_change,
+                    transaction_fee: result.executionInfo?.transaction_fee ?? 0,
+                    sol_balance_change: sol_balance_change,
+                    token_creation_cost: result.executionInfo?.token_creation_cost ?? 0,
+                    feesPaid: result.executionInfo?.feesPaid ?? 0,
+                    compute_units_consumed: result.executionInfo?.compute_units_consumed ?? null,
+                    execution_price: execution_price,
+                    timing: { intervals: calculateIntervals(timingMetrics).intervals },
+                },
+            };
+        } else {
+            // Get current balance for error message
+            const keypair = Keypair.fromSecretKey(bs58.decode(PRIVATE_KEY));
+            const balance = await CONNECTION.getBalance(keypair.publicKey);
+            const balanceInSol = balance / LAMPORTS_PER_SOL;
+
+            timingMetrics.endTime = Date.now();
+            logger.error("Sell swap failed", {
+                error: result?.error || "Swap failed to confirm",
+                timing: calculateIntervals(timingMetrics).intervals,
+            });
+
+            return {
+                success: false,
+                token_balance_change: 0,
+                sol_balance_change: 0,
+                execution_price: 0,
+                error: result?.error || `Swap failed to confirm. Current balance: ${balanceInSol.toFixed(4)} SOL`,
+            };
+        }
+    } catch (error) {
+        timingMetrics.endTime = Date.now();
+        logger.error("Sell swap error", {
+            error: error instanceof Error ? error.message : "Unknown error",
+            timing: calculateIntervals(timingMetrics).intervals,
+        });
+        throw error;
     }
 };
 
@@ -448,16 +636,9 @@ export const jupiter_swap = async (
             return { confirmed: false, txSignature: null, tokenAmount: 0, error: errorMsg };
         }
 
-        let baseUrl = `${JUPYTER_BASE_URL}/swap/v1/quote`;
-        const quoteUrl =
-            baseUrl +
-            `?inputMint=${inputMint}` +
-            `&outputMint=${outputMint}` +
-            `&amount=${Math.floor(amount)}` +
-            `&slippageBps=${slippage}` +
-            `&swapMode=${swapMode}`;
-
+        const quoteUrl = constructJupiterQuoteUrl(inputMint, outputMint, amount, slippage, swapMode);
         logger.info(`TRADE Fetching quote from Jupiter: ${inputMint}`, quoteUrl);
+
         const quoteResponse = await fetch(quoteUrl);
         if (!quoteResponse.ok) {
             const text = await quoteResponse.text();

@@ -16,6 +16,7 @@ import { parseTransaction } from "../solana/txhelpers";
 import { closePosition } from "../models/positionModel";
 import { WSOL_ADDRESS } from "../solana/trade";
 import { TRADE } from "../types/trade";
+import { sendMessageToUser } from "../bot";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     if (!botInstance) {
@@ -67,20 +68,40 @@ const onClickSell = async (query: TelegramBot.CallbackQuery, fraction: number, w
     const tokenBalance = await SOLANA_CONNECTION.getTokenAccountBalance(tokenATA);
     const amountToSell = fraction * Number(tokenBalance.value.amount);
 
-    logger.info("Preparing to send transaction", { tokenAddress, amountToSell });
-    await botInstance.sendMessage(chatId!, "Sending sell transaction");
+    logger.info("Preparing sell transaction", { tokenAddress, amountToSell });
+    await sendMessageToUser(chatId!, "Sending sell transaction");
 
     try {
         const result = await solana.sell_swap(SOLANA_CONNECTION, privateKey, tokenAddress, amountToSell);
         if (result.success) {
-            logger.info("Sell transaction result", { result });
+            logger.info("Sell transaction completed successfully", {
+                status: "SUCCESS",
+                chatId,
+                tokenAddress,
+                fraction,
+                amountToSell,
+                txSignature: result.txSignature,
+                tokenBalanceChange: result.token_balance_change,
+                solBalanceChange: result.sol_balance_change,
+                executionInfo: result.executionInfo,
+            });
+
             let tokenBalanceChange = Number(result.token_balance_change);
             let sol_balance_change = Number(result.sol_balance_change);
 
             const trxLink = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "N/A";
 
-            const msg = await getSellSuccessMessage(trxLink, tokenAddress, sol_balance_change, tokenBalanceChange, "Sell");
-            await botInstance.sendMessage(chatId!, msg);
+            const msg = await getSellSuccessMessage(
+                trxLink,
+                tokenAddress,
+                sol_balance_change,
+                tokenBalanceChange,
+                "Sell",
+                undefined,
+                undefined,
+                result.executionInfo?.timing ? { intervals: result.executionInfo.timing.intervals } : undefined
+            );
+            await sendMessageToUser(chatId!, msg);
 
             // Get current price for closing position
             const wallet = await walletdb.getWalletByChatId(chatId!.toString());
@@ -121,15 +142,29 @@ const onClickSell = async (query: TelegramBot.CallbackQuery, fraction: number, w
                 `${profitLossText}: ${Math.abs(profitLoss).toFixed(6)} SOL (${profitLossPercentage}%)\n` +
                 `Transaction: http://solscan.io/tx/${result.txSignature}`;
 
-            await botInstance.sendMessage(chatId!, message, { parse_mode: "HTML" });
+            await sendMessageToUser(chatId!, message, { parse_mode: "HTML" });
         } else {
-            logger.error("Sell transaction failed", { result });
-            await botInstance.sendMessage(chatId!, "Sell failed");
+            logger.error("Sell transaction failed", {
+                status: "FAILED",
+                chatId,
+                tokenAddress,
+                fraction,
+                amountToSell,
+                error: result.error || "Unknown error",
+            });
+            await sendMessageToUser(chatId!, "Sell failed");
         }
     } catch (error: unknown) {
-        logger.error("Sell error", { error });
+        logger.error("Sell transaction error", {
+            status: "ERROR",
+            chatId,
+            tokenAddress,
+            fraction,
+            amountToSell,
+            error: error instanceof Error ? error.message : String(error),
+        });
         const errorMessage = error instanceof Error ? error.message : String(error);
-        await botInstance.sendMessage(chatId!, `Sell error: ${errorMessage}`);
+        await sendMessageToUser(chatId!, `Sell error: ${errorMessage}`);
     }
 };
 
@@ -192,7 +227,7 @@ export const showSellPad = async (query: TelegramBot.CallbackQuery) => {
         const wallet = await walletdb.getWalletByChatId(chatId!);
 
         if (!wallet) {
-            botInstance.sendMessage(chatId!, "❌ No wallet found. Please connect a wallet first.");
+            await sendMessageToUser(chatId!, "❌ No wallet found. Please connect a wallet first.");
             return;
         }
 
@@ -202,7 +237,7 @@ export const showSellPad = async (query: TelegramBot.CallbackQuery) => {
         const tokenAccounts = await solana.getAllTokensWithBalance(SOLANA_CONNECTION, publicKey);
 
         if (!tokenAccounts || tokenAccounts.length === 0) {
-            botInstance.sendMessage(chatId!, "⚠️ No tokens found in your wallet.");
+            await sendMessageToUser(chatId!, "⚠️ No tokens found in your wallet.");
             return;
         }
         // Generate buttons for each token
@@ -216,7 +251,7 @@ export const showSellPad = async (query: TelegramBot.CallbackQuery) => {
     } catch (error) {
         logger.error("Error in showSellPad:", error);
         if (botInstance && query.message) {
-            botInstance.sendMessage(query.message.chat.id, "❌ Failed to fetch wallet tokens.");
+            await sendMessageToUser(query.message.chat.id, "❌ Failed to fetch wallet tokens.");
         }
     }
 };
@@ -243,7 +278,7 @@ export const onClickSellWithToken = async (query: TelegramBot.CallbackQuery) => 
                 ],
                 [{ text: "Refresh", callback_data: "sc_refresh" }],
             ];
-            botInstance.sendMessage(chatId!, `Selling ${token}. Select percentage`, {
+            await sendMessageToUser(chatId!, `Selling ${token}. Select percentage`, {
                 reply_markup: { inline_keyboard: buttons },
                 parse_mode: "HTML",
             });
@@ -306,7 +341,7 @@ export const autoSellHandler = () => {
 
                         const metadata = await getTokenMetaData(SOLANA_CONNECTION, info.contractAddress);
                         if (price > info.targetPrice) {
-                            botInstance.sendMessage(
+                            await sendMessageToUser(
                                 key,
                                 `Auto-Sell Success\n\n` +
                                     `Token: ${metadata?.name} (${metadata?.symbol})\n` +
@@ -316,7 +351,7 @@ export const autoSellHandler = () => {
                                 { parse_mode: "HTML" }
                             );
                         } else if (price < info.stopPrice) {
-                            botInstance.sendMessage(
+                            await sendMessageToUser(
                                 key,
                                 `Auto-Sell Success\n\n` +
                                     `Token: ${metadata?.name} (${metadata?.symbol})\n` +
@@ -327,17 +362,46 @@ export const autoSellHandler = () => {
                             );
                         }
                         removeTradeState(key, info.contractAddress);
+
+                        logger.info(`Auto-sell transaction completed successfully ${info.contractAddress}`, {
+                            status: "SUCCESS",
+                            chatId: key,
+                            tokenAddress: info.contractAddress,
+                            price,
+                            targetPrice: info.targetPrice,
+                            stopPrice: info.stopPrice,
+                            txSignature: result.txSignature,
+                            tokenBalanceChange: result.token_balance_change,
+                            solBalanceChange: result.sol_balance_change,
+                            executionInfo: result.executionInfo,
+                        });
                     } else {
                         if (!botInstance) {
                             logger.error("Bot instance not initialized in autoSellHandler else branch");
                             return;
                         }
 
-                        botInstance.sendMessage(key, `Auto-Sell Token : ${info.contractAddress}  failed`);
+                        await sendMessageToUser(key, `Auto-Sell Token : ${info.contractAddress}  failed`);
                         removeTradeState(key, info.contractAddress);
+
+                        logger.error("Auto-sell transaction failed", {
+                            status: "FAILED",
+                            chatId: key,
+                            tokenAddress: info.contractAddress,
+                            price,
+                            targetPrice: info.targetPrice,
+                            stopPrice: info.stopPrice,
+                            error: result.error || "Unknown error",
+                        });
                     }
                 }
             } catch (e) {
+                logger.error("Auto-sell transaction error", {
+                    status: "ERROR",
+                    chatId: key,
+                    tokenAddress: info.contractAddress,
+                    error: e instanceof Error ? e.message : String(e),
+                });
                 logger.error(`Auto-Sell Error:${e}`, { chatId: key, TokenAddress: info.contractAddress });
             }
         });
@@ -358,16 +422,33 @@ const getSellSuccessMessage = async (
         repetitiveBuy: number;
         stopLoss: number | null;
     },
-    tradeSignal?: string
+    tradeSignal?: string,
+    timingMetrics?: {
+        intervals: {
+            priceCheckDuration: number;
+            walletFetchDuration: number;
+            balanceCheckDuration: number;
+            swapDuration: number;
+            metadataFetchDuration: number;
+            messageSendDuration: number;
+            totalDuration: number;
+        };
+    }
 ) => {
     const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
 
     // Add token balance change info to message if available
     const tokenInfo = tokenBalanceChange ? `\nTokens sold: ${Math.abs(tokenBalanceChange).toLocaleString()}` : "";
-
     const sourceInfo = tradeSignal ? `Source: ${tradeSignal}` : "";
+    const timingInfo = timingMetrics
+        ? `\nTiming:\n` +
+          `Total: ${timingMetrics.intervals.totalDuration}ms\n` +
+          `Swap: ${timingMetrics.intervals.swapDuration}ms\n` +
+          `Wallet: ${timingMetrics.intervals.walletFetchDuration}ms\n` +
+          `Balance: ${timingMetrics.intervals.balanceCheckDuration}ms`
+        : "";
 
-    let message = `${trade_type} successful: ${trx}\n SOL Amount: ${solAmount.toFixed(6)}\nTicker: ${metaData?.symbol}${tokenInfo}\nSource: ${sourceInfo}`;
+    let message = `${trade_type} successful: ${trx}\n SOL Amount: ${solAmount.toFixed(6)}\nTicker: ${metaData?.symbol}${tokenInfo}\nSource: ${sourceInfo}${timingInfo}`;
 
     if (settings) {
         if (settings.takeProfit !== null) {

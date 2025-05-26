@@ -367,3 +367,29 @@ const getTitleAndButtons = async (chatId: TelegramBot.ChatId) => {
         ],
     };
 };
+
+/**
+ * Sends a message to a chat and logs it
+ * @param chatId - Chat ID to send message to
+ * @param message - Message to send
+ * @param options - Optional Telegram message options
+ * @returns Promise<TelegramBot.Message>
+ */
+export const sendMessageToUser = async (
+    chatId: TelegramBot.ChatId,
+    message: string,
+    options?: TelegramBot.SendMessageOptions
+): Promise<TelegramBot.Message> => {
+    if (!botInstance) {
+        logger.error("Bot instance not initialized in sendMessageWithLog");
+        throw new Error("Bot instance not initialized");
+    }
+
+    logger.info(`Sending message to user ${chatId}`, {
+        chatId,
+        message: message.substring(0, 100) + (message.length > 100 ? "..." : ""), // Log first 100 chars
+        hasOptions: !!options,
+    });
+
+    return botInstance.sendMessage(chatId, message, options);
+};

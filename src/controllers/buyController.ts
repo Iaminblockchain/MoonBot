@@ -1,5 +1,15 @@
 import TelegramBot from "node-telegram-bot-api";
-import { botInstance, getChatIdandMessageId, setState, STATE, setDeleteMessageId, getDeleteMessageId, trade, setTradeState } from "../bot";
+import {
+    botInstance,
+    getChatIdandMessageId,
+    setState,
+    STATE,
+    setDeleteMessageId,
+    getDeleteMessageId,
+    trade,
+    setTradeState,
+    sendMessageToUser,
+} from "../bot";
 import { SOLANA_CONNECTION } from "..";
 import * as walletdb from "../models/walletModel";
 import * as tradedb from "../models/tradeModel";
@@ -29,18 +39,42 @@ const getBuySuccessMessage = async (
         repetitiveBuy: number;
         stopLoss: number | null;
     },
-    tradeSignal?: string
+    tradeSignal?: string,
+    trxInfo?: {
+        tokenSolPrice: number | null;
+        tokenUsdPrice: number | null;
+        transactionFee: number | null;
+        netBuySolAmount: number | null;
+    },
+    timingMetrics?: {
+        intervals: {
+            priceCheckDuration: number;
+            walletFetchDuration: number;
+            balanceCheckDuration: number;
+            swapDuration: number;
+            metadataFetchDuration: number;
+            messageSendDuration: number;
+            totalDuration: number;
+        };
+    }
 ) => {
     const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
 
     const tokenInfo = tokenBalanceChange ? `\nTokens bought: ${Math.abs(tokenBalanceChange).toLocaleString()}` : "";
     const solInfo = solBalanceChange ? `SOL Amount: ${Math.abs(solBalanceChange).toFixed(6)}` : "";
     const feesInfo = `Fees: ${fees.toFixed(9)} SOL`;
-    const price = tokenBalanceChange ? Math.abs(solBalanceChange) / Math.abs(tokenBalanceChange) : 0;
+    const price = trxInfo?.tokenSolPrice ?? 0;
     const priceInfo = `Price: ${price.toFixed(9)} SOL`;
     const sourceInfo = tradeSignal ? `Source: ${tradeSignal}` : "";
+    const timingInfo = timingMetrics
+        ? `\nTiming:\n` +
+          `Total: ${timingMetrics.intervals.totalDuration}ms\n` +
+          `Swap: ${timingMetrics.intervals.swapDuration}ms\n` +
+          `Wallet: ${timingMetrics.intervals.walletFetchDuration}ms\n` +
+          `Balance: ${timingMetrics.intervals.balanceCheckDuration}ms`
+        : "";
 
-    let message = `${trade_type} successful\nTicker: ${metaData?.symbol}\n${solInfo}\n${feesInfo}\n${tokenInfo}\n${priceInfo}\n${sourceInfo}\n${trx}`;
+    let message = `${trade_type} successful\nTicker: ${metaData?.symbol}\n${solInfo}\n${feesInfo}\n${tokenInfo}\n${priceInfo}\n${sourceInfo}\n${timingInfo}\n${trx}`;
 
     if (settings) {
         if (settings.takeProfit !== null) {
@@ -86,7 +120,7 @@ export const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: nu
         }
 
         logger.info("onClickBuy initiated", { chatId, amountSol, token: trade.tokenAddress });
-        await botInstance.sendMessage(chatId!, "Sending buy transaction");
+        await sendMessageToUser(chatId!, "Sending buy transaction");
 
         const amountlamports = amountSol * 10 ** 9;
         logger.info("call jupyter swap");
@@ -99,7 +133,11 @@ export const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: nu
             let tokenBalanceChange = result.token_balance_change;
             let sol_balance_change = result.sol_balance_change;
 
-            logger.info("onClickBuy success", { chatId, txSignature: result.txSignature, tokenBalanceChange });
+            logger.info("onClickBuy success", {
+                chatId,
+                txSignature: result.txSignature,
+                tokenBalanceChange,
+            });
 
             const keypair = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
             const trxInfo = await parseTransaction(
@@ -114,18 +152,22 @@ export const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: nu
                 "Buy",
                 tokenBalanceChange,
                 trxInfo.netBuySolAmount || 0,
-                trxInfo.transactionFee || 0
+                trxInfo.transactionFee || 0,
+                undefined,
+                undefined,
+                trxInfo,
+                result.executionInfo?.timing ? { intervals: result.executionInfo.timing.intervals } : undefined
             );
-            botInstance.sendMessage(chatId!, msg);
+            await sendMessageToUser(chatId!, msg);
         } else {
             logger.error("onClickBuy failed: not confirmed", { chatId, result });
             const errorMessage = userFriendlyError(result);
-            await botInstance.sendMessage(chatId!, `Buy failed: ${errorMessage}`);
+            await sendMessageToUser(chatId!, `Buy failed: ${errorMessage}`);
         }
     } catch (error: unknown) {
         logger.error("onClickBuy error", { error, chatId });
         const errorMessage = userFriendlyError(error);
-        await botInstance.sendMessage(chatId!, errorMessage);
+        await sendMessageToUser(chatId!, errorMessage);
     }
 };
 
@@ -141,7 +183,7 @@ const onClickXBuy = (query: TelegramBot.CallbackQuery) => {
 
     const { chatId } = getChatIdandMessageId(query);
     setState(chatId!, STATE.INPUT_BUY_AMOUNT);
-    botInstance.sendMessage(chatId!, "Input buy amount");
+    sendMessageToUser(chatId!, "Input buy amount");
 };
 
 export const buyXAmount = async (message: TelegramBot.Message) => {
@@ -157,7 +199,7 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
         const wallet = await walletdb.getWalletByChatId(chatId);
         const trade = await tradedb.getTradeByChatId(chatId);
         if (wallet && trade) {
-            botInstance.sendMessage(chatId, "Sending buy transaction");
+            sendMessageToUser(chatId, "Sending buy transaction");
             logger.info("Sending buy transaction:", { tokenAddress: trade.tokenAddress });
 
             let result = await solana.buy_swap(
@@ -190,20 +232,24 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
                     "Buy",
                     Number(tokenBalanceChange),
                     trxInfo.netBuySolAmount || 0,
-                    trxInfo.transactionFee || 0
+                    trxInfo.transactionFee || 0,
+                    undefined,
+                    undefined,
+                    trxInfo,
+                    result.executionInfo?.timing ? { intervals: result.executionInfo.timing.intervals } : undefined
                 );
-                botInstance.sendMessage(chatId, msg);
+                await sendMessageToUser(chatId, msg);
             } else {
                 logger.error(`buy failed ${result}`);
                 const errorMessage = userFriendlyError(result);
-                botInstance.sendMessage(chatId, `Buy failed: ${errorMessage}`);
+                sendMessageToUser(chatId, `Buy failed: ${errorMessage}`);
             }
         }
     } catch (error: unknown) {
         logger.error("buyXAmount error", { error });
         const chatId = message.chat.id;
         const errorMessage = userFriendlyError(error);
-        botInstance.sendMessage(chatId, errorMessage);
+        sendMessageToUser(chatId, errorMessage);
     }
 };
 
@@ -228,14 +274,14 @@ export const showBuyPad = async (message: TelegramBot.Message) => {
             ],
             [{ text: "Refresh", callback_data: "buyController_refresh" }],
         ];
-        botInstance.sendMessage(chatId, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: "HTML" });
+        await sendMessageToUser(chatId, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: "HTML" });
         logger.info("buy info: ", { chatId, tokenAddress });
         await tradedb.createTrade(chatId, tokenAddress!);
         botInstance.deleteMessage(chatId, getDeleteMessageId(chatId));
     } catch (error) {
         logger.error("showBuyPad error", { error });
         const chatId = message.chat.id;
-        botInstance.sendMessage(chatId, "Failed to display buy options");
+        sendMessageToUser(chatId, "Failed to display buy options");
     }
 };
 
@@ -248,7 +294,7 @@ const onBuyControlStart = async (query: TelegramBot.CallbackQuery) => {
     try {
         const { chatId, messageId } = getChatIdandMessageId(query);
         setState(chatId!, STATE.INPUT_TOKEN);
-        botInstance.sendMessage(chatId!, "Enter token address to buy.", { parse_mode: "HTML" }).then((message: TelegramBot.Message) => {
+        sendMessageToUser(chatId!, "Enter token address to buy.", { parse_mode: "HTML" }).then((message: TelegramBot.Message) => {
             const messageId = message.message_id;
             setDeleteMessageId(chatId!, messageId);
         });
@@ -307,7 +353,7 @@ export const autoBuyContract = async (
     try {
         const wallet = await walletdb.getWalletByChatId(chatId);
         if (!wallet) {
-            botInstance.sendMessage(chatId, "Wallet not found. Please create or import a wallet first.");
+            await sendMessageToUser(chatId, "Wallet not found. Please create or import a wallet first.");
             return;
         }
         logger.info("run auto buy", { settings: settings, contractAddress: contractAddress, chatId: chatId });
@@ -318,7 +364,7 @@ export const autoBuyContract = async (
         }
         if (solAmount > balance) {
             logger.error("Insufficient SOL balance", { chatId, balance, required: solAmount });
-            botInstance.sendMessage(
+            await sendMessageToUser(
                 chatId,
                 `❌ Insufficient SOL balance: you have ${balance.toFixed(6)} SOL but need ${solAmount.toFixed(6)} SOL.`
             );
@@ -336,7 +382,7 @@ export const autoBuyContract = async (
         logger.info(
             `${trade_type}: Sending buy transaction for Token  ${metaData?.name} (${metaData?.symbol}) : ${contractAddress} with amount ${solAmount} SOL ${tradeSignal ? `from signal @${tradeSignal} ` : ""}(Max Slippage: ${settings.maxSlippage}%)`
         );
-        botInstance.sendMessage(
+        await sendMessageToUser(
             chatId,
             `${trade_type}: Sending buy transaction for Token  ${metaData?.name} (${metaData?.symbol}) : ${contractAddress} with amount ${solAmount} SOL ${tradeSignal ? `from signal @${tradeSignal} ` : ""}(Max Slippage: ${settings.maxSlippage}%)`
         );
@@ -364,9 +410,11 @@ export const autoBuyContract = async (
                 trxInfo.netBuySolAmount || 0,
                 trxInfo.transactionFee || 0,
                 settings,
-                tradeSignal
+                tradeSignal,
+                trxInfo,
+                result.executionInfo?.timing ? { intervals: result.executionInfo.timing.intervals } : undefined
             );
-            botInstance.sendMessage(chatId, msg);
+            await sendMessageToUser(chatId, msg);
 
             //TODO possbly in trade.ts
             // Save position information
@@ -393,9 +441,9 @@ export const autoBuyContract = async (
                 const stopLossPrice = splprice * (1 - settings.stopLoss / 100);
                 logger.info(`set TP ${takeProfitPrice} and SL ${stopLossPrice}`);
 
-                botInstance.sendMessage(
+                await sendMessageToUser(
                     chatId,
-                    `Auto-sell Registered!\n\n` +
+                    `Auto-sell Registered\n\n` +
                         `Token: <code>${contractAddress}</code>\n` +
                         `Current Price: ${splprice.toFixed(9)} SOL\n` +
                         `Take Profit: ${takeProfitPrice.toFixed(9)} SOL (${settings.takeProfit}%)\n` +
@@ -409,7 +457,7 @@ export const autoBuyContract = async (
         } else {
             const errorMessage = result.error || "Buy failed due to an unknown error.";
             logger.error(`${trade_type} failed. result ${result}. Error: ${errorMessage}`);
-            botInstance.sendMessage(chatId, `${trade_type} failed: ${errorMessage}`);
+            await sendMessageToUser(chatId, `${trade_type} failed: ${errorMessage}`);
         }
     } catch (error) {
         logger.error(`autobuy error ${error}`, { chatId, settings, contractAddress, tradeSignal });
