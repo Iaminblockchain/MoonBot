@@ -14,6 +14,19 @@ import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import { userFriendlyError } from "./common";
 
+interface TradeSettings {
+    amount: number;
+    isPercentage: boolean;
+    maxSlippage: number;
+    takeProfit: number | null;
+    repetitiveBuy: number;
+    stopLoss: number | null;
+    limitOrder?: Array<{
+        price: number;
+        percentage: number;
+    }>;
+}
+
 const getBuySuccessMessage = async (
     trx: string,
     tokenAddress: string,
@@ -34,7 +47,7 @@ const getBuySuccessMessage = async (
     const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
 
     const tokenInfo = tokenBalanceChange ? `\nTokens bought: ${Math.abs(tokenBalanceChange).toLocaleString()}` : "";
-    const solInfo = solBalanceChange ? `SOL Amount: ${Math.abs(solBalanceChange).toFixed(6)}` : "";
+    const solInfo = solBalanceChange ? `SOL Amount: ${Math.abs(solBalanceChange).toFixed(9)}` : "";
     const feesInfo = `Fees: ${fees.toFixed(9)} SOL`;
     const price = tokenBalanceChange ? Math.abs(solBalanceChange) / Math.abs(tokenBalanceChange) : 0;
     const priceInfo = `Price: ${price.toFixed(9)} SOL`;
@@ -295,6 +308,10 @@ export const autoBuyContract = async (
         takeProfit: number | null;
         repetitiveBuy: number;
         stopLoss: number | null;
+        limitOrder?: Array<{
+            price: number;
+            percentage: number;
+        }>;
     },
     contractAddress: string,
     tradeSignal?: string
@@ -320,7 +337,7 @@ export const autoBuyContract = async (
             logger.error("Insufficient SOL balance", { chatId, balance, required: solAmount });
             botInstance.sendMessage(
                 chatId,
-                `❌ Insufficient SOL balance: you have ${balance.toFixed(6)} SOL but need ${solAmount.toFixed(6)} SOL.`
+                `❌ Insufficient SOL balance: you have ${balance.toFixed(9)} SOL but need ${solAmount.toFixed(9)} SOL.`
             );
             return;
         }
@@ -380,6 +397,24 @@ export const autoBuyContract = async (
                 takeProfitPercentage: settings.takeProfit ? settings.takeProfit : 0,
                 solAmount,
                 tokenAmount: result.token_balance_change,
+                soldTokenAmount: 0,
+                soldTokenPercentage: 0,
+                sellSteps: settings.limitOrder && settings.limitOrder.length > 0 ? [
+                    ...settings.limitOrder.map(step => ({
+                        targetPrice: trxInfo.tokenSolPrice! * (1 + (step.price || 0) / 100),
+                        sellPercentage: step.percentage
+                    })),
+                ] : [
+                    {
+                        targetPrice: trxInfo.tokenSolPrice! * (1 - (settings.stopLoss || 0) / 100),
+                        sellPercentage: 100
+                    },
+                    {
+                        targetPrice: trxInfo.tokenSolPrice! * (1 + (settings.takeProfit || 0) / 100),
+                        sellPercentage: 100
+                    }
+                ],
+                soldSteps: [],
                 buyTime: new Date(),
                 status: PositionStatus.OPEN,
             };
@@ -393,17 +428,50 @@ export const autoBuyContract = async (
                 const stopLossPrice = splprice * (1 - settings.stopLoss / 100);
                 logger.info(`set TP ${takeProfitPrice} and SL ${stopLossPrice}`);
 
-                botInstance.sendMessage(
-                    chatId,
-                    `Auto-sell Registered!\n\n` +
-                        `Token: <code>${contractAddress}</code>\n` +
-                        `Current Price: ${splprice.toFixed(9)} SOL\n` +
-                        `Take Profit: ${takeProfitPrice.toFixed(9)} SOL (${settings.takeProfit}%)\n` +
-                        `Stop Loss: ${stopLossPrice.toFixed(9)} SOL (${settings.stopLoss}%)`,
-                    { parse_mode: "HTML" }
-                );
+                // Format message based on whether limit order is active
+                let message = `Auto-sell Registered!\n\n` +
+                    `Token: <code>${contractAddress}</code>\n` +
+                    `Current Price: ${splprice.toFixed(9)} SOL\n`;
+
+                if (settings.limitOrder && settings.limitOrder.length > 0) {
+                    message += `\nLimit Order Steps:\n`;
+                    settings.limitOrder.forEach((step, index) => {
+                        const targetPrice = splprice * (1 + step.price / 100);
+                        message += `${index + 1}. ${targetPrice.toFixed(9)} SOL (${step.percentage}%)\n`;
+                    });
+                } else {
+                    message += `Take Profit: ${takeProfitPrice.toFixed(9)} SOL (${settings.takeProfit}%)\n` +
+                        `Stop Loss: ${stopLossPrice.toFixed(9)} SOL (${settings.stopLoss}%)`;
+                }
+
+                botInstance.sendMessage(chatId, message, { parse_mode: "HTML" });
                 //set SL and TP in DB which will be queried
-                setTradeState(chatId, contractAddress, splprice, takeProfitPrice, stopLossPrice, solAmount);
+                setTradeState(
+                    chatId, 
+                    contractAddress, 
+                    splprice, 
+                    takeProfitPrice, 
+                    stopLossPrice, 
+                    solAmount,
+                    0, // soldTokenAmount - initial value
+                    0, // soldTokenPercentage - initial value
+                    settings.limitOrder && settings.limitOrder.length > 0 ? 
+                        settings.limitOrder.map(step => ({
+                            targetPrice: splprice * (1 + step.price / 100),
+                            sellPercentage: step.percentage
+                        })) : 
+                        [
+                            {
+                                targetPrice: stopLossPrice,
+                                sellPercentage: 100
+                            },
+                            {
+                                targetPrice: takeProfitPrice,
+                                sellPercentage: 100
+                            }
+                        ],
+                    [] // soldSteps - initial empty array
+                );
                 AddBuynumber(chatId.toString(), contractAddress);
             }
         } else {

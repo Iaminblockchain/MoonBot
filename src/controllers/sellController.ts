@@ -118,7 +118,7 @@ const onClickSell = async (query: TelegramBot.CallbackQuery, fraction: number, w
                 `Amount Sold: ${tokenAmount} ${tokenMetaData.symbol}\n` +
                 `Buy Price: ${position.buyPriceSol?.toFixed(9) || "0"} SOL ($${position.buyPriceUsd?.toFixed(6) || "0"})\n` +
                 `Sell Price: ${trxInfo.tokenSolPrice.toFixed(9)} SOL ($${trxInfo.tokenUsdPrice.toFixed(6)})\n` +
-                `${profitLossText}: ${Math.abs(profitLoss).toFixed(6)} SOL (${profitLossPercentage}%)\n` +
+                `${profitLossText}: ${Math.abs(profitLoss).toFixed(9)} SOL (${profitLossPercentage}%)\n` +
                 `Transaction: http://solscan.io/tx/${result.txSignature}`;
 
             await botInstance.sendMessage(chatId!, message, { parse_mode: "HTML" });
@@ -367,7 +367,7 @@ const getSellSuccessMessage = async (
 
     const sourceInfo = tradeSignal ? `Source: ${tradeSignal}` : "";
 
-    let message = `${trade_type} successful: ${trx}\n SOL Amount: ${solAmount.toFixed(6)}\nTicker: ${metaData?.symbol}${tokenInfo}\nSource: ${sourceInfo}`;
+    let message = `${trade_type} successful: ${trx}\n SOL Amount: ${solAmount.toFixed(9)}\nTicker: ${metaData?.symbol}${tokenInfo}\nSource: ${sourceInfo}`;
 
     if (settings) {
         if (settings.takeProfit !== null) {

@@ -5,7 +5,7 @@ import * as buyController from "./buyController";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import { SOLANA_CONNECTION } from "..";
-import { ITrade } from "../models/copyTradeModel";
+import { ITrade, findTrade } from "../models/copyTradeModel";
 import { notifySuccess, notifyError } from "../notify";
 import { logger } from "../logger";
 
@@ -18,6 +18,10 @@ export interface AutoBuySettings {
     takeProfit: number | null;
     stopLoss: number | null;
     repetitiveBuy: number;
+    limitOrderSteps?: Array<{
+        price: number;
+        percentage: number;
+    }>;
 }
 export const autoBuySettings = new Map<string, AutoBuySettings>();
 
@@ -306,7 +310,7 @@ export const setAutotradeSignal = async (chatId: string, contractAddress: string
     triggerAutoBuy(chatId, contractAddress, settings, trade.signal);
 };
 
-function triggerAutoBuy(chatId: string, contractAddress: string, settings: AutoBuySettings, signal?: string) {
+async function triggerAutoBuy(chatId: string, contractAddress: string, settings: AutoBuySettings, signal?: string) {
     const { enabled, amount, isPercentage, maxSlippage, takeProfit, stopLoss, repetitiveBuy } = settings;
 
     if (!enabled) {
@@ -340,6 +344,35 @@ function triggerAutoBuy(chatId: string, contractAddress: string, settings: AutoB
 
     logger.info(`Auto-buy triggered ${signal}`, { chatId, contractAddress, settings });
 
+    // Get the trade from copyTrade collection
+    const trade = await findTrade({ chatId, signal });
+    let limitOrderSteps: Array<{ price: number; percentage: number }> | undefined = [];
+
+    if (trade?.limitOrder && trade.limitOrderActive && trade.limitOrderSteps?.length > 0) {
+        // Sort steps by priceIncrement
+        const sortedSteps = [...trade.limitOrderSteps].sort((a, b) => a.priceIncrement - b.priceIncrement);
+
+        // Calculate cumulative percentages
+        let cumulativePercentage = 0;
+        limitOrderSteps = sortedSteps.map(step => {
+            cumulativePercentage += step.sellPercentage;
+            return {
+                price: step.priceIncrement,
+                percentage: cumulativePercentage
+            };
+        });
+
+        // Add stop loss as first step (lowest price)
+        if (stopLoss) {
+            limitOrderSteps.unshift({
+                price: -stopLoss, // Negative to ensure it's the lowest price
+                percentage: 100
+            });
+        }
+    }
+
+    console.log("limitOrderSteps", { limitOrderSteps });
+
     buyController.autoBuyContract(
         chatId,
         {
@@ -349,6 +382,7 @@ function triggerAutoBuy(chatId: string, contractAddress: string, settings: AutoB
             takeProfit,
             stopLoss,
             repetitiveBuy,
+            limitOrder: limitOrderSteps
         },
         contractAddress,
         signal

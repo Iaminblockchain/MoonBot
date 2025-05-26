@@ -16,6 +16,17 @@ export interface Position {
     takeProfitPercentage: number; // Percentage from buy price
     solAmount: number;
     tokenAmount: number; // Amount of tokens purchased
+    soldTokenAmount: number; // Amount of tokens sold
+    soldTokenPercentage: number; // Percentage of tokens still held
+    sellSteps: Array<{
+        targetPrice: number;
+        sellPercentage: number;
+    }>;
+    soldSteps: Array<{
+        soldPrice: number;
+        percentage: number;
+        solAmount: number;
+    }>;
     buyTime: Date;
     status: PositionStatus;
     closeTime?: Date;
@@ -33,6 +44,17 @@ const positionSchema = new mongoose.Schema<Position>({
     takeProfitPercentage: { type: Number, required: true }, // Stored as percentage (e.g., 10 for 10%)
     solAmount: { type: Number, required: true },
     tokenAmount: { type: Number, required: true }, // Amount of tokens purchased
+    soldTokenAmount: { type: Number, required: true, default: 0 }, // Amount of tokens sold
+    soldTokenPercentage: { type: Number, required: true, default: 0 }, // Percentage of tokens still held
+    sellSteps: [{
+        targetPrice: { type: Number, required: true },
+        sellPercentage: { type: Number, required: true }
+    }],
+    soldSteps: [{
+        soldPrice: { type: Number, required: true },
+        percentage: { type: Number, required: true },
+        solAmount: { type: Number, required: true }
+    }],
     buyTime: { type: Date, required: true, default: Date.now },
     status: { type: String, enum: Object.values(PositionStatus), required: true, default: PositionStatus.OPEN },
     closeTime: { type: Date },

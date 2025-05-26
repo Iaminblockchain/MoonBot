@@ -1,5 +1,6 @@
 import { TELEGRAM_BOT_TOKEN } from ".";
 import TelegramBot from "node-telegram-bot-api";
+import { SellStep, SoldStep } from "./types/trade";
 
 import * as walletDb from "./models/walletModel";
 import * as buyController from "./controllers/buyController";
@@ -67,11 +68,41 @@ export const setTradeState = (
     startPrice: number,
     targetPrice: number,
     stopPrice: number,
-    amount: number
+    amount: number,
+    soldTokenAmount: number,
+    soldTokenPercentage: number,
+    sellSteps: SellStep[] = [],
+    soldSteps: SoldStep[] = []
 ) => {
     const prev = trade.get(chatid.toString());
-    if (prev) trade.set(chatid.toString(), [...prev, { contractAddress, targetPrice, stopPrice, startPrice, amount }]);
-    else trade.set(chatid.toString(), [{ contractAddress, targetPrice, stopPrice, startPrice, amount }]);
+    if (prev) {
+        trade.set(chatid.toString(), [
+            ...prev,
+            {
+                contractAddress,
+                targetPrice,
+                stopPrice,
+                startPrice,
+                amount,
+                soldTokenAmount,
+                soldTokenPercentage,
+                sellSteps,
+                soldSteps
+            }
+        ]);
+    } else {
+        trade.set(chatid.toString(), [{
+            contractAddress,
+            targetPrice,
+            stopPrice,
+            startPrice,
+            amount,
+            soldTokenAmount,
+            soldTokenPercentage,
+            sellSteps,
+            soldSteps
+        }]);
+    }
 };
 
 export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: string) => {

@@ -202,14 +202,14 @@ async function sendWithRetries(
     const balanceInSol = balance / LAMPORTS_PER_SOL;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         try {
-            logger.info(`TRADE sendWithRetries Current wallet balance: ${balanceInSol.toFixed(4)} SOL`);
+            logger.info(`TRADE sendWithRetries Current wallet balance: ${balanceInSol.toFixed(9)} SOL`);
 
             if (balance < MIN_SOL_BALANCE) {
-                logger.error(`TRADE sendWithRetries Insufficient funds: Wallet has ${balanceInSol.toFixed(4)} SOL} SOL`);
+                logger.error(`TRADE sendWithRetries Insufficient funds: Wallet has ${balanceInSol.toFixed(9)} SOL} SOL`);
                 return {
                     confirmed: false,
                     signature: null,
-                    error: `Insufficient funds: Wallet has ${balanceInSol.toFixed(4)} SOL, minimum required: ${(MIN_SOL_BALANCE / LAMPORTS_PER_SOL).toFixed(4)} SOL`,
+                    error: `Insufficient funds: Wallet has ${balanceInSol.toFixed(9)} SOL, minimum required: ${(MIN_SOL_BALANCE / LAMPORTS_PER_SOL).toFixed(9)} SOL`,
                 };
             }
 
@@ -271,7 +271,7 @@ async function sendWithRetries(
             ) {
                 const balance = await connection.getBalance(payer.publicKey);
                 const balanceInSol = balance / LAMPORTS_PER_SOL;
-                errorMessage = `Insufficient funds to complete the transaction. Current balance: ${balanceInSol.toFixed(4)} SOL`;
+                errorMessage = `Insufficient funds to complete the transaction. Current balance: ${balanceInSol.toFixed(9)} SOL`;
             }
 
             logger.error(`Error in attempt ${attempt}: ${errorMessage}`);
@@ -343,7 +343,7 @@ export const buy_swap = async (
             token_balance_change: 0,
             sol_balance_change: 0,
             execution_price: 0,
-            error: `${errorMsg}\nCurrent balance: ${balanceInSol.toFixed(4)} SOL`,
+            error: `${errorMsg}\nCurrent balance: ${balanceInSol.toFixed(9)} SOL`,
         };
     }
 };
@@ -364,7 +364,7 @@ export const sell_swap = async (
     const feeAmount = Math.floor(amount / 100); // 1% fee
     const totalRequired = feeAmount;
     if (balance < totalRequired) {
-        const errorMsg = `Insufficient SOL balance for fees: ${balanceInSol.toFixed(4)} SOL, required: ${(totalRequired / LAMPORTS_PER_SOL).toFixed(4)} SOL`;
+        const errorMsg = `Insufficient SOL balance for fees: ${balanceInSol.toFixed(9)} SOL, required: ${(totalRequired / LAMPORTS_PER_SOL).toFixed(9)} SOL`;
         logger.error(errorMsg);
         return {
             success: false,
@@ -405,7 +405,7 @@ export const sell_swap = async (
             token_balance_change: 0,
             sol_balance_change: 0,
             execution_price: 0,
-            error: result?.error || `Swap failed to confirm. Current balance: ${balanceInSol.toFixed(4)} SOL`,
+            error: result?.error || `Swap failed to confirm. Current balance: ${balanceInSol.toFixed(9)} SOL`,
         };
     }
 };
@@ -440,10 +440,10 @@ export const jupiter_swap = async (
         // Check balance before proceeding
         const balance = await CONNECTION.getBalance(keypair.publicKey);
         const balanceInSol = balance / LAMPORTS_PER_SOL;
-        logger.info(`TRADE: Current wallet balance before swap: ${balanceInSol.toFixed(4)} SOL`);
+        logger.info(`TRADE: Current wallet balance before swap: ${balanceInSol.toFixed(9)} SOL`);
 
         if (balance < MIN_SOL_BALANCE) {
-            const errorMsg = `Insufficient SOL balance: ${balanceInSol.toFixed(4)} SOL, minimum required: ${(MIN_SOL_BALANCE / LAMPORTS_PER_SOL).toFixed(4)} SOL`;
+            const errorMsg = `Insufficient SOL balance: ${balanceInSol.toFixed(9)} SOL, minimum required: ${(MIN_SOL_BALANCE / LAMPORTS_PER_SOL).toFixed(9)} SOL`;
             logger.error(errorMsg);
             return { confirmed: false, txSignature: null, tokenAmount: 0, error: errorMsg };
         }
@@ -579,7 +579,7 @@ export const jupiter_swap = async (
         if (!result.confirmed) {
             const errorMsg = result.error || "Swap failed to confirm";
             logger.error(errorMsg, {
-                balance: balanceInSol.toFixed(4),
+                balance: balanceInSol.toFixed(9),
                 //required: (totalRequired / LAMPORTS_PER_SOL).toFixed(4),
                 slippage: `${slippage / 100}%`,
             });
@@ -1027,10 +1027,10 @@ export const executeSwapWithRetry = async (
     const solBalanceInSol = solBalance / LAMPORTS_PER_SOL;
     const MIN_SOL_BALANCE = 0.01 * LAMPORTS_PER_SOL; // 0.01 SOL in lamports
 
-    logger.info(`Checking wallet balance for swap operation: ${solBalanceInSol.toFixed(4)} SOL`);
+    logger.info(`Checking wallet balance for swap operation: ${solBalanceInSol.toFixed(9)} SOL`);
 
     if (solBalance < MIN_SOL_BALANCE) {
-        const errorMsg = `Insufficient SOL balance for swap operation. Required: 0.01 SOL, Current: ${solBalanceInSol.toFixed(4)} SOL`;
+        const errorMsg = `Insufficient SOL balance for swap operation. Required: 0.01 SOL, Current: ${solBalanceInSol.toFixed(9)} SOL`;
         logger.warn(errorMsg);
         return {
             success: false,

@@ -215,8 +215,8 @@ const showClosedTokenInfo = async (chatId: string, tokenAddress: string) => {
             `Address: <code>${tokenAddress}</code>\n\n` +
             `Source: ${position.signalSource ? "@" + position.signalSource : "Manual"}\n` +
             `Bought at: ${position.buyPriceSol} SOL\n` +
-            `Take profit: ${position.takeProfitPercentage}% (${takeProfitPrice.toFixed(4)} SOL)\n` +
-            `Stop loss: ${position.stopLossPercentage}% (${stopLossPrice.toFixed(4)} SOL)\n\n` +
+            `Take profit: ${position.takeProfitPercentage}% (${takeProfitPrice.toFixed(9)} SOL)\n` +
+            `Stop loss: ${position.stopLossPercentage}% (${stopLossPrice.toFixed(9)} SOL)\n\n` +
             `Closed Price: ${position.closePriceSol} SOL\n` +
             `Close time: ${position.closeTime?.toLocaleString()}\n\n` +
             `ROI: ${(((position.closePriceSol! - position.buyPriceSol) / position.buyPriceSol) * 100).toFixed(2)}%`;
