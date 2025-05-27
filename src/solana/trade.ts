@@ -447,7 +447,7 @@ export const buy_swap = async (
             // Calculate intervals once
             const timingIntervals = calculateIntervals(timingMetrics).intervals;
 
-            logger.error("Buy transaction failed", {
+            logger.error(`Buy transaction failed ${result?.error}`, {
                 status: "FAILED",
                 tokenAddress,
                 amount: amount / LAMPORTS_PER_SOL,
@@ -503,7 +503,7 @@ export const sell_swap = async (
         const balanceInSol = balance / LAMPORTS_PER_SOL;
 
         // For sells, we need to ensure enough SOL for fees
-        // Fixed SOL fee
+        // 0.005 SOL
         const minfeeAmount = 0.005 * LAMPORTS_PER_SOL;
         const totalRequired = minfeeAmount;
         if (balance < totalRequired) {
@@ -1206,12 +1206,12 @@ export const executeSwapWithRetry = async (
     const keypair = Keypair.fromSecretKey(bs58.decode(privateKey));
     const solBalance = await connection.getBalance(keypair.publicKey);
     const solBalanceInSol = solBalance / LAMPORTS_PER_SOL;
-    const MIN_SOL_BALANCE = 0.01 * LAMPORTS_PER_SOL; // 0.01 SOL in lamports
+    const MIN_SOL_BALANCE = 0.005 * LAMPORTS_PER_SOL; // 0.005 SOL in lamports
 
     logger.info(`Checking wallet balance for swap operation: ${solBalanceInSol.toFixed(4)} SOL`);
 
     if (solBalance < MIN_SOL_BALANCE) {
-        const errorMsg = `Insufficient SOL balance for swap operation. Required: 0.01 SOL, Current: ${solBalanceInSol.toFixed(4)} SOL`;
+        const errorMsg = `Insufficient SOL balance for swap operation. Required: 0.005 SOL, Current: ${solBalanceInSol.toFixed(4)} SOL`;
         logger.warn(errorMsg);
         return {
             success: false,

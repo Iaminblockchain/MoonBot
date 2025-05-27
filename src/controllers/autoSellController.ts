@@ -69,7 +69,7 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
         if (botInstance) {
             await botInstance.sendMessage(
                 chatId,
-                `Auto-Sell Token : Failed to sell ${tokenAddress} after ${MAX_SELL_RETRIES} attempts - Operation cancelled`
+                `AutoSell Token : Failed to sell ${tokenAddress} after ${MAX_SELL_RETRIES} attempts - Operation cancelled`
             );
         }
         removeTradeState(chatId, tokenAddress);
@@ -77,7 +77,7 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
         return;
     }
 
-    logger.debug("Auto-sell check", { chatId, address: tokenAddress, price });
+    logger.info(`AUTOSELL check ${tokenAddress}`, { chatId, address: tokenAddress, price });
 
     // Validate price change is significant enough
     // const priceChange = Math.abs(price / info.startPrice - 1);
@@ -97,7 +97,7 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
 
     if (!shouldSell) {
         logger.info(
-            `Price ${formatPrice(price)} is within range for ${tokenAddress}\n` +
+            `AUTOSELL ${tokenAddress} Price ${formatPrice(price)} is within range \n` +
                 `Current: ${formatPrice(price)}\n` +
                 `Target: ${formatPrice(info.targetPrice)} (${tpOffset}% from target)\n` +
                 `Stop: ${formatPrice(info.stopPrice)} (${slOffset}% from stop)\n` +
@@ -115,11 +115,11 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
                 reason = "Unknown reason";
             }
             logger.info(
-                `${reason} Price ${formatPrice(price)} triggers sell for ${tokenAddress}\n` +
-                    `Current: ${formatPrice(price)}\n` +
-                    `Start: ${formatPrice(info.startPrice)}\n` +
-                    `Target: ${formatPrice(info.targetPrice)} (${tpOffset}% from target)\n` +
-                    `Stop: ${formatPrice(info.stopPrice)} (${slOffset}% from stop)\n` +
+                `AUTOSELL ${reason} triggers sell for ${tokenAddress}\t` +
+                    `Current: ${formatPrice(price)}\t` +
+                    `Start: ${formatPrice(info.startPrice)}\t` +
+                    `Target: ${formatPrice(info.targetPrice)} (${tpOffset}% from target)\t` +
+                    `Stop: ${formatPrice(info.stopPrice)} (${slOffset}% from stop)\t` +
                     `ChatId: ${chatId}`
             );
             ongoingSells.set(ongoingSellKey, true);
@@ -193,8 +193,8 @@ async function handleSellResult(
             const profitLoss = ((price / info.startPrice - 1) * 100).toFixed(1);
             const message =
                 price > info.targetPrice
-                    ? `Auto-Sell Token : You successfully sold ${metadata?.name}(${metadata?.symbol}) : ${tokenAddress} at Price: $${price} for a ${profitLoss}% gain`
-                    : `Auto-Sell Token : You successfully sold ${metadata?.name}(${metadata?.symbol}) : ${tokenAddress} at Price: $${price} for a ${Math.abs(Number(profitLoss))}% loss`;
+                    ? `AutoSell Token : You successfully sold ${metadata?.name}(${metadata?.symbol}) : ${tokenAddress} at Price: $${price} for a ${profitLoss}% gain`
+                    : `AutoSell Token : You successfully sold ${metadata?.name}(${metadata?.symbol}) : ${tokenAddress} at Price: $${price} for a ${Math.abs(Number(profitLoss))}% loss`;
 
             await botInstance.sendMessage(chatId, message);
         } else {
@@ -203,7 +203,7 @@ async function handleSellResult(
             const tokenInfo = metadata ? `${metadata.name}(${metadata.symbol})` : tokenAddress;
             await botInstance.sendMessage(
                 chatId,
-                `Auto-Sell Token : Failed to sell ${tokenInfo} after ${retryCount} attempts${errorMessage}`
+                `AutoSell Token : Failed to sell ${tokenInfo} after ${retryCount} attempts${errorMessage}`
             );
         }
     } catch (error) {
@@ -234,11 +234,16 @@ export const autoSellHandler = async () => {
         // Execute all batch requests in parallel with error handling
         const batchResults = await Promise.allSettled(batches.map((batch) => getTokenPriceBatch(batch)));
 
+        // Add debug logging for price data
+        logger.info("Raw price data from batches:", JSON.stringify(batchResults, null, 2));
+
         // Combine all results into a single Map, handling failed batches
         const prices = new Map<string, number>();
         for (const result of batchResults) {
             if (result.status === "fulfilled") {
                 for (const [token, price] of result.value) {
+                    // Add debug logging for each price
+                    logger.info(`AUTOSELL Token ${token} raw price: ${price}`);
                     prices.set(token, price);
                 }
             } else {
@@ -258,7 +263,7 @@ export const autoSellHandler = async () => {
                 try {
                     await processTrade(tokenAddress, price, chatId, info);
                 } catch (error: unknown) {
-                    logger.error(`Error processing sell for ${tokenAddress}:`, error);
+                    logger.error(`AUTOSELL Error processing sell for ${tokenAddress}:`, error);
                     if (botInstance) {
                         const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
                         await botInstance.sendMessage(chatId, `Error processing auto-sell for ${tokenAddress}: ${errorMessage}`);

@@ -262,6 +262,11 @@ export function extractTransactionMetrics(tx: Transaction, tokenMint: string): T
 
     let netBalanceChangeSOL = solBalanceChange - feesPaid;
 
+    let executionPrice = 0;
+    if (tokenBalanceChange > 0 && netBalanceChangeSOL > 0) {
+        executionPrice = netBalanceChangeSOL / tokenBalanceChange;
+    }
+
     return {
         owner_pubkey: ownerPubkey,
         token: tokenMint,
@@ -271,7 +276,7 @@ export function extractTransactionMetrics(tx: Transaction, tokenMint: string): T
         token_creation_cost: tokenCreationCost,
         feesPaid: feesPaid,
         compute_units_consumed: computeUnits,
-        execution_price: 0,
+        execution_price: executionPrice,
     };
 }
 
