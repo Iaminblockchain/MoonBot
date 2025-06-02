@@ -39,7 +39,7 @@ const sensitiveValues = [
     TELEGRAM_PROXY,
     LOGTAIL_TOKEN,
     LOGTAIL_ENDPOINT,
-];
+].filter(value => value && (typeof value === 'number' || value.trim() !== ''));
 
 // Function to sanitize sensitive values in log messages
 function sanitize(message: string): string {
