@@ -70,8 +70,19 @@ export const setTradeState = (
     amount: number
 ) => {
     const prev = trade.get(chatid.toString());
-    if (prev) trade.set(chatid.toString(), [...prev, { contractAddress, targetPrice, stopPrice, startPrice, amount }]);
-    else trade.set(chatid.toString(), [{ contractAddress, targetPrice, stopPrice, startPrice, amount }]);
+    const newTrade: TRADE = {
+        contractAddress,
+        targetPrice,
+        stopPrice,
+        startPrice,
+        amount,
+        soldTokenAmount: 0,
+        soldTokenPercentage: 0,
+        sellSteps: [],
+        soldSteps: []
+    };
+    if (prev) trade.set(chatid.toString(), [...prev, newTrade]);
+    else trade.set(chatid.toString(), [newTrade]);
 };
 
 export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: string) => {

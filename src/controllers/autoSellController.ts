@@ -10,6 +10,7 @@ import { logger } from "../logger";
 import { getTokenMetaData } from "../solana/token";
 import { getSPLBalance } from "./autoBuyController";
 import { formatPrice } from "../solana/util";
+import * as positiondb from "../models/positionModel";
 
 // Track ongoing sell operations to prevent race conditions
 const ongoingSells = new Map<string, boolean>();
@@ -79,62 +80,65 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
 
     logger.info(`AUTOSELL check ${tokenAddress}`, { chatId, address: tokenAddress, price });
 
-    // Validate price change is significant enough
-    // const priceChange = Math.abs(price / info.startPrice - 1);
-    // if (priceChange < PRICE_CHANGE_THRESHOLD) {
-    //     logger.info(`Price change for ${tokenAddress} is too small: ${priceChange}`);
-    //     return;
-    // }
+    // Get the position to check sell steps
+    const position = await positiondb.getPositionByTokenAddress(chatId, tokenAddress);
+    if (!position) {
+        logger.warn(`No position found for token ${tokenAddress} and chat ${chatId}`);
+        return;
+    }
 
-    // Check if price is outside the target range (either above target or below low)
-    let hitTP = price > info.targetPrice;
-    let hitSL = price < info.stopPrice;
-    const shouldSell = hitTP || hitSL;
+    // Check each sell step
+    let shouldSell = false;
+    let sellReason = "";
+    let sellPercentage = 0;
 
-    // Calculate price offsets
-    const tpOffset = (((price - info.targetPrice) / info.targetPrice) * 100).toFixed(2);
-    const slOffset = (((price - info.stopPrice) / info.stopPrice) * 100).toFixed(2);
+    for (const step of position.sellSteps) {
+        const targetPrice = position.buyPriceSol * (1 + step.priceIncreasement / 100);
+        const priceOffset = ((price - targetPrice) / targetPrice) * 100;
+
+        // For positive price increases (take profit), sell when price is above target
+        // For negative price increases (stop loss), sell when price is below target
+        if ((step.priceIncreasement > 0 && price >= targetPrice) || 
+            (step.priceIncreasement < 0 && price <= targetPrice)) {
+            shouldSell = true;
+            sellReason = step.priceIncreasement > 0 ? "Take Profit" : "Stop Loss";
+            sellPercentage = step.sellPercentage;
+            break;
+        }
+
+        logger.info(
+            `AUTOSELL ${tokenAddress} Price ${formatPrice(price)} checking step\n` +
+            `Current: ${formatPrice(price)}\n` +
+            `Target: ${formatPrice(targetPrice)} (${priceOffset.toFixed(2)}% from target)\n` +
+            `Step: ${step.sellPercentage}% at ${step.priceIncreasement > 0 ? '+' : ''}${step.priceIncreasement}%\n` +
+            `No sell trigger`
+        );
+    }
 
     if (!shouldSell) {
-        logger.info(
-            `AUTOSELL ${tokenAddress} Price ${formatPrice(price)} is within range \n` +
-                `Current: ${formatPrice(price)}\n` +
-                `Target: ${formatPrice(info.targetPrice)} (${tpOffset}% from target)\n` +
-                `Stop: ${formatPrice(info.stopPrice)} (${slOffset}% from stop)\n` +
-                `No sell trigger`
-        );
         return;
-    } else {
-        try {
-            let reason = "";
-            if (hitTP) {
-                reason = "Hit Take Profit";
-            } else if (hitSL) {
-                reason = "Hit Stop Loss";
-            } else {
-                reason = "Unknown reason";
-            }
-            logger.info(
-                `AUTOSELL ${reason} triggers sell for ${tokenAddress}\t` +
-                    `Current: ${formatPrice(price)}\t` +
-                    `Start: ${formatPrice(info.startPrice)}\t` +
-                    `Target: ${formatPrice(info.targetPrice)} (${tpOffset}% from target)\t` +
-                    `Stop: ${formatPrice(info.stopPrice)} (${slOffset}% from stop)\t` +
-                    `ChatId: ${chatId}`
-            );
-            ongoingSells.set(ongoingSellKey, true);
-            await executeSell(tokenAddress, price, chatId, info);
-        } catch (error) {
-            logger.error(`Error in processTrade for ${tokenAddress}:`, error);
-            throw error; // Re-throw to be handled by caller
-        } finally {
-            ongoingSells.delete(ongoingSellKey);
-        }
+    }
+
+    try {
+        logger.info(
+            `AUTOSELL ${sellReason} triggers sell for ${tokenAddress}\t` +
+            `Current: ${formatPrice(price)}\t` +
+            `Buy Price: ${formatPrice(position.buyPriceSol)}\t` +
+            `Sell Percentage: ${sellPercentage}%\t` +
+            `ChatId: ${chatId}`
+        );
+        ongoingSells.set(ongoingSellKey, true);
+        await executeSell(tokenAddress, price, chatId, info, sellPercentage);
+    } catch (error) {
+        logger.error(`Error in processTrade for ${tokenAddress}:`, error);
+        throw error; // Re-throw to be handled by caller
+    } finally {
+        ongoingSells.delete(ongoingSellKey);
     }
 }
 
 // Execute the actual sell operation
-async function executeSell(tokenAddress: string, price: number, chatId: string, info: TRADE) {
+async function executeSell(tokenAddress: string, price: number, chatId: string, info: TRADE, sellPercentage: number) {
     const wallet = await walletdb.getWalletByChatId(chatId);
     if (!wallet) {
         logger.warn(`No wallet found for chat ${chatId}`);
@@ -149,8 +153,8 @@ async function executeSell(tokenAddress: string, price: number, chatId: string, 
         return;
     }
 
-    // Calculate the amount to sell based on the trade info
-    const amountToSell = info.amount || splAmount; // Use trade amount if specified, otherwise use full balance
+    // Calculate the amount to sell based on the percentage
+    const amountToSell = Math.floor(splAmount * (sellPercentage / 100));
 
     const result = await solana.executeSwapWithRetry(
         SOLANA_CONNECTION,
@@ -170,7 +174,7 @@ async function executeSell(tokenAddress: string, price: number, chatId: string, 
         sellRetryCount.delete(ongoingSellKey);
     }
 
-    await handleSellResult(result, tokenAddress, price, chatId, info, sellRetryCount.get(ongoingSellKey) || 0);
+    await handleSellResult(result, tokenAddress, price, chatId, info, sellRetryCount.get(ongoingSellKey) || 0, sellPercentage);
 }
 
 // Handle the result of a sell operation
@@ -180,7 +184,8 @@ async function handleSellResult(
     price: number,
     chatId: string,
     info: TRADE,
-    retryCount: number
+    retryCount: number,
+    sellPercentage: number
 ) {
     if (!botInstance) {
         logger.error("Bot instance not initialized in handleSellResult");
@@ -190,26 +195,84 @@ async function handleSellResult(
     try {
         if (result.success) {
             const metadata = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-            const profitLoss = ((price / info.startPrice - 1) * 100).toFixed(1);
-            const message =
-                price > info.targetPrice
-                    ? `AutoSell Token : You successfully sold ${metadata?.name}(${metadata?.symbol}) : ${tokenAddress} at Price: $${price} for a ${profitLoss}% gain`
-                    : `AutoSell Token : You successfully sold ${metadata?.name}(${metadata?.symbol}) : ${tokenAddress} at Price: $${price} for a ${Math.abs(Number(profitLoss))}% loss`;
+            const position = await positiondb.getPositionByTokenAddress(chatId, tokenAddress);
+            if (!position) {
+                throw new Error("Position not found");
+            }
+
+            // Calculate profit/loss
+            const profitLoss = ((price / position.buyPriceSol - 1) * 100).toFixed(1);
+            const isProfit = Number(profitLoss) >= 0;
+
+            // Calculate SOL amount for this sell
+            const soldSolAmount = price * (position.tokenAmount * (sellPercentage / 100));
+
+            // Create detailed message
+            const message = [
+                `🔄 AutoSell Token Update:`,
+                `Token: ${metadata?.name}(${metadata?.symbol})`,
+                `Address: ${tokenAddress}`,
+                `Sold: ${sellPercentage}% of position`,
+                `Price: $${price.toFixed(6)}`,
+                `Profit/Loss: ${profitLoss}% ${isProfit ? '📈' : '📉'}`,
+                `SOL Amount: ${soldSolAmount.toFixed(4)} SOL`,
+                `Remaining: ${100 - sellPercentage}% of position`
+            ].join('\n');
 
             await botInstance.sendMessage(chatId, message);
+
+            // Update position with sold step
+            const soldStep = {
+                soldPrice: price,
+                sellPercentage: sellPercentage,
+                solAmount: soldSolAmount,
+                timestamp: new Date()
+            };
+
+            // Update position with new sold step
+            await positiondb.updatePosition(chatId, tokenAddress, {
+                soldSteps: [...position.soldSteps, soldStep]
+            });
+
+            // If this was a 100% sell, close the position and send final message
+            if (sellPercentage === 100) {
+                await positiondb.closePosition(chatId, tokenAddress, price, price);
+                removeTradeState(chatId, tokenAddress);
+
+                const finalMessage = [
+                    `✅ Position Closed:`,
+                    `Token: ${metadata?.name}(${metadata?.symbol})`,
+                    `Final Price: $${price.toFixed(6)}`,
+                    `Total Profit/Loss: ${profitLoss}% ${isProfit ? '📈' : '📉'}`,
+                    `Total SOL Amount: ${soldSolAmount.toFixed(4)} SOL`
+                ].join('\n');
+
+                await botInstance.sendMessage(chatId, finalMessage);
+            }
         } else {
             const errorMessage = result.error ? `\nReason: ${result.error}` : "\nReason: Transaction failed to confirm";
             const metadata = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
             const tokenInfo = metadata ? `${metadata.name}(${metadata.symbol})` : tokenAddress;
-            await botInstance.sendMessage(
-                chatId,
-                `AutoSell Token : Failed to sell ${tokenInfo} after ${retryCount} attempts${errorMessage}`
-            );
+            
+            const errorMsg = [
+                `❌ AutoSell Failed:`,
+                `Token: ${tokenInfo}`,
+                `Attempt: ${retryCount}/${MAX_SELL_RETRIES}`,
+                `Percentage: ${sellPercentage}%`,
+                errorMessage
+            ].join('\n');
+
+            await botInstance.sendMessage(chatId, errorMsg);
         }
     } catch (error) {
         logger.error(`Error sending message for ${tokenAddress}:`, error);
-    } finally {
-        removeTradeState(chatId, tokenAddress);
+        // Send error message to user
+        if (botInstance) {
+            await botInstance.sendMessage(
+                chatId,
+                `❌ Error processing sell for ${tokenAddress}: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
     }
 }
 

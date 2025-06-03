@@ -13,6 +13,7 @@ import {
 import { SOLANA_CONNECTION } from "..";
 import * as walletdb from "../models/walletModel";
 import * as tradedb from "../models/tradeModel";
+import * as copytradedb from "../models/copyTradeModel";
 import * as positiondb from "../models/positionModel";
 import * as solana from "../solana/trade";
 import { logger } from "../logger";
@@ -23,6 +24,7 @@ import { parseTransaction } from "../solana/txhelpers";
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import { userFriendlyError } from "./common";
+import { LimitOrderStep } from "../models/copyTradeModel";
 
 const getBuySuccessMessage = async (
     trx: string,
@@ -416,7 +418,6 @@ export const autoBuyContract = async (
             );
             await sendMessageToUser(chatId, msg);
 
-            //TODO possbly in trade.ts
             // Save position information
             const position: positiondb.Position = {
                 chatId,
@@ -430,7 +431,58 @@ export const autoBuyContract = async (
                 tokenAmount: result.token_balance_change,
                 buyTime: new Date(),
                 status: PositionStatus.OPEN,
+                sellSteps: [],  // Will be populated below
+                soldSteps: []   // Initialize with empty array
             };
+
+            // If this is a copy trade, check for limit orders
+            if (tradeSignal) {
+                const copyTrade = await copytradedb.findTrade({ signal: tradeSignal, active: true });
+                if (copyTrade && copyTrade.limitOrder && copyTrade.limitOrderActive) {
+                    // Add limit order steps
+                    position.sellSteps = copyTrade.limitOrderSteps.map((step: LimitOrderStep) => ({
+                        priceIncreasement: step.priceIncrement,
+                        sellPercentage: step.sellPercentage
+                    }));
+                    
+                    // Add stop loss step if configured
+                    if (settings.stopLoss) {
+                        position.sellSteps.push({
+                            priceIncreasement: -settings.stopLoss, // Negative for stop loss
+                            sellPercentage: 100 // Sell all remaining tokens
+                        });
+                    }
+                } else {
+                    // If no limit orders, add TP and SL steps
+                    if (settings.takeProfit) {
+                        position.sellSteps.push({
+                            priceIncreasement: settings.takeProfit,
+                            sellPercentage: 100
+                        });
+                    }
+                    if (settings.stopLoss) {
+                        position.sellSteps.push({
+                            priceIncreasement: -settings.stopLoss,
+                            sellPercentage: 100
+                        });
+                    }
+                }
+            } else {
+                // For regular auto-buy, just add TP and SL steps
+                if (settings.takeProfit) {
+                    position.sellSteps.push({
+                        priceIncreasement: settings.takeProfit,
+                        sellPercentage: 100
+                    });
+                }
+                if (settings.stopLoss) {
+                    position.sellSteps.push({
+                        priceIncreasement: -settings.stopLoss,
+                        sellPercentage: 100
+                    });
+                }
+            }
+
             await positiondb.createPosition(position);
 
             if (settings.takeProfit != null && settings.stopLoss) {
@@ -441,15 +493,27 @@ export const autoBuyContract = async (
                 const stopLossPrice = splprice * (1 - settings.stopLoss / 100);
                 logger.info(`set TP ${takeProfitPrice} and SL ${stopLossPrice}`);
 
+                // Create message showing all sell steps
+                let sellStepsMessage = "";
+                if (position.sellSteps.length > 0) {
+                    sellStepsMessage = "\n\nSell Steps:\n";
+                    position.sellSteps.forEach((step, index) => {
+                        const price = splprice * (1 + step.priceIncreasement / 100);
+                        sellStepsMessage += `${index + 1}. ${step.sellPercentage}% at ${price.toFixed(9)} SOL (${step.priceIncreasement > 0 ? '+' : ''}${step.priceIncreasement}%)\n`;
+                    });
+                }
+
                 await sendMessageToUser(
                     chatId,
                     `Auto-sell Registered\n\n` +
                         `Token: <code>${contractAddress}</code>\n` +
                         `Current Price: ${splprice.toFixed(9)} SOL\n` +
                         `Take Profit: ${takeProfitPrice.toFixed(9)} SOL (${settings.takeProfit}%)\n` +
-                        `Stop Loss: ${stopLossPrice.toFixed(9)} SOL (${settings.stopLoss}%)`,
+                        `Stop Loss: ${stopLossPrice.toFixed(9)} SOL (${settings.stopLoss}%)` +
+                        sellStepsMessage,
                     { parse_mode: "HTML" }
                 );
+
                 //set SL and TP in DB which will be queried
                 setTradeState(chatId, contractAddress, splprice, takeProfitPrice, stopLossPrice, solAmount);
                 AddBuynumber(chatId.toString(), contractAddress);

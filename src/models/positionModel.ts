@@ -6,6 +6,17 @@ export enum PositionStatus {
     CLOSED = "CLOSED",
 }
 
+export interface SellStep {
+    priceIncreasement: number;  // Percentage increase from buy price
+    sellPercentage: number;     // Percentage of tokens to sell at this step
+}
+
+export interface SoldStep {
+    soldPrice: number;          // Price at which the tokens were sold
+    sellPercentage: number;     // Percentage of tokens that were sold
+    solAmount: number;          // Amount of SOL received from the sale
+}
+
 export interface Position {
     chatId: string;
     tokenAddress: string;
@@ -21,6 +32,8 @@ export interface Position {
     closeTime?: Date;
     closePriceUsd?: number;
     closePriceSol?: number;
+    sellSteps: SellStep[];      // Array of sell steps for limit orders
+    soldSteps: SoldStep[];      // Array of completed sell steps
 }
 
 const positionSchema = new mongoose.Schema<Position>({
@@ -38,6 +51,15 @@ const positionSchema = new mongoose.Schema<Position>({
     closeTime: { type: Date },
     closePriceUsd: { type: Number },
     closePriceSol: { type: Number },
+    sellSteps: [{
+        priceIncreasement: { type: Number, required: true },
+        sellPercentage: { type: Number, required: true }
+    }],
+    soldSteps: [{
+        soldPrice: { type: Number, required: true },
+        sellPercentage: { type: Number, required: true },
+        solAmount: { type: Number, required: true }
+    }]
 });
 
 export const PositionModel = mongoose.model<Position>("Position", positionSchema);
