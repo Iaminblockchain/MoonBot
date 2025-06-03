@@ -521,16 +521,14 @@ To manage your Copy Trade:
 };
 
 export const toggleCopytrade = async (chatId: string | number) => {
-    const trades = await copytradedb.getTradeByChatId(String(chatId));
-    const anyActive = trades.some((t) => t.active);
-    const newState = !anyActive;
-    await setAllCopytradeStatus(String(chatId), newState);
-    return newState;
+    const chatIdStr = String(chatId);
+    await setAllCopytradeStatus(chatIdStr, true);
 };
 
 export const isCopytradeEnabled = async (chatId: string | number): Promise<boolean> => {
-    const trades = await copytradedb.getTradeByChatId(String(chatId));
-    return trades.some((t) => t.active);
+    const chatIdStr = String(chatId);
+    const trade = await copytradedb.findTrade({ chatId: chatIdStr });
+    return trade?.active ?? false;
 };
 
 const removecopytradesignal = async (chatId: string, replaceId: number, dbId: string) => {

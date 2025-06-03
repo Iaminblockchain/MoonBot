@@ -72,7 +72,9 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
         if (botInstance) {
             await botInstance.sendMessage(
                 chatId,
-                `Auto-Sell Token : Failed to sell ${tokenAddress} after ${MAX_SELL_RETRIES} attempts - Operation cancelled`
+                `❌ Auto-Sell Failed: ${tokenAddress}\n` +
+                `Reason: Exceeded maximum retry attempts (${MAX_SELL_RETRIES})\n` +
+                `Operation cancelled for safety`
             );
         }
         removeTradeState(chatId, tokenAddress);
@@ -80,72 +82,142 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
         return;
     }
 
-    logger.debug("Auto-sell check", { chatId, address: tokenAddress, price });
+    logger.debug("Auto-sell check", { 
+        chatId, 
+        address: tokenAddress, 
+        price,
+        soldPercentage: info.soldTokenPercentage,
+        remainingSteps: info.sellSteps.length
+    });
 
-    // Sort sell steps by target price (ascending)
-    const sortedSteps = [...info.sellSteps].sort((a, b) => a.targetPrice - b.targetPrice);
-    
-    // Check if price is below stop loss (first step) or above highest target
-    const stopLossPrice = sortedSteps[0].targetPrice;
-    const highestTargetPrice = sortedSteps[sortedSteps.length - 1].targetPrice;
-    
-    let shouldSell = false;
-    let sellPercentage = 0;
-    let reason = "";
-
-    if (price < stopLossPrice) {
-        // Price below stop loss - sell all remaining tokens
-        shouldSell = true;
-        sellPercentage = 100 - info.soldTokenPercentage;
-        reason = "Hit Stop Loss";
-    } else if (price > highestTargetPrice) {
-        // Price above highest target - sell all remaining tokens
-        shouldSell = true;
-        sellPercentage = 100 - info.soldTokenPercentage;
-        reason = "Hit Highest Target";
-    } else {
-        // Find the highest step that's below current price
-        const applicableStep = sortedSteps
-            .filter(step => step.targetPrice <= price)
-            .sort((a, b) => b.targetPrice - a.targetPrice)[0];
-
-        if (applicableStep) {
-            const remainingPercentage = applicableStep.sellPercentage - info.soldTokenPercentage;
-            if (remainingPercentage > 0) {
-                shouldSell = true;
-                sellPercentage = remainingPercentage;
-                reason = `Hit Target Price ${applicableStep.targetPrice}`;
-            }
-        }
+    // Validate trade info
+    if (!info.sellSteps || info.sellSteps.length === 0) {
+        logger.error(`Invalid sell steps for token ${tokenAddress} and chat ${chatId}`);
+        return;
     }
 
-    if (!shouldSell) {
-        logger.info(
-            `Price ${formatPrice(price)} is within range for ${tokenAddress}\n` +
-            `Current: ${formatPrice(price)}\n` +
-            `Stop Loss: ${formatPrice(stopLossPrice)}\n` +
-            `Highest Target: ${formatPrice(highestTargetPrice)}\n` +
-            `No sell trigger`
-        );
+    // Sort sell steps by target price (ascending) and filter out completed steps
+    const activeSteps = info.sellSteps
+        .filter(step => step.sellPercentage > info.soldTokenPercentage)
+        .sort((a, b) => a.targetPrice - b.targetPrice);
+
+    if (activeSteps.length === 0) {
+        logger.info(`No active sell steps remaining for ${tokenAddress}`);
+        return;
+    }
+
+    // Get price thresholds
+    const stopLossPrice = activeSteps[0].targetPrice;
+    const highestTargetPrice = activeSteps[activeSteps.length - 1].targetPrice;
+    
+    // Determine sell action based on price conditions
+    const sellDecision = determineSellAction(price, stopLossPrice, highestTargetPrice, activeSteps, info.soldTokenPercentage);
+
+    if (!sellDecision.shouldSell) {
+        logPriceStatus(tokenAddress, price, stopLossPrice, highestTargetPrice);
         return;
     }
 
     try {
-        logger.info(
-            `${reason} Price ${formatPrice(price)} triggers sell for ${tokenAddress}\n` +
-            `Current: ${formatPrice(price)}\n` +
-            `Sell Percentage: ${sellPercentage}%\n` +
-            `Already Sold: ${info.soldTokenPercentage}%\n` +
-            `ChatId: ${chatId}`
-        );
-
+        logSellTrigger(tokenAddress, price, sellDecision, info.soldTokenPercentage, chatId);
         ongoingSells.set(ongoingSellKey, true);
-        await executeSell(tokenAddress, price, chatId, info, sellPercentage);
+        await executeSell(tokenAddress, price, chatId, info, sellDecision.sellPercentage);
     } catch (error) {
         logger.error(`Error in processTrade for ${tokenAddress}:`, error);
+        handleSellError(error, tokenAddress, chatId, currentRetries);
         throw error;
     } finally {
         ongoingSells.delete(ongoingSellKey);
+    }
+}
+
+// Helper function to determine if and how much to sell
+function determineSellAction(
+    currentPrice: number,
+    stopLossPrice: number,
+    highestTargetPrice: number,
+    activeSteps: Array<{ targetPrice: number; sellPercentage: number }>,
+    soldPercentage: number
+): { shouldSell: boolean; sellPercentage: number; reason: string } {
+    // Check stop loss condition
+    if (currentPrice < stopLossPrice) {
+        return {
+            shouldSell: true,
+            sellPercentage: 100 - soldPercentage,
+            reason: "Stop Loss Triggered"
+        };
+    }
+
+    // Check highest target condition
+    if (currentPrice > highestTargetPrice) {
+        return {
+            shouldSell: true,
+            sellPercentage: 100 - soldPercentage,
+            reason: "Highest Target Reached"
+        };
+    }
+
+    // Find applicable step based on current price
+    const applicableStep = activeSteps
+        .filter(step => step.targetPrice <= currentPrice)
+        .sort((a, b) => b.targetPrice - a.targetPrice)[0];
+
+    if (applicableStep) {
+        const remainingPercentage = applicableStep.sellPercentage - soldPercentage;
+        if (remainingPercentage > 0) {
+            return {
+                shouldSell: true,
+                sellPercentage: remainingPercentage,
+                reason: `Target Price ${applicableStep.targetPrice} Reached`
+            };
+        }
+    }
+
+    return { shouldSell: false, sellPercentage: 0, reason: "" };
+}
+
+// Helper function to log price status
+function logPriceStatus(tokenAddress: string, currentPrice: number, stopLossPrice: number, highestTargetPrice: number) {
+    logger.info(
+        `Price check for ${tokenAddress}:\n` +
+        `Current: ${formatPrice(currentPrice)}\n` +
+        `Stop Loss: ${formatPrice(stopLossPrice)}\n` +
+        `Highest Target: ${formatPrice(highestTargetPrice)}\n` +
+        `Status: Within range, no sell trigger`
+    );
+}
+
+// Helper function to log sell trigger
+function logSellTrigger(
+    tokenAddress: string,
+    price: number,
+    sellDecision: { reason: string; sellPercentage: number },
+    soldPercentage: number,
+    chatId: string
+) {
+    logger.info(
+        `Sell trigger for ${tokenAddress}:\n` +
+        `Reason: ${sellDecision.reason}\n` +
+        `Current Price: ${formatPrice(price)}\n` +
+        `Sell Percentage: ${sellDecision.sellPercentage}%\n` +
+        `Already Sold: ${soldPercentage}%\n` +
+        `ChatId: ${chatId}`
+    );
+}
+
+// Helper function to handle sell errors
+function handleSellError(error: unknown, tokenAddress: string, chatId: string, currentRetries: number) {
+    const ongoingSellKey = getOngoingSellKey(tokenAddress, chatId);
+    const newRetryCount = currentRetries + 1;
+    sellRetryCount.set(ongoingSellKey, newRetryCount);
+
+    if (botInstance) {
+        botInstance.sendMessage(
+            chatId,
+            `⚠️ Auto-Sell Warning: ${tokenAddress}\n` +
+            `Attempt ${newRetryCount}/${MAX_SELL_RETRIES} failed\n` +
+            `Will retry automatically`
+        );
     }
 }
 
