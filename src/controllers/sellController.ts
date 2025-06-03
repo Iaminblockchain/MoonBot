@@ -1,5 +1,5 @@
 import TelegramBot from "node-telegram-bot-api";
-import { botInstance, getChatIdandMessageId, trade, removeTradeState } from "../bot";
+import { botInstance, getChatIdandMessageId, sendMessageToUser } from "../bot";
 import { SOLANA_CONNECTION } from "..";
 import * as walletdb from "../models/walletModel";
 import * as positiondb from "../models/positionModel";
@@ -8,15 +8,11 @@ import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 const { PublicKey } = require("@solana/web3.js"); // Import PublicKey
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
-import { getSPLBalance } from "./autoBuyController";
-import { getTokenPriceUSD } from "../solana/getPrice";
 import { logger } from "../logger";
 import { getTokenMetaData } from "../solana/token";
 import { parseTransaction } from "../solana/txhelpers";
 import { closePosition } from "../models/positionModel";
-import { WSOL_ADDRESS } from "../solana/trade";
-import { TRADE } from "../types/trade";
-import { sendMessageToUser } from "../bot";
+import { formatPrice } from "../solana/util";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     if (!botInstance) {
@@ -68,39 +64,19 @@ const onClickSell = async (query: TelegramBot.CallbackQuery, fraction: number, w
     const tokenBalance = await SOLANA_CONNECTION.getTokenAccountBalance(tokenATA);
     const amountToSell = fraction * Number(tokenBalance.value.amount);
 
-    logger.info("Preparing sell transaction", { tokenAddress, amountToSell });
+    logger.info("Preparing to send transaction", { tokenAddress, amountToSell });
     await sendMessageToUser(chatId!, "Sending sell transaction");
 
     try {
         const result = await solana.sell_swap(SOLANA_CONNECTION, privateKey, tokenAddress, amountToSell);
         if (result.success) {
-            logger.info("Sell transaction completed successfully", {
-                status: "SUCCESS",
-                chatId,
-                tokenAddress,
-                fraction,
-                amountToSell,
-                txSignature: result.txSignature,
-                tokenBalanceChange: result.token_balance_change,
-                solBalanceChange: result.sol_balance_change,
-                executionInfo: result.executionInfo,
-            });
-
+            logger.info("Sell transaction result", { result });
             let tokenBalanceChange = Number(result.token_balance_change);
             let sol_balance_change = Number(result.sol_balance_change);
 
             const trxLink = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "N/A";
 
-            const msg = await getSellSuccessMessage(
-                trxLink,
-                tokenAddress,
-                sol_balance_change,
-                tokenBalanceChange,
-                "Sell",
-                undefined,
-                undefined,
-                result.executionInfo?.timing ? { intervals: result.executionInfo.timing.intervals } : undefined
-            );
+            const msg = await getSellSuccessMessage(trxLink, tokenAddress, sol_balance_change, tokenBalanceChange, "Sell");
             await sendMessageToUser(chatId!, msg);
 
             // Get current price for closing position
@@ -136,33 +112,21 @@ const onClickSell = async (query: TelegramBot.CallbackQuery, fraction: number, w
             const message =
                 `✅ <b>Position Closed Successfully!</b>\n\n` +
                 `Token: ${tokenMetaData.symbol} (${tokenMetaData.name})\n` +
+                `Price: ${formatPrice(result.execution_price || 0)}\n` +
+                `Price USD: ${formatPrice(result.execution_price_usd || 0)}\n` +
                 `Amount Sold: ${tokenAmount} ${tokenMetaData.symbol}\n` +
                 `Buy Price: ${position.buyPriceSol?.toFixed(9) || "0"} SOL ($${position.buyPriceUsd?.toFixed(6) || "0"})\n` +
                 `Sell Price: ${trxInfo.tokenSolPrice.toFixed(9)} SOL ($${trxInfo.tokenUsdPrice.toFixed(6)})\n` +
                 `${profitLossText}: ${Math.abs(profitLoss).toFixed(6)} SOL (${profitLossPercentage}%)\n` +
                 `Transaction: http://solscan.io/tx/${result.txSignature}`;
 
-            await sendMessageToUser(chatId!, message, { parse_mode: "HTML" });
+            await botInstance.sendMessage(chatId!, message, { parse_mode: "HTML" });
         } else {
-            logger.error("Sell transaction failed", {
-                status: "FAILED",
-                chatId,
-                tokenAddress,
-                fraction,
-                amountToSell,
-                error: result.error || "Unknown error",
-            });
+            logger.error("Sell transaction failed", { result });
             await sendMessageToUser(chatId!, "Sell failed");
         }
     } catch (error: unknown) {
-        logger.error("Sell transaction error", {
-            status: "ERROR",
-            chatId,
-            tokenAddress,
-            fraction,
-            amountToSell,
-            error: error instanceof Error ? error.message : String(error),
-        });
+        logger.error("Sell error", { error });
         const errorMessage = error instanceof Error ? error.message : String(error);
         await sendMessageToUser(chatId!, `Sell error: ${errorMessage}`);
     }
@@ -278,7 +242,7 @@ export const onClickSellWithToken = async (query: TelegramBot.CallbackQuery) => 
                 ],
                 [{ text: "Refresh", callback_data: "sc_refresh" }],
             ];
-            await sendMessageToUser(chatId!, `Selling ${token}. Select percentage`, {
+            botInstance.sendMessage(chatId!, `Selling ${token}. Select percentage`, {
                 reply_markup: { inline_keyboard: buttons },
                 parse_mode: "HTML",
             });
@@ -328,13 +292,15 @@ const getSellSuccessMessage = async (
             metadataFetchDuration: number;
             messageSendDuration: number;
             totalDuration: number;
+            txSubmitDuration: number;
+            txConfirmDuration: number;
         };
     }
 ) => {
     const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
 
-    // Add token balance change info to message if available
     const tokenInfo = tokenBalanceChange ? `\nTokens sold: ${Math.abs(tokenBalanceChange).toLocaleString()}` : "";
+    const solInfo = solAmount ? `\nSOL Amount: ${Math.abs(solAmount).toFixed(6)}` : "";
     const sourceInfo = tradeSignal ? `Source: ${tradeSignal}` : "";
     const timingInfo = timingMetrics
         ? `\nTiming:\n` +
@@ -344,7 +310,7 @@ const getSellSuccessMessage = async (
           `Balance: ${timingMetrics.intervals.balanceCheckDuration}ms`
         : "";
 
-    let message = `${trade_type} successful: ${trx}\n SOL Amount: ${solAmount.toFixed(6)}\nTicker: ${metaData?.symbol}${tokenInfo}\nSource: ${sourceInfo}${timingInfo}`;
+    let message = `${trade_type} successful\nTicker: ${metaData?.symbol}\n${solInfo}\n${tokenInfo}\n${sourceInfo}\n${timingInfo}\n${trx}`;
 
     if (settings) {
         if (settings.takeProfit !== null) {
@@ -354,5 +320,6 @@ const getSellSuccessMessage = async (
             message += `\nStop loss: ${settings.stopLoss}%`;
         }
     }
+
     return message;
 };

@@ -1,6 +1,6 @@
 import { TELEGRAM_BOT_TOKEN } from ".";
 import TelegramBot from "node-telegram-bot-api";
-
+import * as solana from "./solana/trade";
 import * as walletDb from "./models/walletModel";
 import * as buyController from "./controllers/buyController";
 import * as sellController from "./controllers/sellController";
@@ -20,7 +20,7 @@ import { getSolBalance, getPublicKey } from "./solana/util";
 import { createReferral, getReferralByRefereeId } from "./models/referralModel";
 import { helpText } from "./util/constants";
 import { handleReferralWalletMessage } from "./controllers/referralController";
-import { TRADE } from "./types/trade";
+import { TRADE } from "./solana/types";
 
 export let botInstance: TelegramBot | undefined;
 
@@ -66,12 +66,11 @@ export const setTradeState = (
     contractAddress: string,
     startPrice: number,
     targetPrice: number,
-    stopPrice: number,
-    amount: number
+    stopPrice: number
 ) => {
     const prev = trade.get(chatid.toString());
-    if (prev) trade.set(chatid.toString(), [...prev, { contractAddress, targetPrice, stopPrice, startPrice, amount }]);
-    else trade.set(chatid.toString(), [{ contractAddress, targetPrice, stopPrice, startPrice, amount }]);
+    if (prev) trade.set(chatid.toString(), [...prev, { contractAddress, targetPrice, stopPrice, startPrice }]);
+    else trade.set(chatid.toString(), [{ contractAddress, targetPrice, stopPrice, startPrice }]);
 };
 
 export const removeTradeState = (chatid: TelegramBot.ChatId, contractAddress: string) => {

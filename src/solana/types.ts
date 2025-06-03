@@ -3,6 +3,4 @@ export type TRADE = {
     startPrice: number;
     targetPrice: number;
     stopPrice: number;
-    amount: number;
-    registrationTime?: number; // Timestamp when the trade was registered
 };

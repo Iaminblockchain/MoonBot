@@ -338,7 +338,19 @@ function triggerAutoBuy(chatId: string, contractAddress: string, settings: AutoB
         return;
     }
 
-    logger.info(`Auto-buy triggered ${signal}`, { chatId, contractAddress, settings });
+    // Enhanced logging for autobuy trigger
+    logger.info(`AUTOBUY Trigger Settings:`, {
+        signal: signal || "Manual",
+        chatId,
+        contractAddress,
+        settings: {
+            amount: `${amount}${isPercentage ? "%" : " SOL"}`,
+            maxSlippage: `${maxSlippage}%`,
+            takeProfit: takeProfit ? `${takeProfit}%` : "Not set",
+            stopLoss: stopLoss ? `${stopLoss}%` : "Not set",
+            repetitiveBuy: `${repetitiveBuy} times`,
+        },
+    });
 
     buyController.autoBuyContract(
         chatId,

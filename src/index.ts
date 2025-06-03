@@ -20,6 +20,7 @@ export const START_ENDPOINT_ENABLED = retrieveEnvVariable("start_endpoint_enable
 export const START_ENDPOINT_API_KEY = retrieveEnvVariable("start_endpoint_api_key");
 export const TELEGRAM_BOT_USERNAME = retrieveEnvVariable("telegram_bot_username");
 export const TELEGRAM_PROXY = retrieveEnvVariable("telegram_proxy");
+export const SETUP_AUTOSELL = retrieveEnvVariable("setup_autosell") === "true";
 
 import * as db from "./db";
 import { Connection } from "@solana/web3.js";
@@ -138,12 +139,14 @@ const startServices = async () => {
         if (SETUP_BOT) {
             logger.info("Starting TG bot...");
             bot.init(client);
-
-            runAutoSellSchedule();
         } else {
             logger.info("TG bot setup skipped (SETUP_BOT=false)");
         }
 
+        if (SETUP_AUTOSELL) {
+            logger.info("Starting auto sell schedule...");
+            runAutoSellSchedule();
+        }
         return true;
     } catch (error) {
         logger.error("Service initialization failed:", error);

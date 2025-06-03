@@ -180,28 +180,19 @@ export async function getTxInfoMetrics(txsig: string, connection: Connection, to
     return { ...metrics };
 }
 
-export interface TransactionMetrics {
+export type TransactionMetrics = {
     owner_pubkey: string;
     token: string;
     token_balance_change: number;
+    //SOL fee
     transaction_fee: number;
     sol_balance_change: number;
     token_creation_cost: number;
+    execution_price: number;
+    //DEX fees
     feesPaid: number;
     compute_units_consumed: number | null;
-    execution_price: number;
-    timing?: {
-        intervals: {
-            priceCheckDuration: number;
-            walletFetchDuration: number;
-            balanceCheckDuration: number;
-            swapDuration: number;
-            metadataFetchDuration: number;
-            messageSendDuration: number;
-            totalDuration: number;
-        };
-    };
-}
+};
 
 export function extractTransactionMetrics(tx: Transaction, tokenMint: string): TransactionMetrics | null {
     const message = tx.transaction?.message;
@@ -235,7 +226,9 @@ export function extractTransactionMetrics(tx: Transaction, tokenMint: string): T
     logger.info(`preToken ${tokenMint}: ${preToken}  ${ownerPubkey} ${JSON.stringify(preTokenBalances)}`);
     logger.info(`postToken ${tokenMint}: ${postToken}  ${ownerPubkey} ${JSON.stringify(postTokenBalances)}`);
     const tokenBalanceChange = postToken - preToken;
+    const absoluteTokenBalanceChange = Math.abs(tokenBalanceChange);
     logger.info(`tokenBalanceChange ${tokenBalanceChange}`);
+    logger.info(`absoluteTokenBalanceChange ${absoluteTokenBalanceChange}`);
 
     /* SOL spent (lamports SOL) */
     let solBalanceChange = 0;
@@ -252,29 +245,52 @@ export function extractTransactionMetrics(tx: Transaction, tokenMint: string): T
         }
     }
 
-    let feesPaid = 0;
+    //calcualte fees
+
+    // total SOL movement of signer (index 0)
+    // <0 for buy, >0 for sell
+    const totalSolChange = (postBalances[0] - preBalances[0]) / 1e9;
+    const isSell = totalSolChange > 0;
+
+    // ── find the pool transfer
+    // SOL amount that actually swaps against tokens
+    let solTransferredWithPool = 0;
+
     for (let i = 1; i < preBalances.length; i++) {
-        const balanceChange = (postBalances[i] - preBalances[i]) / 1e9; // Convert lamports to SOL
-        if (balanceChange > 0) {
-            feesPaid += balanceChange;
+        const delta = (postBalances[i] - preBalances[i]) / 1e9;
+
+        if (isSell) {
+            // pool sends SOL out most-negative delta
+            if (delta < solTransferredWithPool) solTransferredWithPool = delta;
+        } else {
+            // pool receives SOL largest positive delta
+            if (delta > solTransferredWithPool) solTransferredWithPool = delta;
         }
     }
 
-    let netBalanceChangeSOL = solBalanceChange - feesPaid;
+    // ── network / aggregator fee in SOL
+    const actualFee = isSell
+        ? totalSolChange - Math.abs(solTransferredWithPool) // sell
+        : -totalSolChange - Math.abs(solTransferredWithPool); // buy
 
-    let executionPrice = 0;
-    if (tokenBalanceChange > 0 && netBalanceChangeSOL > 0) {
-        executionPrice = netBalanceChangeSOL / tokenBalanceChange;
-    }
+    // ── execution price (SOL per token)
+    const effectiveSolAmount = Math.abs(solTransferredWithPool);
+    const executionPrice = absoluteTokenBalanceChange > 0 ? effectiveSolAmount / absoluteTokenBalanceChange : 0;
+
+    logger.info(`preBalances ${preBalances}`);
+    logger.info(`postBalances ${postBalances}`);
+    logger.info(`solTransferredWithPool ${solTransferredWithPool}`);
+    logger.info(`executionPrice ${executionPrice}`);
+    logger.info(`actualFee ${actualFee}`);
 
     return {
         owner_pubkey: ownerPubkey,
         token: tokenMint,
         token_balance_change: tokenBalanceChange,
         transaction_fee: fee,
-        sol_balance_change: netBalanceChangeSOL,
+        sol_balance_change: effectiveSolAmount,
         token_creation_cost: tokenCreationCost,
-        feesPaid: feesPaid,
+        feesPaid: actualFee,
         compute_units_consumed: computeUnits,
         execution_price: executionPrice,
     };
@@ -287,6 +303,7 @@ interface TransactionResult {
     tokenUsdPrice: number | null;
     transactionFee: number | null;
     netBuySolAmount: number | null;
+    executionPrice: number | null;
     error?: string;
 }
 
@@ -312,6 +329,7 @@ export async function parseTransaction(
                 tokenUsdPrice: null,
                 transactionFee: null,
                 netBuySolAmount: null,
+                executionPrice: null,
                 error: "Transaction not found or not confirmed",
             };
         }
@@ -376,6 +394,7 @@ export async function parseTransaction(
             tokenUsdPrice,
             transactionFee: transactionFee ? transactionFee / 1_000_000_000 : 0,
             netBuySolAmount,
+            executionPrice: tokenSolPrice,
             error: tokenAmount === null ? "No SPL token transfer found" : undefined,
         };
     } catch (error) {
@@ -386,6 +405,7 @@ export async function parseTransaction(
             tokenUsdPrice: null,
             transactionFee: null,
             netBuySolAmount: null,
+            executionPrice: null,
             error: `Failed to parse transaction.`,
         };
     }

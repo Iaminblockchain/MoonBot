@@ -10,6 +10,7 @@ import { Trade } from "../models/copyTradeModel";
 import { Chat } from "../models/chatModel";
 import { getQueue } from "../scraper/queue";
 import { notifySuccess, notifyError } from "../notify";
+import { sendMessageToUser } from "../bot";
 
 let tgClient: TelegramClient | null = null;
 
@@ -139,7 +140,7 @@ export const handleInput = async (msg: TelegramBot.Message, ctx: InputCtx) => {
             await editcopytradesignal(chatId, ctx.replaceId, ctx.tradeId);
         }
     } catch (err) {
-        logger.error(err);
+        logger.error(`Error in handleInput: ${err instanceof Error ? err.message : String(err)}`);
         await notifyError(chatId, "Update failed");
     } finally {
         removeState(chatId);
@@ -215,7 +216,7 @@ export const handleCallBackQuery = async (query: TelegramBot.CallbackQuery) => {
                 }
 
                 if (!wallet) {
-                    await botInstance.sendMessage(chatid, "You need to set up your wallet first");
+                    await sendMessageToUser(chatid, "You need to set up your wallet first");
                     return;
                 }
                 return showPortfolioPad(chatid);
@@ -230,7 +231,7 @@ export const handleCallBackQuery = async (query: TelegramBot.CallbackQuery) => {
                     }
 
                     if (!wallet) {
-                        await botInstance.sendMessage(chatid, "You need to set up your wallet first");
+                        await sendMessageToUser(chatid, "You need to set up your wallet first");
                         return;
                     }
                     const newTrade = await copytradedb.addTrade(chatid);
@@ -245,7 +246,7 @@ export const handleCallBackQuery = async (query: TelegramBot.CallbackQuery) => {
                     }
 
                     logger.error("wallet lookup failed", err);
-                    botInstance.sendMessage(chatid, "❌ Something went wrong.");
+                    sendMessageToUser(chatid, "❌ Something went wrong.").catch((err) => logger.error("Failed to send error message", err));
                 });
         } else if (callbackData === "ct_back") {
             return showPortfolioPad(chatid, msgId);
@@ -496,7 +497,7 @@ To manage your Copy Trade:
     }
 
     trade = await copytradedb.findTrade({ _id: new mongoose.Types.ObjectId(dbId) });
-    logger.info(trade);
+    logger.info(`Trade found: ${JSON.stringify(trade)}`);
 
     if (!trade) {
         logger.error("No Copy Trade signal Error", { dbId: dbId, chatId: chatId });
@@ -608,7 +609,7 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
                 await editcopytradesignal(chatId, replaceId, dbId);
                 await notifySuccess(chatId, "Group updated");
             } catch (error) {
-                logger.error(error);
+                logger.error(`Error updating group: ${error instanceof Error ? error.message : String(error)}`);
                 await notifyError(chatId, "Failed to update group");
             } finally {
                 removeState(chatId);

@@ -1,25 +1,18 @@
 import { botInstance, trade, removeTradeState } from "../bot";
+import { TRADE } from "../solana/types";
 import { SOLANA_CONNECTION } from "..";
-import { TRADE } from "../types/trade";
 import * as walletdb from "../models/walletModel";
 import * as solana from "../solana/trade";
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
+import { getSPLBalance } from "./autoBuyController";
 import { getTokenPriceBatch } from "../solana/getPrice";
 import { logger } from "../logger";
 import { getTokenMetaData } from "../solana/token";
-import { getSPLBalance } from "./autoBuyController";
 import { formatPrice } from "../solana/util";
+import { sendMessageToUser } from "../bot";
 
-// Track ongoing sell operations to prevent race conditions
 const ongoingSells = new Map<string, boolean>();
-// Track retry attempts for each token
-const sellRetryCount = new Map<string, number>();
-const MAX_SELL_RETRIES = 5;
-
-// Constants for configuration
-const MIN_INTERVAL_MS = 1500;
-// Minimum balance to attempt sell
 
 // Get relevant token addresses to check for price changes
 function getTokenAddresses(trade: Map<string, Array<TRADE>>, logger: typeof import("../logger").logger) {
@@ -56,35 +49,21 @@ function getOngoingSellKey(tokenAddress: string, chatId: string): string {
 async function processTrade(tokenAddress: string, price: number, chatId: string, info: TRADE) {
     const ongoingSellKey = getOngoingSellKey(tokenAddress, chatId);
 
+    // Add detailed price logging at the start
+    logger.info(`AUTOSELL Price Check for ${tokenAddress}`, {
+        chatId,
+        currentPrice: formatPrice(price),
+        startPrice: formatPrice(info.startPrice),
+        targetPrice: formatPrice(info.targetPrice),
+        stopPrice: formatPrice(info.stopPrice),
+        priceChange: `${((price / info.startPrice - 1) * 100).toFixed(2)}%`,
+    });
+
     // Skip if already processing a sell for this token and chatId combination
     if (ongoingSells.get(ongoingSellKey)) {
-        logger.debug(`Sell operation already in progress for token ${tokenAddress} and chat ${chatId}`);
+        logger.info(`Sell operation already in progress for token ${tokenAddress} and chat ${chatId}`);
         return;
     }
-
-    // Check if we've exceeded max retries
-    const currentRetries = sellRetryCount.get(ongoingSellKey) || 0;
-    if (currentRetries >= MAX_SELL_RETRIES) {
-        logger.warn(`Max retries (${MAX_SELL_RETRIES}) exceeded for token ${tokenAddress} and chat ${chatId}`);
-        if (botInstance) {
-            await botInstance.sendMessage(
-                chatId,
-                `AutoSell Token : Failed to sell ${tokenAddress} after ${MAX_SELL_RETRIES} attempts - Operation cancelled`
-            );
-        }
-        removeTradeState(chatId, tokenAddress);
-        sellRetryCount.delete(ongoingSellKey);
-        return;
-    }
-
-    logger.info(`AUTOSELL check ${tokenAddress}`, { chatId, address: tokenAddress, price });
-
-    // Validate price change is significant enough
-    // const priceChange = Math.abs(price / info.startPrice - 1);
-    // if (priceChange < PRICE_CHANGE_THRESHOLD) {
-    //     logger.info(`Price change for ${tokenAddress} is too small: ${priceChange}`);
-    //     return;
-    // }
 
     // Check if price is outside the target range (either above target or below low)
     let hitTP = price > info.targetPrice;
@@ -97,11 +76,11 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
 
     if (!shouldSell) {
         logger.info(
-            `AUTOSELL ${tokenAddress} Price ${formatPrice(price)} is within range \n` +
-                `Current: ${formatPrice(price)}\n` +
-                `Target: ${formatPrice(info.targetPrice)} (${tpOffset}% from target)\n` +
-                `Stop: ${formatPrice(info.stopPrice)} (${slOffset}% from stop)\n` +
-                `No sell trigger`
+            `AUTOSELL ${tokenAddress} Price Check Summary:\n` +
+                `Current Price: ${formatPrice(price)} (${((price / info.startPrice - 1) * 100).toFixed(2)}% from start)\n` +
+                `Target Price: ${formatPrice(info.targetPrice)} (${tpOffset}% from target)\n` +
+                `Stop Price: ${formatPrice(info.stopPrice)} (${slOffset}% from stop)\n` +
+                `Status: No sell trigger - Price within range`
         );
         return;
     } else {
@@ -115,11 +94,11 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
                 reason = "Unknown reason";
             }
             logger.info(
-                `AUTOSELL ${reason} triggers sell for ${tokenAddress}\t` +
-                    `Current: ${formatPrice(price)}\t` +
-                    `Start: ${formatPrice(info.startPrice)}\t` +
-                    `Target: ${formatPrice(info.targetPrice)} (${tpOffset}% from target)\t` +
-                    `Stop: ${formatPrice(info.stopPrice)} (${slOffset}% from stop)\t` +
+                `AUTOSELL ${reason} Triggered for ${tokenAddress}\n` +
+                    `Current Price: ${formatPrice(price)} (${((price / info.startPrice - 1) * 100).toFixed(2)}% from start)\n` +
+                    `Start Price: ${formatPrice(info.startPrice)}\n` +
+                    `Target Price: ${formatPrice(info.targetPrice)} (${tpOffset}% from target)\n` +
+                    `Stop Price: ${formatPrice(info.stopPrice)} (${slOffset}% from stop)\n` +
                     `ChatId: ${chatId}`
             );
             ongoingSells.set(ongoingSellKey, true);
@@ -133,7 +112,6 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
     }
 }
 
-// Execute the actual sell operation
 async function executeSell(tokenAddress: string, price: number, chatId: string, info: TRADE) {
     const wallet = await walletdb.getWalletByChatId(chatId);
     if (!wallet) {
@@ -149,38 +127,28 @@ async function executeSell(tokenAddress: string, price: number, chatId: string, 
         return;
     }
 
-    // Calculate the amount to sell based on the trade info
-    const amountToSell = info.amount || splAmount; // Use trade amount if specified, otherwise use full balance
+    //tried once only, on retry policy
+    let result = await solana.sell_swap(SOLANA_CONNECTION, wallet.privateKey, info.contractAddress, splAmount);
 
-    const result = await solana.executeSwapWithRetry(
-        SOLANA_CONNECTION,
-        wallet.privateKey,
-        tokenAddress,
-        amountToSell,
-        false // isBuy = false for sell operation
-    );
+    //const ongoingSellKey = getOngoingSellKey(tokenAddress, chatId);
 
-    const ongoingSellKey = getOngoingSellKey(tokenAddress, chatId);
-    if (!result.success) {
-        // Increment retry counter on failure
-        const currentRetries = sellRetryCount.get(ongoingSellKey) || 0;
-        sellRetryCount.set(ongoingSellKey, currentRetries + 1);
-    } else {
-        // Reset retry counter on success
-        sellRetryCount.delete(ongoingSellKey);
-    }
-
-    await handleSellResult(result, tokenAddress, price, chatId, info, sellRetryCount.get(ongoingSellKey) || 0);
+    await handleSellResult(result, tokenAddress, price, chatId, info);
 }
 
-// Handle the result of a sell operation
 async function handleSellResult(
-    result: { success: boolean; error?: string },
+    result: {
+        success: boolean;
+        error?: string;
+        txSignature?: string | null;
+        sol_balance_change?: number;
+        token_balance_change?: number;
+        fees?: number;
+        timingMetrics?: TimingMetrics;
+    },
     tokenAddress: string,
     price: number,
     chatId: string,
-    info: TRADE,
-    retryCount: number
+    info: TRADE
 ) {
     if (!botInstance) {
         logger.error("Bot instance not initialized in handleSellResult");
@@ -189,22 +157,28 @@ async function handleSellResult(
 
     try {
         if (result.success) {
+            //TODO! can get this info earlier
             const metadata = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-            const profitLoss = ((price / info.startPrice - 1) * 100).toFixed(1);
-            const message =
-                price > info.targetPrice
-                    ? `AutoSell Token : You successfully sold ${metadata?.name}(${metadata?.symbol}) : ${tokenAddress} at Price: $${price} for a ${profitLoss}% gain`
-                    : `AutoSell Token : You successfully sold ${metadata?.name}(${metadata?.symbol}) : ${tokenAddress} at Price: $${price} for a ${Math.abs(Number(profitLoss))}% loss`;
 
-            await botInstance.sendMessage(chatId, message);
+            //TODO! review calculate PnL
+            const profitLoss = ((price / info.startPrice - 1) * 100).toFixed(1);
+            const msg = await getSellSuccessMessage(
+                `http://solscan.io/tx/${result.txSignature}`,
+                tokenAddress,
+                `${profitLoss}%`,
+                price,
+                result.sol_balance_change ?? 0,
+                result.token_balance_change ?? 0,
+                result.fees ?? 0,
+                result.timingMetrics,
+                metadata
+            );
+            await sendMessageToUser(chatId, msg);
         } else {
             const errorMessage = result.error ? `\nReason: ${result.error}` : "\nReason: Transaction failed to confirm";
             const metadata = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
             const tokenInfo = metadata ? `${metadata.name}(${metadata.symbol})` : tokenAddress;
-            await botInstance.sendMessage(
-                chatId,
-                `AutoSell Token : Failed to sell ${tokenInfo} after ${retryCount} attempts${errorMessage}`
-            );
+            await sendMessageToUser(chatId, `AutoSell Token : Failed to sell ${tokenInfo}`);
         }
     } catch (error) {
         logger.error(`Error sending message for ${tokenAddress}:`, error);
@@ -213,106 +187,171 @@ async function handleSellResult(
     }
 }
 
+//run through each signal and check if sell is triggered
 export const autoSellHandler = async () => {
     if (!botInstance) {
         logger.error("Bot instance not initialized in autoSellHandler");
         return;
     }
 
-    try {
-        const { tokenArray, tradeInfoMap } = getTokenAddresses(trade, logger);
-        logger.info(`auto check Processing ${tokenArray.length} tokens`);
+    const { tokenArray, tradeInfoMap } = getTokenAddresses(trade, logger);
+    logger.info(`Starting autosell price check for ${tokenArray.length} tokens`);
 
-        const batchLength = 100;
-        const batches = [];
+    const batchLength = 100;
+    const batches = [];
 
-        // Split tokens into batches
-        for (let i = 0; i < tokenArray.length; i += batchLength) {
-            batches.push(tokenArray.slice(i, i + batchLength));
+    // Split tokens into batches
+    for (let i = 0; i < tokenArray.length; i += batchLength) {
+        batches.push(tokenArray.slice(i, i + batchLength));
+    }
+
+    logger.info(`Split tokens into ${batches.length} batches for price checking`);
+
+    // Execute all batch requests in parallel with error handling
+    const batchResults = await Promise.allSettled(batches.map((batch) => getTokenPriceBatch(batch)));
+
+    // Combine all results into a single Map, handling failed batches
+    const prices = new Map<string, number>();
+    let successfulBatches = 0;
+    let failedBatches = 0;
+    let totalPricesFetched = 0;
+
+    for (const result of batchResults) {
+        if (result.status === "fulfilled") {
+            successfulBatches++;
+            for (const [token, price] of result.value) {
+                totalPricesFetched++;
+                logger.info(`AUTOSELL Price Check - Token: ${token}, Price: ${formatPrice(price)}`);
+                prices.set(token, price);
+            }
+        } else {
+            failedBatches++;
+            logger.error("Batch price fetch failed:", result.reason);
         }
+    }
 
-        // Execute all batch requests in parallel with error handling
-        const batchResults = await Promise.allSettled(batches.map((batch) => getTokenPriceBatch(batch)));
+    logger.info(`AUTOSELL Price Check Summary:`, {
+        totalTokens: tokenArray.length,
+        successfulBatches,
+        failedBatches,
+        totalPricesFetched,
+        successRate: `${((successfulBatches / batches.length) * 100).toFixed(2)}%`,
+    });
 
-        // Add debug logging for price data
-        logger.info("Raw price data from batches:", JSON.stringify(batchResults, null, 2));
+    // Process each price in the combined results
+    for (const [tokenAddress, price] of prices) {
+        const tradeInfos = tradeInfoMap.get(tokenAddress);
+        if (!tradeInfos) continue;
 
-        // Combine all results into a single Map, handling failed batches
-        const prices = new Map<string, number>();
-        for (const result of batchResults) {
-            if (result.status === "fulfilled") {
-                for (const [token, price] of result.value) {
-                    // Add debug logging for each price
-                    logger.info(`AUTOSELL Token ${token} raw price: ${price}`);
-                    prices.set(token, price);
+        // Process each trade for this token
+        for (const { chatId, info } of tradeInfos) {
+            try {
+                await processTrade(tokenAddress, price, chatId, info);
+            } catch (error: unknown) {
+                logger.error(`AUTOSELL Error processing sell for ${tokenAddress}:`, error);
+                if (botInstance) {
+                    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+                    await sendMessageToUser(chatId, `Error processing auto-sell for ${tokenAddress}: ${errorMessage}`);
                 }
-            } else {
-                logger.error("Batch price fetch failed:", result.reason);
             }
         }
-
-        logger.info(`auto check prices ${prices.size} prices`);
-
-        // Process each price in the combined results
-        for (const [tokenAddress, price] of prices) {
-            const tradeInfos = tradeInfoMap.get(tokenAddress);
-            if (!tradeInfos) continue;
-
-            // Process each trade for this token
-            for (const { chatId, info } of tradeInfos) {
-                try {
-                    await processTrade(tokenAddress, price, chatId, info);
-                } catch (error: unknown) {
-                    logger.error(`AUTOSELL Error processing sell for ${tokenAddress}:`, error);
-                    if (botInstance) {
-                        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-                        await botInstance.sendMessage(chatId, `Error processing auto-sell for ${tokenAddress}: ${errorMessage}`);
-                    }
-                }
-            }
-        }
-    } catch (e) {
-        logger.error(`Auto-Sell Error:`, e);
     }
 };
 
-export const runAutoSellSchedule = async () => {
+// Add this interface near the top of the file with other interfaces
+interface TimingMetrics {
+    intervals: {
+        priceCheckDuration: number;
+        walletFetchDuration: number;
+        balanceCheckDuration: number;
+        swapDuration: number;
+        metadataFetchDuration: number;
+        messageSendDuration: number;
+        totalDuration: number;
+    };
+}
+
+const getSellSuccessMessage = async (
+    trx: string,
+    tokenAddress: string,
+    trade_type: string,
+    price: number,
+    solAmount: number,
+    tokenBalanceChange: number,
+    fees: number,
+    timingMetrics?: TimingMetrics,
+    metadata?: { name: string; symbol: string } | null
+) => {
+    const tokenInfo = tokenBalanceChange ? `\nTokens sold: ${Math.abs(tokenBalanceChange).toLocaleString()}` : "";
+    const solInfo = solAmount ? `\nSOL Amount: ${Math.abs(solAmount).toFixed(6)}` : "";
+    const tokenName = metadata ? `${metadata.name}(${metadata.symbol})` : tokenAddress;
+
+    let message = `${trade_type} successful\nToken: ${tokenName}\n${solInfo}\n${tokenInfo}\n${trx}`;
+
+    if (timingMetrics) {
+        message += `\n\nTiming Information:`;
+        message += `\nTotal Duration: ${(timingMetrics.intervals.totalDuration / 1000).toFixed(2)}s`;
+        message += `\nSwap Duration: ${(timingMetrics.intervals.swapDuration / 1000).toFixed(2)}s`;
+        message += `\nPrice Check: ${(timingMetrics.intervals.priceCheckDuration / 1000).toFixed(2)}s`;
+        message += `\nWallet Fetch: ${(timingMetrics.intervals.walletFetchDuration / 1000).toFixed(2)}s`;
+        message += `\nBalance Check: ${(timingMetrics.intervals.balanceCheckDuration / 1000).toFixed(2)}s`;
+    }
+
+    return message;
+};
+
+export const runAutoSellSchedule = () => {
     logger.info("start runAutoSellSchedule");
     let consecutiveErrors = 0;
     const MAX_CONSECUTIVE_ERRORS = 5;
     const BASE_BACKOFF_MS = 5000; // Base delay of 5 seconds
     const MAX_BACKOFF_MS = 60000; // Maximum delay of 1 minute
+    const MIN_INTERVAL_MS = 1500;
     let running = true;
 
-    while (running) {
-        try {
-            logger.info("check auto sell conditions");
-            const startTime = Date.now();
+    const runLoop = async () => {
+        while (running) {
+            try {
+                logger.info("check auto sell conditions");
+                const startTime = Date.now();
 
-            await autoSellHandler();
-            consecutiveErrors = 0; // Reset error count on success
+                await autoSellHandler();
+                consecutiveErrors = 0; // Reset error count on success
 
-            // Calculate how long to wait to maintain minimum interval
-            const elapsed = Date.now() - startTime;
-            const waitTime = Math.max(0, MIN_INTERVAL_MS - elapsed);
+                // Calculate how long to wait to maintain minimum interval
+                const elapsed = Date.now() - startTime;
+                const waitTime = Math.max(0, MIN_INTERVAL_MS - elapsed);
 
-            if (waitTime > 0) {
-                await new Promise((resolve) => setTimeout(resolve, waitTime));
-            }
-        } catch (error) {
-            consecutiveErrors++;
-            logger.error(`Error in auto sell loop: ${error}`);
+                if (waitTime > 0) {
+                    await new Promise((resolve) => setTimeout(resolve, waitTime));
+                }
+            } catch (error) {
+                consecutiveErrors++;
+                logger.error(`Error in auto sell loop (attempt ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}): ${error}`);
 
-            // Linear backoff: increase by BASE_BACKOFF_MS for each consecutive error
-            const backoffTime = Math.min(BASE_BACKOFF_MS * consecutiveErrors, MAX_BACKOFF_MS);
-            await new Promise((resolve) => setTimeout(resolve, backoffTime));
+                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                    logger.error("Too many consecutive errors, pausing auto-sell for 5 minutes");
+                    await new Promise((resolve) => setTimeout(resolve, 300000));
+                    consecutiveErrors = 0;
+                    continue;
+                }
 
-            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-                logger.error("Too many consecutive errors, pausing auto-sell for 5 minutes");
-                await new Promise((resolve) => setTimeout(resolve, 300000));
-                consecutiveErrors = 0;
-                running = false; // Stop the loop if too many errors
+                // Linear backoff
+                const backoffTime = Math.min(BASE_BACKOFF_MS * consecutiveErrors, MAX_BACKOFF_MS);
+                logger.info(`Backing off for ${backoffTime / 1000} seconds before next attempt`);
+                await new Promise((resolve) => setTimeout(resolve, backoffTime));
             }
         }
-    }
+    };
+
+    // Start the loop in the background
+    runLoop().catch((error) => {
+        logger.error("Fatal error in auto sell loop:", error);
+        running = false;
+    });
+
+    // Return a function to stop the loop if needed
+    return () => {
+        running = false;
+    };
 };

@@ -3,29 +3,6 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import { SOLANA_CONNECTION } from "..";
 import { logger } from "../logger";
 
-const jito_Validators = [
-    "DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh",
-    "ADuUkR4vqLUMWXxW9gh6D6L8pMSawimctcNZ5pGwDcEt",
-    "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
-    "HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe",
-    "ADaUMid9yfUytqMBgopwjb2DTLSokTSzL1zt6iGPaS49",
-    "Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY",
-    "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL",
-    "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
-];
-
-export const formatPrice = (price: number): string => {
-    // Convert to fixed string with 9 decimals and remove trailing zeros
-    const formatted = price.toFixed(9);
-    // Remove trailing zeros after decimal point
-    return formatted.replace(/\.?0+$/, "");
-};
-
-export async function getRandomValidator() {
-    const res = jito_Validators[Math.floor(Math.random() * jito_Validators.length)];
-    return new PublicKey(res);
-}
-
 export const getSolBalance = async (privateKey: string) => {
     try {
         let privateKey_nums = bs58.decode(privateKey);
@@ -36,7 +13,7 @@ export const getSolBalance = async (privateKey: string) => {
         if (accountInfo && accountInfo.lamports) return Number(accountInfo.lamports) / 10 ** 9;
         else return 0;
     } catch (error) {
-        logger.error({ error });
+        logger.error(`Error getting SOL balance: ${error instanceof Error ? error.message : String(error)}`);
         return 0;
     }
 };
@@ -76,4 +53,11 @@ export const getKeypair = (privateKey: string) => {
 
     // Return the public key as a string
     return keypair;
+};
+
+export const formatPrice = (price: number): string => {
+    // Convert to fixed string with 9 decimals and remove trailing zeros
+    const formatted = price.toFixed(9);
+    // Remove trailing zeros after decimal point
+    return formatted.replace(/\.?0+$/, "");
 };

@@ -95,7 +95,7 @@ export async function contractFound(contractAddress: string, chat_id_str: string
             logger.info("process: Saved call record", { chat_id_str: chat_id_str, contractAddress: contractAddress });
 
             //start tracking
-            trackPerformance(contractAddress, entry_price);
+            //trackPerformance(contractAddress, entry_price);
         } catch (err) {
             logger.error(`Error saving call record: ${err}`);
         }
