@@ -5,267 +5,290 @@ import { getPublicKeyinFormat } from "./sellController";
 import { SOLANA_CONNECTION } from "..";
 import { getAllTokensWithBalance, sell_swap, WSOL_ADDRESS } from "../solana/trade";
 import { getTokenInfofromMint, getTokenMetaData } from "../solana/token";
-import { getTokenPriceUSD } from "../solana/getPrice";
+import { getTokenPriceBatch, getTokenPriceUSD } from "../solana/getPrice";
 import { logger } from "../logger";
+import { PublicKey } from "@solana/web3.js";
+import { getMint } from "@solana/spl-token";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
-    if (!botInstance) {
-        logger.error("Bot instance not initialized in portfolioController.handleCallBackQuery");
-        return;
-    }
+	if (!botInstance) {
+		logger.error("Bot instance not initialized in portfolioController.handleCallBackQuery");
+		return;
+	}
 
-    try {
-        const { data: callbackData, message: callbackMessage } = query;
-        if (!callbackData || !callbackMessage) return;
-        let callback_str = String(callbackMessage.chat.id);
-        if (callbackData == "pC_start") {
-            showPortfolioStart(callback_str);
-        } else if (callbackData.startsWith("pC_show_")) {
-            const token = callbackData.split("_");
-            portfolioPad(callback_str, callbackMessage.message_id, token[2]);
-        } else if (callbackData.startsWith("pC_sell_")) {
-            const token = callbackData.split("_");
-            sellPortfolio(callback_str, callbackMessage.message_id, token[2], token[3]);
-        } else if (callbackData == "pC_back") {
-            showPortfolioStart(callback_str, callbackMessage.message_id);
-        }
-    } catch (error) {
-        logger.error("Error in portfolioController.handleCallBackQuery", { error });
-    }
+	try {
+		const { data: callbackData, message: callbackMessage } = query;
+		if (!callbackData || !callbackMessage) return;
+		let callback_str = String(callbackMessage.chat.id);
+		if (callbackData == "pC_start") {
+			showPortfolioStart(callback_str);
+		} else if (callbackData.startsWith("pC_show_")) {
+			const token = callbackData.split("_");
+			portfolioPad(callback_str, callbackMessage.message_id, token[2]);
+		} else if (callbackData.startsWith("pC_sell_")) {
+			const token = callbackData.split("_");
+			sellPortfolio(callback_str, callbackMessage.message_id, token[2], token[3]);
+		} else if (callbackData == "pC_back") {
+			showPortfolioStart(callback_str, callbackMessage.message_id);
+		}
+	} catch (error) {
+		logger.error("Error in portfolioController.handleCallBackQuery", { error });
+	}
 };
 
 const showPortfolioStart = async (chatId: string, replaceId?: number) => {
-    if (!botInstance) {
-        logger.error("Bot instance not initialized in showPortfolioStart");
-        return;
-    }
+	if (!botInstance) {
+		logger.error("Bot instance not initialized in showPortfolioStart");
+		return;
+	}
 
-    try {
-        const wallet = await getWalletByChatId(chatId);
-        if (!wallet) {
-            botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
-            return;
-        }
-        const publicKey = getPublicKeyinFormat(wallet.privateKey);
+	try {
+		const wallet = await getWalletByChatId(chatId);
+		if (!wallet) {
+			botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
+			return;
+		}
+		const publicKey = getPublicKeyinFormat(wallet.privateKey);
 
-        // Fetch all tokens in the wallet
-        const tokenAccounts = await getAllTokensWithBalance(SOLANA_CONNECTION, publicKey);
 
-        if (!tokenAccounts || tokenAccounts.length === 0) {
-            botInstance.sendMessage(chatId, "⚠️ No tokens found in your wallet.");
-            return;
-        }
-        let tokenList = "";
-        // Generate buttons for each token
-        tokenAccounts.forEach((token, index) => [
-            (tokenList += `${index + 1} : ${token.name}(${token.symbol}): ${token.balance} ${token.symbol}\n`),
-        ]);
+		// Fetch all tokens in the wallet
+		const tokenAccounts = await getAllTokensWithBalance(SOLANA_CONNECTION, publicKey);
 
-        const caption = "<b>Select a token to check assets\n\n</b>" + tokenList;
+		if (!tokenAccounts || tokenAccounts.length === 0) {
+			botInstance.sendMessage(chatId, "⚠️ No tokens found in your wallet.");
+			return;
+		}
 
-        const Keyboard = tokenAccounts.map((token, index) => {
-            return [
-                {
-                    text: `${index + 1}: ${token.name}(${token.symbol})`,
-                    command: `pC_show_${token.address}`,
-                },
-            ];
-        });
+		// Get prices for all tokens in parallel
+		const pricePromises = tokenAccounts.map(token => 
+			getTokenPriceUSD(token.address)
+				.then(price => ({ address: token.address, price }))
+				.catch(error => {
+					return { address: token.address, price: 0 };
+				})
+		);
 
-        const keyboardList = Keyboard.concat([[{ text: "Close", command: "close" }]]);
+		const priceResults = await Promise.all(pricePromises);
+		const tokenPrices = new Map(
+			priceResults.map(result => [result.address, result.price])
+		);
 
-        const reply_markup = {
-            inline_keyboard: keyboardList.map((rowItem) =>
-                rowItem.map((item) => {
-                    return {
-                        text: item.text,
-                        callback_data: item.command,
-                    };
-                })
-            ),
-        };
+		let tokenList = "";
+		// Generate buttons for each token
+		tokenAccounts.forEach((token, index) => {
+			const price = tokenPrices.get(token.address) || 0;
+			const isRugToken = price === 0;
+			const tokenInfo = `${index + 1} : ${token.name}(${token.symbol}): ${token.balance} ${token.symbol}`;
+			tokenList += isRugToken ? `${tokenInfo} ⚠️\n` : `${tokenInfo}\n`;
+		});
 
-        if (replaceId) {
-            botInstance.editMessageText(caption, {
-                message_id: replaceId,
-                chat_id: chatId,
-                parse_mode: "HTML",
-                disable_web_page_preview: false,
-                reply_markup,
-            });
-        } else {
-            await botInstance.sendMessage(chatId, caption, {
-                parse_mode: "HTML",
-                disable_web_page_preview: false,
-                reply_markup,
-            });
-        }
-    } catch (e) {
-        logger.error("portfolioStart Error", e);
-    }
+		const caption = "<b>Select a token to check assets\n\n</b>" + tokenList;
+
+		const Keyboard = tokenAccounts.map((token, index) => {
+			const price = tokenPrices.get(token.address) || 0;
+			const isRugToken = price === 0;
+			return [
+				{
+					text: `${index + 1}: ${token.name}(${token.symbol})${isRugToken ? ' ⚠️' : ''}`,
+					command: `pC_show_${token.address}`,
+				},
+			];
+		});
+
+		const keyboardList = Keyboard.concat([[{ text: "Close", command: "close" }]]);
+
+		const reply_markup = {
+			inline_keyboard: keyboardList.map((rowItem) =>
+				rowItem.map((item) => {
+					return {
+						text: item.text,
+						callback_data: item.command,
+					};
+				})
+			),
+		};
+
+		if (replaceId) {
+			botInstance.editMessageText(caption, {
+				message_id: replaceId,
+				chat_id: chatId,
+				parse_mode: "HTML",
+				disable_web_page_preview: false,
+				reply_markup,
+			});
+		} else {
+			await botInstance.sendMessage(chatId, caption, {
+				parse_mode: "HTML",
+				disable_web_page_preview: false,
+				reply_markup,
+			});
+		}
+	} catch (e) {
+		logger.error("portfolioStart Error", e);
+	}
 };
 
 const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: string) => {
-    if (!botInstance) {
-        logger.error("Bot instance not initialized in portfolioPad");
-        return;
-    }
+	if (!botInstance) {
+		logger.error("Bot instance not initialized in portfolioPad");
+		return;
+	}
 
-    try {
-        const wallet = await getWalletByChatId(chatId);
-        if (!wallet) {
-            botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
-            return;
-        }
-        const publicKey = getPublicKeyinFormat(wallet.privateKey);
-        const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress);
-        const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-        const price = await getTokenPriceUSD(tokenAddress);
-        const caption = `<b>Portfolio ${metaData?.name}(${metaData?.symbol})\n\n</b>
+	try {
+		const wallet = await getWalletByChatId(chatId);
+		if (!wallet) {
+			botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
+			return;
+		}
+		const publicKey = getPublicKeyinFormat(wallet.privateKey);
+		const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress);
+		const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
+		const price = await getTokenPriceUSD(tokenAddress);
+		const caption = `<b>Portfolio ${metaData?.name}(${metaData?.symbol})\n\n</b>
   Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}
   Price: $${price}
   Total Supply: ${metaData?.totalSupply} ${metaData?.symbol}
   Market Cap: $${price * (metaData?.totalSupply ?? 0)}`;
 
-        const keyboard = (tokenContractAddress: string) => [
-            [
-                {
-                    text: `${"Sell 50 %"}`,
-                    command: `pC_sell_50_${tokenContractAddress}`,
-                },
-                {
-                    text: `${"Sell 100 %"}`,
-                    command: `pC_sell_100_${tokenContractAddress}`,
-                },
-                {
-                    text: `${"Sell X %"}`,
-                    command: `pC_sell_x_${tokenContractAddress}`,
-                },
-            ],
-            [
-                {
-                    text: `👈 Back`,
-                    command: `pC_back`,
-                },
-            ],
-        ];
+		const keyboard = (tokenContractAddress: string) => [
+			[
+				{
+					text: `${"Sell 50 %"}`,
+					command: `pC_sell_50_${tokenContractAddress}`,
+				},
+				{
+					text: `${"Sell 100 %"}`,
+					command: `pC_sell_100_${tokenContractAddress}`,
+				},
+				{
+					text: `${"Sell X %"}`,
+					command: `pC_sell_x_${tokenContractAddress}`,
+				},
+			],
+			[
+				{
+					text: `👈 Back`,
+					command: `pC_back`,
+				},
+			],
+		];
 
-        const reply_markup = {
-            inline_keyboard: keyboard(tokenAddress).map((rowItem) =>
-                rowItem.map((item) => {
-                    return {
-                        text: item.text,
-                        callback_data: item.command,
-                    };
-                })
-            ),
-        };
+		const reply_markup = {
+			inline_keyboard: keyboard(tokenAddress).map((rowItem) =>
+				rowItem.map((item) => {
+					return {
+						text: item.text,
+						callback_data: item.command,
+					};
+				})
+			),
+		};
 
-        botInstance.editMessageText(caption, {
-            message_id: replaceId,
-            chat_id: chatId,
-            parse_mode: "HTML",
-            disable_web_page_preview: false,
-            reply_markup,
-        });
-    } catch (e) {
-        logger.error("PortfolioPad Error", e);
-    }
+		botInstance.editMessageText(caption, {
+			message_id: replaceId,
+			chat_id: chatId,
+			parse_mode: "HTML",
+			disable_web_page_preview: false,
+			reply_markup,
+		});
+	} catch (e) {
+		logger.error("PortfolioPad Error", e);
+	}
 };
 
 const sellPortfolio = async (chatId: string, replaceId: number, amount: string, tokenAddress: string) => {
-    if (!botInstance) {
-        logger.error("Bot instance not initialized in sellPortfolio");
-        return;
-    }
+	if (!botInstance) {
+		logger.error("Bot instance not initialized in sellPortfolio");
+		return;
+	}
 
-    try {
-        const wallet = await getWalletByChatId(chatId);
-        if (!wallet) {
-            botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
-            return;
-        }
-        const publicKey = getPublicKeyinFormat(wallet.privateKey);
-        const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress);
-        if (!tokenInfo) {
-            logger.error("No Token Balance Error");
-            logger.info("Wallet Address", { publicKey: publicKey.toBase58() });
-            logger.info("Token Address", { tokenAddress: tokenAddress });
-            return;
-        }
-        const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-        if (amount == "x") {
-            const caption = `<b>Please type token amount to sell</b>\n\n`;
-            const reply_markup = {
-                force_reply: true,
-            };
-            const new_msg = await botInstance.sendMessage(chatId, caption, {
-                parse_mode: "HTML",
-                reply_markup,
-            });
-            botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: TelegramBot.Message) => {
-                if (!botInstance) {
-                    logger.error("Bot instance not initialized in sellPortfolio onReplyToMessage callback");
-                    return;
-                }
+	try {
+		const wallet = await getWalletByChatId(chatId);
+		if (!wallet) {
+			botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
+			return;
+		}
+		const publicKey = getPublicKeyinFormat(wallet.privateKey);
+		const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress);
+		if (!tokenInfo) {
+			logger.error("No Token Balance Error");
+			logger.info("Wallet Address", { publicKey: publicKey.toBase58() });
+			logger.info("Token Address", { tokenAddress: tokenAddress });
+			return;
+		}
+		const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
+		if (amount == "x") {
+			const caption = `<b>Please type token amount to sell</b>\n\n`;
+			const reply_markup = {
+				force_reply: true,
+			};
+			const new_msg = await botInstance.sendMessage(chatId, caption, {
+				parse_mode: "HTML",
+				reply_markup,
+			});
+			botInstance.onReplyToMessage(new_msg.chat.id, new_msg.message_id, async (n_msg: TelegramBot.Message) => {
+				if (!botInstance) {
+					logger.error("Bot instance not initialized in sellPortfolio onReplyToMessage callback");
+					return;
+				}
 
-                botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
-                botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
+				botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
+				botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
 
-                if (n_msg.text) {
-                    const sellAmount = (parseInt(tokenInfo.amount) * parseFloat(n_msg.text)) / 100;
-                    await botInstance.sendMessage(
-                        chatId,
-                        `Selling ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) `,
-                        {
-                            parse_mode: "HTML",
-                        }
-                    );
+				if (n_msg.text) {
+					const sellAmount = (parseInt(tokenInfo.amount) * parseFloat(n_msg.text)) / 100;
+					await botInstance.sendMessage(
+						chatId,
+						`Selling ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) `,
+						{
+							parse_mode: "HTML",
+						}
+					);
 
-                    const result = await sell_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, sellAmount);
-                    if (result.success) {
-                        await botInstance.sendMessage(
-                            chatId,
-                            `Successfully sold ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
+					const result = await sell_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, sellAmount);
+					if (result.success) {
+						await botInstance.sendMessage(
+							chatId,
+							`Successfully sold ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
             https://solscan.io/tx/${result.txSignature}`,
-                            {
-                                parse_mode: "HTML",
-                            }
-                        );
-                    } else {
-                        await botInstance.sendMessage(chatId, `Failed to sell ${metaData?.name}(${metaData?.symbol}). Please try again.`, {
-                            parse_mode: "HTML",
-                        });
-                    }
-                }
-            });
-        } else {
-            const sellAmount = (parseInt(tokenInfo.amount) * parseInt(amount)) / 100;
-            await botInstance.sendMessage(
-                chatId,
-                `Selling ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) `,
-                {
-                    parse_mode: "HTML",
-                }
-            );
-            //TODO! make a function for the message
-            const result = await sell_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, sellAmount);
-            if (result.success) {
-                await botInstance.sendMessage(
-                    chatId,
-                    `Successfully sold ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
+							{
+								parse_mode: "HTML",
+							}
+						);
+					} else {
+						await botInstance.sendMessage(chatId, `Failed to sell ${metaData?.name}(${metaData?.symbol}). Please try again.`, {
+							parse_mode: "HTML",
+						});
+					}
+				}
+			});
+		} else {
+			const sellAmount = (parseInt(tokenInfo.amount) * parseInt(amount)) / 100;
+			await botInstance.sendMessage(
+				chatId,
+				`Selling ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) `,
+				{
+					parse_mode: "HTML",
+				}
+			);
+			//TODO! make a function for the message
+			const result = await sell_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, sellAmount);
+			if (result.success) {
+				await botInstance.sendMessage(
+					chatId,
+					`Successfully sold ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
 https://solscan.io/tx/${result.txSignature}`,
-                    {
-                        parse_mode: "HTML",
-                    }
-                );
-            } else {
-                await botInstance.sendMessage(chatId, `Failed to sell ${metaData?.name}(${metaData?.symbol}). Please try again.`, {
-                    parse_mode: "HTML",
-                });
-            }
-        }
-    } catch (e) {
-        logger.error("PortfolioPad Error", e);
-    }
+					{
+						parse_mode: "HTML",
+					}
+				);
+			} else {
+				await botInstance.sendMessage(chatId, `Failed to sell ${metaData?.name}(${metaData?.symbol}). Please try again.`, {
+					parse_mode: "HTML",
+				});
+			}
+		}
+	} catch (e) {
+		logger.error("PortfolioPad Error", e);
+	}
 };

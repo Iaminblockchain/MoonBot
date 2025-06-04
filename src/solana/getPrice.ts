@@ -48,10 +48,12 @@ export async function getTokenPriceUSD(ids: string, vsToken: string | null = nul
         }
 
         // If no price is found, throw an error
-        throw new Error(`No price found for token(s): ${ids}`);
+        return 0;
+        // throw new Error(`No price found for token(s): ${ids}`);
     } catch (error) {
         logger.error("Error fetching price:", error);
-        throw error;
+        return 0;
+        // throw error;
     }
 }
 
