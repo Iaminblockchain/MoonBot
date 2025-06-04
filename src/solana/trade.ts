@@ -24,7 +24,7 @@ import { getStatusTxnRetry, getTxInfoMetrics } from "./txhelpers";
 import { getReferralByRefereeId, updateRewards } from "../models/referralModel";
 import { JUPYTER_BASE_URL } from "../util/constants";
 import { createTimingMetrics } from "./timecalc";
-import { getSOLpriceUSD } from "./getPrice";
+import { getSOLpriceUSD, getTokenPriceSOL } from "./getPrice";
 
 export const WSOL_ADDRESS = "So11111111111111111111111111111111111111112";
 export const USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -252,17 +252,24 @@ export const buy_swap = async (
         if (result.executionInfo) {
             token_balance_change = Number(result.executionInfo.token_balance_change);
             sol_balance_change = Number(result.executionInfo.sol_balance_change);
-            execution_price = Number(result.executionInfo.execution_price);
+            //currently don't use price from chain
+            //execution_price = Number(result.executionInfo.execution_price);
             feesPaid = Number(result.executionInfo.feesPaid);
         }
 
-        // Get SOL price in USD
+        // jupyter
+        try {
+            execution_price = await getTokenPriceSOL(tokenAddress);
+            logger.info("Token to SOL price from Jupiter:", { execution_price });
+        } catch (error) {
+            logger.error("Error fetching token price in SOL:", error);
+        }
+
         try {
             solPriceUSD = await getSOLpriceUSD();
             logger.info("SOL price in USD:", { solPriceUSD });
         } catch (error) {
             logger.error("Error fetching SOL price:", error);
-            // Continue execution even if price fetch fails
         }
 
         let execution_price_usd = execution_price * solPriceUSD;
