@@ -5,7 +5,7 @@ import { getPublicKeyinFormat } from "./sellController";
 import { SOLANA_CONNECTION } from "..";
 import { getAllTokensWithBalance, sell_swap, WSOL_ADDRESS } from "../solana/trade";
 import { getTokenInfofromMint, getTokenMetaData } from "../solana/token";
-import { getTokenPriceBatch, getTokenPriceUSD } from "../solana/getPrice";
+import { getTokenPriceBatch } from "../solana/getPrice";
 import { logger } from "../logger";
 import { PublicKey } from "@solana/web3.js";
 import { getMint } from "@solana/spl-token";
@@ -58,17 +58,9 @@ const showPortfolioStart = async (chatId: string, replaceId?: number) => {
             return;
         }
 
-        // Get prices for all tokens in parallel
-        const pricePromises = tokenAccounts.map((token) =>
-            getTokenPriceUSD(token.address)
-                .then((price) => ({ address: token.address, price }))
-                .catch((error) => {
-                    return { address: token.address, price: 0 };
-                })
-        );
-
-        const priceResults = await Promise.all(pricePromises);
-        const tokenPrices = new Map(priceResults.map((result) => [result.address, result.price]));
+        // Get prices for all tokens in a single batch call
+        const tokenAddresses = tokenAccounts.map((token) => token.address);
+        const tokenPrices = await getTokenPriceBatch(tokenAddresses);
 
         let tokenList = "";
         // Generate buttons for each token
@@ -140,7 +132,8 @@ const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: str
         const publicKey = getPublicKeyinFormat(wallet.privateKey);
         const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress);
         const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-        const price = await getTokenPriceUSD(tokenAddress);
+        const priceMap = await getTokenPriceBatch([tokenAddress]);
+        const price = priceMap.get(tokenAddress) || 0;
         const caption = `<b>Portfolio ${metaData?.name}(${metaData?.symbol})\n\n</b>
   Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}
   Price: $${price}
