@@ -66,19 +66,19 @@ const showPortfolioStart = async (chatId: string, replaceId?: number) => {
         // Generate buttons for each token
         tokenAccounts.forEach((token, index) => {
             const price = tokenPrices.get(token.address) || 0;
-            const isRugToken = price === 0;
+            const isLiquidityRemoved = price === 0;
             const tokenInfo = `${index + 1} : ${token.name}(${token.symbol}): ${token.balance} ${token.symbol}`;
-            tokenList += isRugToken ? `${tokenInfo} ⚠️\n` : `${tokenInfo}\n`;
+            tokenList += isLiquidityRemoved ? `${tokenInfo} ⚠️\n` : `${tokenInfo}\n`;
         });
 
         const caption = "<b>Select a token to check assets\n\n</b>" + tokenList;
 
         const Keyboard = tokenAccounts.map((token, index) => {
             const price = tokenPrices.get(token.address) || 0;
-            const isRugToken = price === 0;
+            const isLiquidityRemoved = price === 0;
             return [
                 {
-                    text: `${index + 1}: ${token.name}(${token.symbol})${isRugToken ? " ⚠️" : ""}`,
+                    text: `${index + 1}: ${token.name}(${token.symbol})${isLiquidityRemoved ? " ⚠️" : ""}`,
                     command: `pC_show_${token.address}`,
                 },
             ];
