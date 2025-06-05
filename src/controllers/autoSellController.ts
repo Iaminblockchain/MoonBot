@@ -1,5 +1,5 @@
-import { botInstance, trade, removeTradeState } from "../bot";
-import { TRADE } from "../solana/types";
+import { botInstance, trade, removeTradeState, setTradeState } from "../bot";
+import { TRADE, SellStep, SoldStep } from "../solana/types";
 import { SOLANA_CONNECTION } from "..";
 import * as walletdb from "../models/walletModel";
 import * as solana from "../solana/trade";
@@ -54,8 +54,6 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
         chatId,
         currentPrice: formatPrice(price),
         startPrice: formatPrice(info.startPrice),
-        targetPrice: formatPrice(info.targetPrice),
-        stopPrice: formatPrice(info.stopPrice),
         priceChange: `${((price / info.startPrice - 1) * 100).toFixed(2)}%`,
     });
 
@@ -65,54 +63,73 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
         return;
     }
 
-    // Check if price is outside the target range (either above target or below low)
-    let hitTP = price > info.targetPrice;
-    let hitSL = price < info.stopPrice;
-    const shouldSell = hitTP || hitSL;
+    // Check if any sell step conditions are met
+    let shouldSell = false;
+    let sellReason = "";
+    let sellPercentage = 0;
+    let targetStep: SellStep | null = null;
 
-    // Calculate price offsets
-    const tpOffset = (((price - info.targetPrice) / info.targetPrice) * 100).toFixed(2);
-    const slOffset = (((price - info.stopPrice) / info.stopPrice) * 100).toFixed(2);
+    console.log(price, info.sellSteps);
+    // First check stop loss (first step)
+    if (info.sellSteps.length > 0) {
+        const stopLossStep = info.sellSteps[0];
+        if (price <= stopLossStep.targetPrice) {
+            shouldSell = true;
+            sellReason = `Stop Loss triggered at ${((stopLossStep.targetPrice / info.startPrice - 1) * 100).toFixed(2)}%`;
+            sellPercentage = stopLossStep.sellPercentage - info.soldTokenPercentage;
+            targetStep = stopLossStep;
+        }
+    }
+
+    // If stop loss not triggered, check limit orders
+    if (!shouldSell && info.sellSteps.length > 1) {
+        // Find the highest target price that's above current price
+        let highestTargetStep: SellStep | null = null;
+        for (let i = 1; i < info.sellSteps.length; i++) {
+            const step = info.sellSteps[i];
+            if (price >= step.targetPrice) {
+                if (!highestTargetStep || step.targetPrice > highestTargetStep.targetPrice) {
+                    highestTargetStep = step;
+                }
+            }
+        }
+
+        if (highestTargetStep) {
+            shouldSell = true;
+            sellReason = `Hit Limit Order at ${((highestTargetStep.targetPrice / info.startPrice - 1) * 100).toFixed(2)}%`;
+            sellPercentage = highestTargetStep.sellPercentage - info.soldTokenPercentage;
+            targetStep = highestTargetStep;
+        }
+    }
 
     if (!shouldSell) {
         logger.info(
             `AUTOSELL ${tokenAddress} Price Check Summary:\n` +
-                `Current Price: ${formatPrice(price)} (${((price / info.startPrice - 1) * 100).toFixed(2)}% from start)\n` +
-                `Target Price: ${formatPrice(info.targetPrice)} (${tpOffset}% from target)\n` +
-                `Stop Price: ${formatPrice(info.stopPrice)} (${slOffset}% from stop)\n` +
-                `Status: No sell trigger - Price within range`
+            `Current Price: ${formatPrice(price)} (${((price / info.startPrice - 1) * 100).toFixed(2)}% from start)\n` +
+            `Status: No sell trigger - Price within range`
         );
         return;
-    } else {
-        try {
-            let reason = "";
-            if (hitTP) {
-                reason = "Hit Take Profit";
-            } else if (hitSL) {
-                reason = "Hit Stop Loss";
-            } else {
-                reason = "Unknown reason";
-            }
-            logger.info(
-                `AUTOSELL ${reason} Triggered for ${tokenAddress}\n` +
-                    `Current Price: ${formatPrice(price)} (${((price / info.startPrice - 1) * 100).toFixed(2)}% from start)\n` +
-                    `Start Price: ${formatPrice(info.startPrice)}\n` +
-                    `Target Price: ${formatPrice(info.targetPrice)} (${tpOffset}% from target)\n` +
-                    `Stop Price: ${formatPrice(info.stopPrice)} (${slOffset}% from stop)\n` +
-                    `ChatId: ${chatId}`
-            );
-            ongoingSells.set(ongoingSellKey, true);
-            await executeSell(tokenAddress, price, chatId, info);
-        } catch (error) {
-            logger.error(`Error in processTrade for ${tokenAddress}:`, error);
-            throw error; // Re-throw to be handled by caller
-        } finally {
-            ongoingSells.delete(ongoingSellKey);
-        }
+    }
+
+    try {
+        logger.info(
+            `AUTOSELL ${sellReason} Triggered for ${tokenAddress}\n` +
+            `Current Price: ${formatPrice(price)} (${((price / info.startPrice - 1) * 100).toFixed(2)}% from start)\n` +
+            `Start Price: ${formatPrice(info.startPrice)}\n` +
+            `Sell Percentage: ${sellPercentage}%\n` +
+            `ChatId: ${chatId}`
+        );
+        ongoingSells.set(ongoingSellKey, true);
+        await executeSell(tokenAddress, price, chatId, info, sellPercentage, targetStep!);
+    } catch (error) {
+        logger.error(`Error in processTrade for ${tokenAddress}:`, error);
+        throw error;
+    } finally {
+        ongoingSells.delete(ongoingSellKey);
     }
 }
 
-async function executeSell(tokenAddress: string, price: number, chatId: string, info: TRADE) {
+async function executeSell(tokenAddress: string, price: number, chatId: string, info: TRADE, sellPercentage: number, targetStep: SellStep) {
     const wallet = await walletdb.getWalletByChatId(chatId);
     if (!wallet) {
         logger.warn(`No wallet found for chat ${chatId}`);
@@ -127,12 +144,13 @@ async function executeSell(tokenAddress: string, price: number, chatId: string, 
         return;
     }
 
+    // Calculate amount to sell based on percentage
+    const amountToSell = Math.floor(splAmount * (sellPercentage / 100));
+
     //tried once only, on retry policy
-    let result = await solana.sell_swap(SOLANA_CONNECTION, wallet.privateKey, info.contractAddress, splAmount);
+    let result = await solana.sell_swap(SOLANA_CONNECTION, wallet.privateKey, info.contractAddress, amountToSell);
 
-    //const ongoingSellKey = getOngoingSellKey(tokenAddress, chatId);
-
-    await handleSellResult(result, tokenAddress, price, chatId, info);
+    await handleSellResult(result, tokenAddress, price, chatId, info, sellPercentage, targetStep);
 }
 
 async function handleSellResult(
@@ -148,7 +166,9 @@ async function handleSellResult(
     tokenAddress: string,
     price: number,
     chatId: string,
-    info: TRADE
+    info: TRADE,
+    sellPercentage: number,
+    targetStep: SellStep
 ) {
     if (!botInstance) {
         logger.error("Bot instance not initialized in handleSellResult");
@@ -157,11 +177,11 @@ async function handleSellResult(
 
     try {
         if (result.success) {
-            //TODO! can get this info earlier
             const metadata = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-
-            //TODO! review calculate PnL
             const profitLoss = ((price / info.startPrice - 1) * 100).toFixed(1);
+            const priceIncreasement = ((price / info.startPrice - 1) * 100);
+            const remainingPercentage = 100 - (info.soldTokenPercentage + sellPercentage);
+
             const msg = await getSellSuccessMessage(
                 `http://solscan.io/tx/${result.txSignature}`,
                 tokenAddress,
@@ -171,9 +191,46 @@ async function handleSellResult(
                 result.token_balance_change ?? 0,
                 result.fees ?? 0,
                 result.timingMetrics,
-                metadata
+                metadata,
+                {
+                    priceIncreasement,
+                    soldPercentage: sellPercentage,
+                    remainingPercentage
+                }
             );
             await sendMessageToUser(chatId, msg);
+
+            // Update trade with sold step
+            const soldStep: SoldStep = {
+                soldPrice: price,
+                soldPercentage: sellPercentage,
+                soldTokenAmount: result.token_balance_change ?? 0,
+                soldTime: new Date()
+            };
+
+            // Update sell steps - remove steps with target price <= current price (except stop loss)
+            const updatedSellSteps = info.sellSteps.filter(step => 
+                step === info.sellSteps[0] || // Keep stop loss step
+                step.targetPrice > price // Keep steps with higher target prices
+            );
+            const updatedSoldSteps = [...info.soldSteps, soldStep];
+
+            // Update trade state
+            const updatedTrade: TRADE = {
+                ...info,
+                soldTokenAmount: info.soldTokenAmount + (result.token_balance_change ?? 0),
+                soldTokenPercentage: info.soldTokenPercentage + sellPercentage,
+                sellSteps: updatedSellSteps,
+                soldSteps: updatedSoldSteps
+            };
+
+            // If all tokens are sold, remove the trade
+            if (updatedTrade.soldTokenPercentage >= 100) {
+                removeTradeState(chatId, tokenAddress);
+            } else {
+                // Update trade state with new values
+                setTradeState(chatId, tokenAddress, price, updatedTrade);
+            }
         } else {
             const errorMessage = result.error ? `\nReason: ${result.error}` : "\nReason: Transaction failed to confirm";
             const metadata = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
@@ -182,8 +239,6 @@ async function handleSellResult(
         }
     } catch (error) {
         logger.error(`Error sending message for ${tokenAddress}:`, error);
-    } finally {
-        removeTradeState(chatId, tokenAddress);
     }
 }
 
@@ -280,13 +335,25 @@ const getSellSuccessMessage = async (
     tokenBalanceChange: number,
     fees: number,
     timingMetrics?: TimingMetrics,
-    metadata?: { name: string; symbol: string } | null
+    metadata?: { name: string; symbol: string } | null,
+    sellInfo?: {
+        priceIncreasement: number;
+        soldPercentage: number;
+        remainingPercentage: number;
+    }
 ) => {
     const tokenInfo = tokenBalanceChange ? `\nTokens sold: ${Math.abs(tokenBalanceChange).toLocaleString()}` : "";
     const solInfo = solAmount ? `\nSOL Amount: ${Math.abs(solAmount).toFixed(6)}` : "";
     const tokenName = metadata ? `${metadata.name}(${metadata.symbol})` : tokenAddress;
 
     let message = `${trade_type} successful\nToken: ${tokenName}\n${solInfo}\n${tokenInfo}\n${trx}`;
+
+    if (sellInfo) {
+        message += `\n\nSell Details:`;
+        message += `\nPrice Increase: ${sellInfo.priceIncreasement.toFixed(2)}%`;
+        message += `\nSold Percentage: ${sellInfo.soldPercentage.toFixed(2)}%`;
+        message += `\nRemaining Percentage: ${sellInfo.remainingPercentage.toFixed(2)}%`;
+    }
 
     if (timingMetrics) {
         message += `\n\nTiming Information:`;

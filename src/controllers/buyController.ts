@@ -14,6 +14,7 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import { sendMessageToUser } from "../bot";
 import { AutoBuySettings } from "./autoBuyController";
+import { TRADE } from "../solana/types";
 
 // Add minimum balance check
 const MIN_SOL_BALANCE = 0.01;
@@ -417,8 +418,8 @@ export const autoBuyContract = async (
                 chatId,
                 tokenAddress: contractAddress,
                 signalSource: tradeSignal,
-                buyPriceUsd: result.execution_price_usd,
-                buyPriceSol: result.execution_price || 0,
+                buyPriceUsd: trxInfo.tokenUsdPrice || 0,
+                buyPriceSol: trxInfo.tokenSolPrice || 0,
                 stopLossPercentage: settings.stopLoss ? settings.stopLoss : 0,
                 takeProfitPercentage: settings.takeProfit ? settings.takeProfit : 0,
                 solAmount,
@@ -435,7 +436,7 @@ export const autoBuyContract = async (
             console.log(JSON.stringify(settings));
 
             // Set up sell steps based on limit orders or stop loss/take profit
-            if (settings.limitOrders && settings.limitOrders.length > 0) {
+            if (settings.limitOrderActive && settings.limitOrders && settings.limitOrders.length > 0) {
                 // If limit orders are set, use them to create sell steps
                 await positiondb.setSellSteps(
                     chatId,
@@ -456,7 +457,9 @@ export const autoBuyContract = async (
 
             if (settings.takeProfit != null && settings.stopLoss != null) {
                 logger.info("set take profit");
-                const price = result.execution_price;
+                // const price = result.execution_price;
+                const keypair = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
+                const price = (await parseTransaction(result.txSignature || "", contractAddress, keypair.publicKey.toString(), SOLANA_CONNECTION)).tokenSolPrice || 0;
                 // Calculate take profit and stop loss prices
                 const takeProfitPrice = price * (1 + settings.takeProfit / 100);
                 const stopLossPrice = price * (1 - settings.stopLoss / 100);
@@ -466,7 +469,7 @@ export const autoBuyContract = async (
                     `Token: <code>${contractAddress}</code>\n` +
                     `Current Price: ${price.toFixed(9)} SOL\n`;
 
-                if (settings.limitOrders && settings.limitOrders.length > 0) {
+                if (settings.limitOrderActive && settings.limitOrders && settings.limitOrders.length > 0) {
                     message += `\nLimit Order Steps:\n`;
                     let cumulativePercentage = 0;
                     for (const order of settings.limitOrders) {
@@ -484,7 +487,22 @@ export const autoBuyContract = async (
 
                 botInstance.sendMessage(chatId, message, { parse_mode: "HTML" });
                 //set SL and TP in DB which will be queried
-                setTradeState(chatId, contractAddress, price, takeProfitPrice, stopLossPrice);
+                const position = await positiondb.getPositionByTokenAddress(chatId, contractAddress);
+                const tradeData: TRADE = {
+                    contractAddress,
+                    startPrice: price,
+                    targetPrice: takeProfitPrice,
+                    stopPrice: stopLossPrice,
+                    totalTokenAmount: result.token_balance_change,
+                    soldTokenAmount: 0,
+                    soldTokenPercentage: 0,
+                    sellSteps: position?.sellSteps.map(step => ({
+                        targetPrice: price * (1 + step.priceIncreasement / 100),
+                        sellPercentage: step.sellPercentage
+                    })) || [],
+                    soldSteps: []
+                };
+                setTradeState(chatId, contractAddress, price, tradeData);
                 AddBuynumber(chatId.toString(), contractAddress);
             }
         } else {

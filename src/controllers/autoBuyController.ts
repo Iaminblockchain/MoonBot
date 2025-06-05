@@ -19,6 +19,7 @@ export interface AutoBuySettings {
     stopLoss: number | null;
     repetitiveBuy: number;
     limitOrders?: { priceIncreasement: number; sellPercentage: number }[];
+    limitOrderActive: boolean;
 }
 export const autoBuySettings = new Map<string, AutoBuySettings>();
 
@@ -52,6 +53,7 @@ function promptBuyAmount(chatId: string) {
                     takeProfit: null,
                     stopLoss: null,
                     repetitiveBuy: 1,
+                    limitOrderActive: false,
                 });
 
                 // Now prompt for maximum slippage.
@@ -305,7 +307,8 @@ export const setAutotradeSignal = async (chatId: string, contractAddress: string
         limitOrders: trade.limitOrderSteps?.map(step => ({
             priceIncreasement: step.priceIncrement,
             sellPercentage: step.sellPercentage
-        }))
+        })),
+        limitOrderActive: trade.limitOrderActive
     };
 
     triggerAutoBuy(chatId, contractAddress, settings, trade.signal);
@@ -367,7 +370,8 @@ function triggerAutoBuy(chatId: string, contractAddress: string, settings: AutoB
             takeProfit,
             stopLoss,
             repetitiveBuy,
-            limitOrders: settings.limitOrders
+            limitOrders: settings.limitOrders,
+            limitOrderActive: settings.limitOrderActive
         },
         contractAddress,
         signal

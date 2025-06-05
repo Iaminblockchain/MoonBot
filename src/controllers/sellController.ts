@@ -109,11 +109,13 @@ const onClickSell = async (query: TelegramBot.CallbackQuery, fraction: number, w
             const profitLossPercentage = (((trxInfo.tokenSolPrice - position.buyPriceSol) / position.buyPriceSol) * 100).toFixed(2);
             const profitLossText = profitLoss >= 0 ? "Profit" : "Loss";
 
+            const keypair = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
+            
             const message =
                 `✅ <b>Position Closed Successfully!</b>\n\n` +
                 `Token: ${tokenMetaData.symbol} (${tokenMetaData.name})\n` +
-                `Price: ${formatPrice(result.execution_price || 0)}\n` +
-                `Price USD: ${formatPrice(result.execution_price_usd || 0)}\n` +
+                `Price: ${formatPrice(trxInfo.tokenSolPrice || 0)}\n` +
+                `Price USD: ${formatPrice(trxInfo.tokenUsdPrice || 0)}\n` +
                 `Amount Sold: ${tokenAmount} ${tokenMetaData.symbol}\n` +
                 `Buy Price: ${position.buyPriceSol?.toFixed(9) || "0"} SOL ($${position.buyPriceUsd?.toFixed(6) || "0"})\n` +
                 `Sell Price: ${trxInfo.tokenSolPrice.toFixed(9)} SOL ($${trxInfo.tokenUsdPrice.toFixed(6)})\n` +
