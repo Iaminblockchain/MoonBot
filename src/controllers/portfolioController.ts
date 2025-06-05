@@ -138,7 +138,7 @@ const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: str
   Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}
   Price: ${price ? "$" + price : "⚠️ No price available"}
   Total Supply: ${metaData?.totalSupply} ${metaData?.symbol}
-  Market Cap: ${price ? "$" + (price * (metaData?.totalSupply ?? 0)) : "⚠️ No Market Cap available"}`;
+  Market Cap: ${price ? "$" + price * (metaData?.totalSupply ?? 0) : "⚠️ No Market Cap available"}`;
 
         const keyboard = (tokenContractAddress: string) => [
             [
