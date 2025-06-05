@@ -353,8 +353,17 @@ export const sell_swap = async (
         if (result.executionInfo) {
             token_balance_change = Number(result.executionInfo.token_balance_change);
             sol_balance_change = Number(result.executionInfo.sol_balance_change);
-            execution_price = Number(result.executionInfo.execution_price);
+            //currently don't use price from chain
+            //execution_price = Number(result.executionInfo.execution_price);
             feesPaid = Number(result.executionInfo.feesPaid);
+        }
+
+        // Get token price in SOL
+        try {
+            execution_price = await getTokenPriceSOL(tokenAddress);
+            logger.info("Token to SOL price from Jupiter:", { execution_price });
+        } catch (error) {
+            logger.error("Error fetching token price in SOL:", error);
         }
 
         // Get SOL price in USD
