@@ -10,12 +10,24 @@ import { getSolBalance } from "../solana/util";
 import { getTokenMetaData } from "../solana/token";
 import { PositionStatus } from "../models/positionModel";
 import { parseTransaction } from "../solana/txhelpers";
-import { Keypair } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import { sendMessageToUser } from "../bot";
+import { AutoBuySettings } from "./autoBuyController";
 
 // Add minimum balance check
 const MIN_SOL_BALANCE = 0.01;
+
+interface TradeSettings {
+    enabled: boolean;
+    amount: number;
+    isPercentage: boolean;
+    maxSlippage: number;
+    takeProfit: number | null;
+    repetitiveBuy: number;
+    stopLoss: number | null;
+    limitOrders?: { priceIncreasement: number; sellPercentage: number }[];
+}
 
 const getBuySuccessMessage = async (
     trx: string,
@@ -36,14 +48,7 @@ const getBuySuccessMessage = async (
             totalDuration: number;
         };
     },
-    settings?: {
-        amount: number;
-        isPercentage: boolean;
-        maxSlippage: number;
-        takeProfit: number | null;
-        repetitiveBuy: number;
-        stopLoss: number | null;
-    },
+    settings?: AutoBuySettings,
     tradeSignal?: string
 ) => {
     const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
@@ -125,11 +130,19 @@ export const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: nu
 
             logger.info("onClickBuy success", { chatId, txSignature: result.txSignature, tokenBalanceChange, sol_balance_change });
 
+            const keypair = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
+            const trxInfo = await parseTransaction(
+                result.txSignature!,
+                trade.tokenAddress,
+                keypair.publicKey.toString(),
+                SOLANA_CONNECTION
+            );
+
             const msg = await getBuySuccessMessage(
                 trxLink,
                 trade.tokenAddress,
                 "Buy",
-                result.execution_price,
+                trxInfo.tokenSolPrice || 0,
                 tokenBalanceChange,
                 result.sol_balance_change,
                 result.feesPaid,
@@ -205,7 +218,7 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
                     trx,
                     trade.tokenAddress,
                     "Buy",
-                    trxInfo.executionPrice || 0,
+                    trxInfo.tokenSolPrice || 0,
                     result.token_balance_change,
                     trxInfo.netBuySolAmount || 0,
                     trxInfo.transactionFee || 0,
@@ -310,14 +323,7 @@ const AddBuynumber = (chatId: string, contractAddress: string) => {
 
 export const autoBuyContract = async (
     chatId: string,
-    settings: {
-        amount: number;
-        isPercentage: boolean;
-        maxSlippage: number;
-        takeProfit: number | null;
-        repetitiveBuy: number;
-        stopLoss: number | null;
-    },
+    settings: AutoBuySettings,
     contractAddress: string,
     tradeSignal?: string
 ) => {
@@ -378,24 +384,30 @@ export const autoBuyContract = async (
             wallet.privateKey,
             contractAddress,
             solAmount * 10 ** 9,
-            settings.maxSlippage * 100
+            (settings.maxSlippage || 0) * 100
         );
 
         if (result.success) {
             let trx = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "";
             let tokenBalanceChange = Number(result.token_balance_change);
 
+            const keypair = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
+            const trxInfo = await parseTransaction(
+                result.txSignature!,
+                contractAddress,
+                keypair.publicKey.toString(),
+                SOLANA_CONNECTION
+            );
+
             const msg = await getBuySuccessMessage(
                 trx,
                 contractAddress,
                 trade_type,
-                result.execution_price || 0,
+                trxInfo.tokenSolPrice || 0,
                 tokenBalanceChange,
-                result.sol_balance_change || 0,
+                result.sol_balance_change,
                 result.feesPaid,
-                result.timingMetrics,
-                settings,
-                tradeSignal
+                result.timingMetrics
             );
             botInstance.sendMessage(chatId, msg);
 
@@ -411,10 +423,36 @@ export const autoBuyContract = async (
                 takeProfitPercentage: settings.takeProfit ? settings.takeProfit : 0,
                 solAmount,
                 tokenAmount: result.token_balance_change,
+                soldTokenAmount: 0,
+                soldTokenPercentage: 0,
+                sellSteps: [],
+                soldSteps: [],
                 buyTime: new Date(),
                 status: PositionStatus.OPEN,
             };
-            await positiondb.createPosition(position);
+            const positionId = await positiondb.createPosition(position);
+
+            console.log(JSON.stringify(settings));
+
+            // Set up sell steps based on limit orders or stop loss/take profit
+            if (settings.limitOrders && settings.limitOrders.length > 0) {
+                // If limit orders are set, use them to create sell steps
+                await positiondb.setSellSteps(
+                    chatId,
+                    contractAddress,
+                    settings.limitOrders,
+                    settings.stopLoss || undefined
+                );
+            } else {
+                // If no limit orders, use stop loss and take profit
+                await positiondb.setSellSteps(
+                    chatId,
+                    contractAddress,
+                    undefined,
+                    settings.stopLoss || undefined,
+                    settings.takeProfit || undefined
+                );
+            }
 
             if (settings.takeProfit != null && settings.stopLoss != null) {
                 logger.info("set take profit");
@@ -424,15 +462,27 @@ export const autoBuyContract = async (
                 const stopLossPrice = price * (1 - settings.stopLoss / 100);
                 logger.info(`TRIGGER SET price ${price} set TP ${takeProfitPrice}  SL ${stopLossPrice}`);
 
-                botInstance.sendMessage(
-                    chatId,
-                    `Auto-sell Registered!\n\n` +
-                        `Token: <code>${contractAddress}</code>\n` +
-                        `Current Price: ${price.toFixed(9)} SOL\n` +
-                        `Take Profit: ${takeProfitPrice.toFixed(9)} SOL (${settings.takeProfit}%)\n` +
-                        `Stop Loss: ${stopLossPrice.toFixed(9)} SOL (${settings.stopLoss}%)`,
-                    { parse_mode: "HTML" }
-                );
+                let message = `Auto-sell Registered!\n\n` +
+                    `Token: <code>${contractAddress}</code>\n` +
+                    `Current Price: ${price.toFixed(9)} SOL\n`;
+
+                if (settings.limitOrders && settings.limitOrders.length > 0) {
+                    message += `\nLimit Order Steps:\n`;
+                    let cumulativePercentage = 0;
+                    for (const order of settings.limitOrders) {
+                        cumulativePercentage += order.sellPercentage;
+                        const targetPrice = price * (1 + order.priceIncreasement / 100);
+                        message += `• Sell ${order.sellPercentage}% at ${targetPrice.toFixed(9)} SOL (${order.priceIncreasement}%)\n`;
+                    }
+                    if (settings.stopLoss) {
+                        message += `\nStop Loss: ${stopLossPrice.toFixed(9)} SOL (${settings.stopLoss}%)`;
+                    }
+                } else {
+                    message += `Take Profit: ${takeProfitPrice.toFixed(9)} SOL (${settings.takeProfit}%)\n` +
+                        `Stop Loss: ${stopLossPrice.toFixed(9)} SOL (${settings.stopLoss}%)`;
+                }
+
+                botInstance.sendMessage(chatId, message, { parse_mode: "HTML" });
                 //set SL and TP in DB which will be queried
                 setTradeState(chatId, contractAddress, price, takeProfitPrice, stopLossPrice);
                 AddBuynumber(chatId.toString(), contractAddress);
