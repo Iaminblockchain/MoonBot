@@ -65,8 +65,8 @@ const showPortfolioStart = async (chatId: string, replaceId?: number) => {
         let tokenList = "";
         // Generate buttons for each token
         tokenAccounts.forEach((token, index) => {
-            const price = tokenPrices.get(token.address) || 0;
-            const isLiquidityRemoved = price === 0;
+            const price = tokenPrices.get(token.address);
+            const isLiquidityRemoved = !price || price === 0;
             const tokenInfo = `${index + 1} : ${token.name}(${token.symbol}): ${token.balance} ${token.symbol}`;
             tokenList += isLiquidityRemoved ? `${tokenInfo} ⚠️\n` : `${tokenInfo}\n`;
         });
@@ -74,8 +74,8 @@ const showPortfolioStart = async (chatId: string, replaceId?: number) => {
         const caption = "<b>Select a token to check assets\n\n</b>" + tokenList;
 
         const Keyboard = tokenAccounts.map((token, index) => {
-            const price = tokenPrices.get(token.address) || 0;
-            const isLiquidityRemoved = price === 0;
+            const price = tokenPrices.get(token.address);
+            const isLiquidityRemoved = !price || price === 0;
             return [
                 {
                     text: `${index + 1}: ${token.name}(${token.symbol})${isLiquidityRemoved ? " ⚠️" : ""}`,
@@ -133,12 +133,12 @@ const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: str
         const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress);
         const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
         const priceMap = await getTokenPriceBatch([tokenAddress]);
-        const price = priceMap.get(tokenAddress) || 0;
+        const price = priceMap.get(tokenAddress);
         const caption = `<b>Portfolio ${metaData?.name}(${metaData?.symbol})\n\n</b>
   Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}
-  Price: $${price}
+  Price: ${price ? "$" + price : "⚠️ No price available"}
   Total Supply: ${metaData?.totalSupply} ${metaData?.symbol}
-  Market Cap: $${price * (metaData?.totalSupply ?? 0)}`;
+  Market Cap: ${price ? "$" + (price * (metaData?.totalSupply ?? 0)) : "⚠️ No Market Cap available"}`;
 
         const keyboard = (tokenContractAddress: string) => [
             [
