@@ -6,7 +6,7 @@ import * as solana from "../solana/trade";
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import { getSPLBalance } from "./autoBuyController";
-import { getTokenPriceBatch } from "../solana/getPrice";
+import { getTokenPriceBatchSOL } from "../solana/getPrice";
 import { logger } from "../logger";
 import { getTokenMetaData } from "../solana/token";
 import { formatPrice } from "../solana/util";
@@ -197,48 +197,10 @@ export const autoSellHandler = async () => {
     const { tokenArray, tradeInfoMap } = getTokenAddresses(trade, logger);
     logger.info(`Starting autosell price check for ${tokenArray.length} tokens`);
 
-    const batchLength = 100;
-    const batches = [];
+    // Get prices for all tokens in batches
+    const prices = await getTokenPriceBatchSOL(tokenArray);
 
-    // Split tokens into batches
-    for (let i = 0; i < tokenArray.length; i += batchLength) {
-        batches.push(tokenArray.slice(i, i + batchLength));
-    }
-
-    logger.info(`Split tokens into ${batches.length} batches for price checking`);
-
-    // Execute all batch requests in parallel with error handling
-    const batchResults = await Promise.allSettled(batches.map((batch) => getTokenPriceBatch(batch)));
-
-    // Combine all results into a single Map, handling failed batches
-    const prices = new Map<string, number>();
-    let successfulBatches = 0;
-    let failedBatches = 0;
-    let totalPricesFetched = 0;
-
-    for (const result of batchResults) {
-        if (result.status === "fulfilled") {
-            successfulBatches++;
-            for (const [token, price] of result.value) {
-                totalPricesFetched++;
-                logger.info(`AUTOSELL Price Check - Token: ${token}, Price: ${formatPrice(price)}`);
-                prices.set(token, price);
-            }
-        } else {
-            failedBatches++;
-            logger.error("Batch price fetch failed:", result.reason);
-        }
-    }
-
-    logger.info(`AUTOSELL Price Check Summary:`, {
-        totalTokens: tokenArray.length,
-        successfulBatches,
-        failedBatches,
-        totalPricesFetched,
-        successRate: `${((successfulBatches / batches.length) * 100).toFixed(2)}%`,
-    });
-
-    // Process each price in the combined results
+    // Process each price in the results
     for (const [tokenAddress, price] of prices) {
         const tradeInfos = tradeInfoMap.get(tokenAddress);
         if (!tradeInfos) continue;
