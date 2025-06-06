@@ -5,7 +5,7 @@ import { getPublicKeyinFormat } from "./sellController";
 import { SOLANA_CONNECTION } from "..";
 import { getAllTokensWithBalance, sell_swap, WSOL_ADDRESS } from "../solana/trade";
 import { getTokenInfofromMint, getTokenMetaData } from "../solana/token";
-import { getTokenPriceBatch } from "../solana/getPrice";
+import { getTokenPriceBatchSOL } from "../solana/getPrice";
 import { logger } from "../logger";
 import { PublicKey } from "@solana/web3.js";
 import { getMint } from "@solana/spl-token";
@@ -60,7 +60,7 @@ const showPortfolioStart = async (chatId: string, replaceId?: number) => {
 
         // Get prices for all tokens in a single batch call
         const tokenAddresses = tokenAccounts.map((token) => token.address);
-        const tokenPrices = await getTokenPriceBatch(tokenAddresses);
+        const tokenPrices = await getTokenPriceBatchSOL(tokenAddresses);
 
         let tokenList = "";
         // Generate buttons for each token
@@ -132,7 +132,7 @@ const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: str
         const publicKey = getPublicKeyinFormat(wallet.privateKey);
         const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress);
         const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-        const priceMap = await getTokenPriceBatch([tokenAddress]);
+        const priceMap = await getTokenPriceBatchSOL([tokenAddress]);
         const price = priceMap.get(tokenAddress);
         const caption = `<b>Portfolio ${metaData?.name}(${metaData?.symbol})\n\n</b>
   Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}
