@@ -5,8 +5,10 @@ import { getPublicKeyinFormat } from "./sellController";
 import { SOLANA_CONNECTION } from "..";
 import { getAllTokensWithBalance, sell_swap, WSOL_ADDRESS } from "../solana/trade";
 import { getTokenInfofromMint, getTokenMetaData } from "../solana/token";
-import { getTokenPriceUSD } from "../solana/getPrice";
+import { getTokenPriceBatchSOL } from "../solana/getPrice";
 import { logger } from "../logger";
+import { PublicKey } from "@solana/web3.js";
+import { getMint } from "@solana/spl-token";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     if (!botInstance) {
@@ -55,18 +57,28 @@ const showPortfolioStart = async (chatId: string, replaceId?: number) => {
             botInstance.sendMessage(chatId, "⚠️ No tokens found in your wallet.");
             return;
         }
+
+        // Get prices for all tokens in a single batch call
+        const tokenAddresses = tokenAccounts.map((token) => token.address);
+        const tokenPrices = await getTokenPriceBatchSOL(tokenAddresses);
+
         let tokenList = "";
         // Generate buttons for each token
-        tokenAccounts.forEach((token, index) => [
-            (tokenList += `${index + 1} : ${token.name}(${token.symbol}): ${token.balance} ${token.symbol}\n`),
-        ]);
+        tokenAccounts.forEach((token, index) => {
+            const price = tokenPrices.get(token.address);
+            const isLiquidityRemoved = !price || price === 0;
+            const tokenInfo = `${index + 1} : ${token.name}(${token.symbol}): ${token.balance} ${token.symbol}`;
+            tokenList += isLiquidityRemoved ? `${tokenInfo} ⚠️\n` : `${tokenInfo}\n`;
+        });
 
         const caption = "<b>Select a token to check assets\n\n</b>" + tokenList;
 
         const Keyboard = tokenAccounts.map((token, index) => {
+            const price = tokenPrices.get(token.address);
+            const isLiquidityRemoved = !price || price === 0;
             return [
                 {
-                    text: `${index + 1}: ${token.name}(${token.symbol})`,
+                    text: `${index + 1}: ${token.name}(${token.symbol})${isLiquidityRemoved ? " ⚠️" : ""}`,
                     command: `pC_show_${token.address}`,
                 },
             ];
@@ -120,12 +132,13 @@ const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: str
         const publicKey = getPublicKeyinFormat(wallet.privateKey);
         const tokenInfo = await getTokenInfofromMint(publicKey, tokenAddress);
         const metaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
-        const price = await getTokenPriceUSD(tokenAddress);
+        const priceMap = await getTokenPriceBatchSOL([tokenAddress]);
+        const price = priceMap.get(tokenAddress);
         const caption = `<b>Portfolio ${metaData?.name}(${metaData?.symbol})\n\n</b>
   Balance: ${tokenInfo?.uiAmount} ${metaData?.symbol}
-  Price: $${price}
+  Price: ${price ? "$" + price : "⚠️ No price available"}
   Total Supply: ${metaData?.totalSupply} ${metaData?.symbol}
-  Market Cap: $${price * (metaData?.totalSupply ?? 0)}`;
+  Market Cap: ${price ? "$" + price * (metaData?.totalSupply ?? 0) : "⚠️ No Market Cap available"}`;
 
         const keyboard = (tokenContractAddress: string) => [
             [
