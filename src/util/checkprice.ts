@@ -1,4 +1,4 @@
-import { getTokenPriceUSD, getTokenPriceBatch, getTokenPriceSOL } from "../solana/getPrice";
+import { getTokenPriceBatchSOL, getTokenPriceSOL } from "../solana/getPrice";
 import * as dotenv from "dotenv";
 import { logger } from "../logger";
 
@@ -25,7 +25,7 @@ async function checkPrice() {
 
         logger.info("\nGetting prices in batch:");
         try {
-            const batchPrices = await getTokenPriceBatch(tokenMints);
+            const batchPrices = await getTokenPriceBatchSOL(tokenMints);
             for (const [mint, price] of batchPrices.entries()) {
                 logger.info(`${mint}: ${price} SOL`);
             }
