@@ -6,7 +6,7 @@ import * as solana from "../solana/trade";
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import { getSPLBalance } from "./autoBuyController";
-import { getTokenPriceBatch } from "../solana/getPrice";
+import { getTokenPriceBatch, getTokenPriceInSOL } from "../solana/getPrice";
 import { logger } from "../logger";
 import { getTokenMetaData } from "../solana/token";
 import { formatPrice } from "../solana/util";
@@ -68,26 +68,39 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
     let sellReason = "";
     let sellPercentage = 0;
     let targetStep: SellStep | null = null;
+    let startPrice = info.startPrice;
+    console.log(new Date().toISOString(), " current price: ", price, " startPrice: ", startPrice);
+    console.log("tradeState:", info);
 
-    console.log(price, info.sellSteps);
     // First check stop loss (first step)
     if (info.sellSteps.length > 0) {
         const stopLossStep = info.sellSteps[0];
-        if (price <= stopLossStep.targetPrice) {
+        console.log("sl check: ", price <= stopLossStep.targetPrice && stopLossStep.targetPrice <= startPrice);
+        if (price <= stopLossStep.targetPrice && stopLossStep.targetPrice <= startPrice) {
             shouldSell = true;
             sellReason = `Stop Loss triggered at ${((stopLossStep.targetPrice / info.startPrice - 1) * 100).toFixed(2)}%`;
             sellPercentage = stopLossStep.sellPercentage - info.soldTokenPercentage;
             targetStep = stopLossStep;
+
+            // Remove stop loss step and update trade state
+            const updatedSellSteps = info.sellSteps.filter(step => step !== stopLossStep);
+            const updatedTrade: TRADE = {
+                ...info,
+                sellSteps: updatedSellSteps
+            };
+            setTradeState(chatId, tokenAddress, price, updatedTrade);
+            console.log("updatedTradestate:", updatedTrade);
         }
     }
 
     // If stop loss not triggered, check limit orders
-    if (!shouldSell && info.sellSteps.length > 1) {
+    if (!shouldSell && info.sellSteps.length > 0) {
         // Find the highest target price that's above current price
         let highestTargetStep: SellStep | null = null;
-        for (let i = 1; i < info.sellSteps.length; i++) {
+        for (let i = 0; i < info.sellSteps.length; i++) {
             const step = info.sellSteps[i];
-            if (price >= step.targetPrice) {
+            console.log("tp check: ", price >= step.targetPrice && step.targetPrice >= startPrice);
+            if (price >= step.targetPrice && step.targetPrice >= startPrice) {
                 if (!highestTargetStep || step.targetPrice > highestTargetStep.targetPrice) {
                     highestTargetStep = step;
                 }
@@ -99,6 +112,22 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
             sellReason = `Hit Limit Order at ${((highestTargetStep.targetPrice / info.startPrice - 1) * 100).toFixed(2)}%`;
             sellPercentage = highestTargetStep.sellPercentage - info.soldTokenPercentage;
             targetStep = highestTargetStep;
+
+            // Calculate the price increase percentage of the executed step
+            const executedStepPriceIncrease = ((highestTargetStep.targetPrice / info.startPrice - 1) * 100);
+
+            // Remove the executed step and any steps with lower price targets
+            const updatedSellSteps = info.sellSteps.filter(step =>
+                step.targetPrice > targetStep!.targetPrice // Keep steps with higher price targets
+            );
+
+            // Update trade state immediately
+            const updatedTrade: TRADE = {
+                ...info,
+                sellSteps: updatedSellSteps
+            };
+            setTradeState(chatId, tokenAddress, price, updatedTrade);
+            console.log("updatedTradestate:", updatedTrade);
         }
     }
 
@@ -120,6 +149,7 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
             `ChatId: ${chatId}`
         );
         ongoingSells.set(ongoingSellKey, true);
+        console.log(sellPercentage, targetStep);
         await executeSell(tokenAddress, price, chatId, info, sellPercentage, targetStep!);
     } catch (error) {
         logger.error(`Error in processTrade for ${tokenAddress}:`, error);
@@ -130,6 +160,7 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
 }
 
 async function executeSell(tokenAddress: string, price: number, chatId: string, info: TRADE, sellPercentage: number, targetStep: SellStep) {
+    console.log("executeSell---\n","info:", info, "targetStep:", targetStep);
     const wallet = await walletdb.getWalletByChatId(chatId);
     if (!wallet) {
         logger.warn(`No wallet found for chat ${chatId}`);
@@ -137,15 +168,25 @@ async function executeSell(tokenAddress: string, price: number, chatId: string, 
     }
 
     const walletData = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
-    const splAmount = await getSPLBalance(tokenAddress, walletData.publicKey.toBase58());
+    // const splAmount = await getSPLBalance(tokenAddress, walletData.publicKey.toBase58());
+    const tokenInfo = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
+    const decimal = tokenInfo?.decimals || 6;
+    const splAmount = info.totalTokenAmount * Math.pow(10, decimal);
+
 
     if (splAmount <= 0) {
         logger.warn(`No balance found for token ${tokenAddress} in wallet ${chatId}`);
         return;
     }
 
+    const sp = targetStep.sellPercentage - info.soldTokenPercentage;
+    if (sp <= 0) {
+        logger.warn(`No balance found for token ${tokenAddress} in wallet ${chatId}`);
+        return;
+    }
+
     // Calculate amount to sell based on percentage
-    const amountToSell = Math.floor(splAmount * (sellPercentage / 100));
+    const amountToSell = Math.floor(splAmount * (sp / 100));
 
     //tried once only, on retry policy
     let result = await solana.sell_swap(SOLANA_CONNECTION, wallet.privateKey, info.contractAddress, amountToSell);
@@ -209,10 +250,10 @@ async function handleSellResult(
             };
 
             // Update sell steps - remove steps with target price <= current price (except stop loss)
-            const updatedSellSteps = info.sellSteps.filter(step => 
-                step === info.sellSteps[0] || // Keep stop loss step
-                step.targetPrice > price // Keep steps with higher target prices
-            );
+            // const updatedSellSteps = info.sellSteps.filter(step =>
+            //     step === info.sellSteps[0] || // Keep stop loss step
+            //     step.targetPrice > price // Keep steps with higher target prices
+            // );
             const updatedSoldSteps = [...info.soldSteps, soldStep];
 
             // Update trade state
@@ -220,12 +261,12 @@ async function handleSellResult(
                 ...info,
                 soldTokenAmount: info.soldTokenAmount + (result.token_balance_change ?? 0),
                 soldTokenPercentage: info.soldTokenPercentage + sellPercentage,
-                sellSteps: updatedSellSteps,
+                // sellSteps: updatedSellSteps,
                 soldSteps: updatedSoldSteps
             };
 
             // If all tokens are sold, remove the trade
-            if (updatedTrade.soldTokenPercentage >= 100) {
+            if (targetStep.sellPercentage == 100) {
                 removeTradeState(chatId, tokenAddress);
             } else {
                 // Update trade state with new values
@@ -293,15 +334,21 @@ export const autoSellHandler = async () => {
         successRate: `${((successfulBatches / batches.length) * 100).toFixed(2)}%`,
     });
 
+
+
     // Process each price in the combined results
     for (const [tokenAddress, price] of prices) {
         const tradeInfos = tradeInfoMap.get(tokenAddress);
         if (!tradeInfos) continue;
 
+        let p = await getTokenPriceInSOL(tokenAddress) || 0;
+        if(p == 0) continue;
+        // console.log("p: ", p);
+
         // Process each trade for this token
         for (const { chatId, info } of tradeInfos) {
             try {
-                await processTrade(tokenAddress, price, chatId, info);
+                await processTrade(tokenAddress, p, chatId, info);
             } catch (error: unknown) {
                 logger.error(`AUTOSELL Error processing sell for ${tokenAddress}:`, error);
                 if (botInstance) {

@@ -163,3 +163,24 @@ export async function getTokenPriceBatch(ids: string[]): Promise<Map<string, num
         throw error;
     }
 }
+
+export async function getTokenPriceInSOL(tokenMintAddress: string) {
+    try {
+        // Jupiter API endpoint for price quotes
+        const url = `https://quote-api.jup.ag/v6/quote?inputMint=${tokenMintAddress}&outputMint=So11111111111111111111111111111111111111112&amount=1000000&slippageBps=50`;
+
+        // Make API request
+        const response = await axios.get(url);
+        const data = response.data;
+
+        // Extract price (outputAmount in SOL for 1 million units of input token)
+        const inputAmount = 1000000; // 1 token (assuming 6 decimals, adjust as needed)
+        const outputAmount = data.outAmount / 1000000000; // SOL has 9 decimals
+        const priceInSOL = outputAmount / (inputAmount / 1000000);
+
+        return priceInSOL;
+    } catch (error: any) {
+        console.error('Error fetching price:', error.message);
+        return null;
+    }
+}

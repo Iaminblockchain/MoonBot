@@ -433,8 +433,6 @@ export const autoBuyContract = async (
             };
             const positionId = await positiondb.createPosition(position);
 
-            console.log(JSON.stringify(settings));
-
             // Set up sell steps based on limit orders or stop loss/take profit
             if (settings.limitOrderActive && settings.limitOrders && settings.limitOrders.length > 0) {
                 // If limit orders are set, use them to create sell steps
