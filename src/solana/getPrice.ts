@@ -237,7 +237,7 @@ export async function getTokenPriceInSOL(tokenMintAddress: string) {
         const priceInSOL = outputAmount / (inputAmount / 1000000);
 
         return priceInSOL;
-    } catch (error: any) {
+    } catch (error) {
         return null;
     }
 }
