@@ -304,11 +304,11 @@ export const setAutotradeSignal = async (chatId: string, contractAddress: string
         takeProfit: trade.tp,
         stopLoss: trade.sl,
         repetitiveBuy: trade.repetitiveBuy,
-        limitOrders: trade.limitOrderSteps?.map(step => ({
+        limitOrders: trade.limitOrderSteps?.map((step) => ({
             priceIncreasement: step.priceIncrement,
-            sellPercentage: step.sellPercentage
+            sellPercentage: step.sellPercentage,
         })),
-        limitOrderActive: trade.limitOrderActive
+        limitOrderActive: trade.limitOrderActive,
     };
 
     triggerAutoBuy(chatId, contractAddress, settings, trade.signal);
@@ -371,7 +371,7 @@ function triggerAutoBuy(chatId: string, contractAddress: string, settings: AutoB
             stopLoss,
             repetitiveBuy,
             limitOrders: settings.limitOrders,
-            limitOrderActive: settings.limitOrderActive
+            limitOrderActive: settings.limitOrderActive,
         },
         contractAddress,
         signal

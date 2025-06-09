@@ -61,12 +61,7 @@ export const clearState = () => {
     state.clear();
 };
 
-export const setTradeState = (
-    chatid: TelegramBot.ChatId,
-    contractAddress: string,
-    startPrice: number,
-    tradeData: TRADE
-) => {
+export const setTradeState = (chatid: TelegramBot.ChatId, contractAddress: string, startPrice: number, tradeData: TRADE) => {
     const prev = trade.get(chatid.toString());
     if (prev) trade.set(chatid.toString(), [...prev, { ...tradeData, contractAddress, startPrice }]);
     else trade.set(chatid.toString(), [{ ...tradeData, contractAddress, startPrice }]);

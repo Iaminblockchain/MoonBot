@@ -110,7 +110,7 @@ const onClickSell = async (query: TelegramBot.CallbackQuery, fraction: number, w
             const profitLossText = profitLoss >= 0 ? "Profit" : "Loss";
 
             const keypair = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
-            
+
             const message =
                 `✅ <b>Position Closed Successfully!</b>\n\n` +
                 `Token: ${tokenMetaData.symbol} (${tokenMetaData.name})\n` +

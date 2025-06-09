@@ -322,12 +322,7 @@ const AddBuynumber = (chatId: string, contractAddress: string) => {
     }
 };
 
-export const autoBuyContract = async (
-    chatId: string,
-    settings: AutoBuySettings,
-    contractAddress: string,
-    tradeSignal?: string
-) => {
+export const autoBuyContract = async (chatId: string, settings: AutoBuySettings, contractAddress: string, tradeSignal?: string) => {
     if (!botInstance) {
         logger.error("Bot instance not initialized in autoBuyContract");
         return;
@@ -393,12 +388,7 @@ export const autoBuyContract = async (
             let tokenBalanceChange = Number(result.token_balance_change);
 
             const keypair = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
-            const trxInfo = await parseTransaction(
-                result.txSignature!,
-                contractAddress,
-                keypair.publicKey.toString(),
-                SOLANA_CONNECTION
-            );
+            const trxInfo = await parseTransaction(result.txSignature!, contractAddress, keypair.publicKey.toString(), SOLANA_CONNECTION);
 
             const msg = await getBuySuccessMessage(
                 trx,
@@ -436,12 +426,7 @@ export const autoBuyContract = async (
             // Set up sell steps based on limit orders or stop loss/take profit
             if (settings.limitOrderActive && settings.limitOrders && settings.limitOrders.length > 0) {
                 // If limit orders are set, use them to create sell steps
-                await positiondb.setSellSteps(
-                    chatId,
-                    contractAddress,
-                    settings.limitOrders,
-                    settings.stopLoss || undefined
-                );
+                await positiondb.setSellSteps(chatId, contractAddress, settings.limitOrders, settings.stopLoss || undefined);
             } else {
                 // If no limit orders, use stop loss and take profit
                 await positiondb.setSellSteps(
@@ -457,15 +442,16 @@ export const autoBuyContract = async (
                 logger.info("set take profit");
                 // const price = result.execution_price;
                 const keypair = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
-                const price = (await parseTransaction(result.txSignature || "", contractAddress, keypair.publicKey.toString(), SOLANA_CONNECTION)).tokenSolPrice || 0;
+                const price =
+                    (await parseTransaction(result.txSignature || "", contractAddress, keypair.publicKey.toString(), SOLANA_CONNECTION))
+                        .tokenSolPrice || 0;
                 // Calculate take profit and stop loss prices
                 const takeProfitPrice = price * (1 + settings.takeProfit / 100);
                 const stopLossPrice = price * (1 - settings.stopLoss / 100);
                 logger.info(`TRIGGER SET price ${price} set TP ${takeProfitPrice}  SL ${stopLossPrice}`);
 
-                let message = `Auto-sell Registered!\n\n` +
-                    `Token: <code>${contractAddress}</code>\n` +
-                    `Current Price: ${price.toFixed(9)} SOL\n`;
+                let message =
+                    `Auto-sell Registered!\n\n` + `Token: <code>${contractAddress}</code>\n` + `Current Price: ${price.toFixed(9)} SOL\n`;
 
                 if (settings.limitOrderActive && settings.limitOrders && settings.limitOrders.length > 0) {
                     message += `\nLimit Order Steps:\n`;
@@ -479,7 +465,8 @@ export const autoBuyContract = async (
                         message += `\nStop Loss: ${stopLossPrice.toFixed(9)} SOL (${settings.stopLoss}%)`;
                     }
                 } else {
-                    message += `Take Profit: ${takeProfitPrice.toFixed(9)} SOL (${settings.takeProfit}%)\n` +
+                    message +=
+                        `Take Profit: ${takeProfitPrice.toFixed(9)} SOL (${settings.takeProfit}%)\n` +
                         `Stop Loss: ${stopLossPrice.toFixed(9)} SOL (${settings.stopLoss}%)`;
                 }
 
@@ -494,11 +481,12 @@ export const autoBuyContract = async (
                     totalTokenAmount: result.token_balance_change,
                     soldTokenAmount: 0,
                     soldTokenPercentage: 0,
-                    sellSteps: position?.sellSteps.map(step => ({
-                        targetPrice: price * (1 + step.priceIncreasement / 100),
-                        sellPercentage: step.sellPercentage
-                    })) || [],
-                    soldSteps: []
+                    sellSteps:
+                        position?.sellSteps.map((step) => ({
+                            targetPrice: price * (1 + step.priceIncreasement / 100),
+                            sellPercentage: step.sellPercentage,
+                        })) || [],
+                    soldSteps: [],
                 };
                 setTradeState(chatId, contractAddress, price, tradeData);
                 AddBuynumber(chatId.toString(), contractAddress);

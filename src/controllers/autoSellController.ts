@@ -83,16 +83,14 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
             targetStep = stopLossStep;
 
             // Remove stop loss step and update trade state
-            const updatedSellSteps = info.sellSteps.filter(step => step !== stopLossStep);
+            const updatedSellSteps = info.sellSteps.filter((step) => step !== stopLossStep);
             const updatedTrade: TRADE = {
                 ...info,
-                sellSteps: updatedSellSteps
+                sellSteps: updatedSellSteps,
             };
             // Update the existing trade instead of appending
             const existingTrades = trade.get(chatId) || [];
-            const updatedTrades = existingTrades.map(t => 
-                t.contractAddress === tokenAddress ? updatedTrade : t
-            );
+            const updatedTrades = existingTrades.map((t) => (t.contractAddress === tokenAddress ? updatedTrade : t));
             trade.set(chatId, updatedTrades);
             // console.log("Stop Loss - Updated trade state:", {
             //     tokenAddress,
@@ -123,20 +121,18 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
             targetStep = highestTargetStep;
 
             // Remove the executed step and any steps with lower price targets
-            const updatedSellSteps = info.sellSteps.filter(step =>
-                step.targetPrice > targetStep!.targetPrice // Keep steps with higher price targets
+            const updatedSellSteps = info.sellSteps.filter(
+                (step) => step.targetPrice > targetStep!.targetPrice // Keep steps with higher price targets
             );
 
             // Update trade state immediately
             const updatedTrade: TRADE = {
                 ...info,
-                sellSteps: updatedSellSteps
+                sellSteps: updatedSellSteps,
             };
             // Update the existing trade instead of appending
             const existingTrades = trade.get(chatId) || [];
-            const updatedTrades = existingTrades.map(t => 
-                t.contractAddress === tokenAddress ? updatedTrade : t
-            );
+            const updatedTrades = existingTrades.map((t) => (t.contractAddress === tokenAddress ? updatedTrade : t));
             trade.set(chatId, updatedTrades);
             // console.log("Limit Order - Updated trade state:", {
             //     tokenAddress,
@@ -149,8 +145,8 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
     if (!shouldSell) {
         logger.info(
             `AUTOSELL ${tokenAddress} Price Check Summary:\n` +
-            `Current Price: ${formatPrice(price)} (${((price / info.startPrice - 1) * 100).toFixed(2)}% from start)\n` +
-            `Status: No sell trigger - Price within range`
+                `Current Price: ${formatPrice(price)} (${((price / info.startPrice - 1) * 100).toFixed(2)}% from start)\n` +
+                `Status: No sell trigger - Price within range`
         );
         return;
     }
@@ -158,10 +154,10 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
     try {
         logger.info(
             `AUTOSELL ${sellReason} Triggered for ${tokenAddress}\n` +
-            `Current Price: ${formatPrice(price)} (${((price / info.startPrice - 1) * 100).toFixed(2)}% from start)\n` +
-            `Start Price: ${formatPrice(info.startPrice)}\n` +
-            `Sell Percentage: ${sellPercentage}%\n` +
-            `ChatId: ${chatId}`
+                `Current Price: ${formatPrice(price)} (${((price / info.startPrice - 1) * 100).toFixed(2)}% from start)\n` +
+                `Start Price: ${formatPrice(info.startPrice)}\n` +
+                `Sell Percentage: ${sellPercentage}%\n` +
+                `ChatId: ${chatId}`
         );
         ongoingSells.set(ongoingSellKey, true);
         // console.log("Executing sell with:", {
@@ -237,7 +233,7 @@ async function handleSellResult(
         if (result.success) {
             const metadata = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
             const profitLoss = ((price / info.startPrice - 1) * 100).toFixed(1);
-            const priceIncreasement = ((price / info.startPrice - 1) * 100);
+            const priceIncreasement = (price / info.startPrice - 1) * 100;
             const remainingPercentage = 100 - (info.soldTokenPercentage + sellPercentage);
 
             const msg = await getSellSuccessMessage(
@@ -253,7 +249,7 @@ async function handleSellResult(
                 {
                     priceIncreasement,
                     soldPercentage: sellPercentage,
-                    remainingPercentage
+                    remainingPercentage,
                 }
             );
             await sendMessageToUser(chatId, msg);
@@ -263,15 +259,15 @@ async function handleSellResult(
                 soldPrice: price,
                 soldPercentage: sellPercentage,
                 soldTokenAmount: result.token_balance_change ?? 0,
-                soldTime: new Date()
+                soldTime: new Date(),
             };
 
             const updatedSoldSteps = [...info.soldSteps, soldStep];
 
             // Get the current trade state to preserve the updated sell steps
             const existingTrades = trade.get(chatId) || [];
-            const currentTrade = existingTrades.find(t => t.contractAddress === tokenAddress);
-            
+            const currentTrade = existingTrades.find((t) => t.contractAddress === tokenAddress);
+
             if (!currentTrade) {
                 logger.error(`Trade not found for ${tokenAddress} in chat ${chatId}`);
                 return;
@@ -279,10 +275,10 @@ async function handleSellResult(
 
             // Update trade state while preserving the current sell steps
             const updatedTrade: TRADE = {
-                ...currentTrade,  // Use currentTrade instead of info to preserve updated sell steps
+                ...currentTrade, // Use currentTrade instead of info to preserve updated sell steps
                 soldTokenAmount: currentTrade.soldTokenAmount + (result.token_balance_change ?? 0),
                 soldTokenPercentage: currentTrade.soldTokenPercentage + sellPercentage,
-                soldSteps: updatedSoldSteps
+                soldSteps: updatedSoldSteps,
             };
 
             // If all tokens are sold, remove the trade
@@ -294,9 +290,7 @@ async function handleSellResult(
                 // });
             } else {
                 // Update trade state with new values
-                const updatedTrades = existingTrades.map(t => 
-                    t.contractAddress === tokenAddress ? updatedTrade : t
-                );
+                const updatedTrades = existingTrades.map((t) => (t.contractAddress === tokenAddress ? updatedTrade : t));
                 trade.set(chatId, updatedTrades);
                 // console.log("Trade updated after successful sell:", {
                 //     tokenAddress,
@@ -333,8 +327,8 @@ export const autoSellHandler = async () => {
         const tradeInfos = tradeInfoMap.get(tokenAddress);
         if (!tradeInfos) continue;
 
-        let p = await getTokenPriceInSOL(tokenAddress) || 0;
-        if(p == 0) continue;
+        let p = (await getTokenPriceInSOL(tokenAddress)) || 0;
+        if (p == 0) continue;
         // console.log("p: ", p);
 
         // Process each trade for this token

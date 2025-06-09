@@ -8,15 +8,15 @@ export enum PositionStatus {
 
 export interface SellStep {
     priceIncreasement: number; // Percentage increase/decrease from buy price
-    sellPercentage: number;    // Cumulative percentage to sell
+    sellPercentage: number; // Cumulative percentage to sell
 }
 
 export interface SoldStep {
     priceIncreasement: number; // Actual price increase/decrease when sold
-    sellPercentage: number;    // Percentage sold in this step
-    soldAmount: number;        // Amount of tokens sold
-    soldTime: Date;           // When the tokens were sold
-    solAmount: number;        // Amount of SOL received
+    sellPercentage: number; // Percentage sold in this step
+    soldAmount: number; // Amount of tokens sold
+    soldTime: Date; // When the tokens were sold
+    solAmount: number; // Amount of SOL received
 }
 
 export interface Position {
@@ -42,7 +42,7 @@ export interface Position {
 
 const sellStepSchema = new mongoose.Schema({
     priceIncreasement: { type: Number, required: true },
-    sellPercentage: { type: Number, required: true }
+    sellPercentage: { type: Number, required: true },
 });
 
 const soldStepSchema = new mongoose.Schema({
@@ -50,7 +50,7 @@ const soldStepSchema = new mongoose.Schema({
     sellPercentage: { type: Number, required: true },
     soldAmount: { type: Number, required: true },
     soldTime: { type: Date, required: true },
-    solAmount: { type: Number, required: true }
+    solAmount: { type: Number, required: true },
 });
 
 const positionSchema = new mongoose.Schema<Position>({
@@ -168,8 +168,8 @@ export const deletePosition = async (chatId: string, tokenAddress: string) => {
 
 // Add new helper function to set sell steps based on limit orders or stop loss/take profit
 export const setSellSteps = async (
-    chatId: string, 
-    tokenAddress: string, 
+    chatId: string,
+    tokenAddress: string,
     limitOrders?: { priceIncreasement: number; sellPercentage: number }[],
     stopLossPercentage?: number,
     takeProfitPercentage?: number
@@ -182,7 +182,7 @@ export const setSellSteps = async (
             if (stopLossPercentage) {
                 sellSteps.push({
                     priceIncreasement: -stopLossPercentage,
-                    sellPercentage: 100
+                    sellPercentage: 100,
                 });
             }
 
@@ -192,7 +192,7 @@ export const setSellSteps = async (
                 cumulativePercentage += order.sellPercentage;
                 sellSteps.push({
                     priceIncreasement: order.priceIncreasement,
-                    sellPercentage: cumulativePercentage
+                    sellPercentage: cumulativePercentage,
                 });
             }
         } else {
@@ -200,21 +200,18 @@ export const setSellSteps = async (
             if (stopLossPercentage) {
                 sellSteps.push({
                     priceIncreasement: -stopLossPercentage,
-                    sellPercentage: 100
+                    sellPercentage: 100,
                 });
             }
             if (takeProfitPercentage) {
                 sellSteps.push({
                     priceIncreasement: takeProfitPercentage,
-                    sellPercentage: 100
+                    sellPercentage: 100,
                 });
             }
         }
 
-        const result = await PositionModel.updateOne(
-            { chatId, tokenAddress },
-            { $set: { sellSteps } }
-        ).exec();
+        const result = await PositionModel.updateOne({ chatId, tokenAddress }, { $set: { sellSteps } }).exec();
 
         logger.info("Sell steps set successfully", { chatId, tokenAddress, sellSteps });
         return result.modifiedCount > 0;
@@ -225,11 +222,7 @@ export const setSellSteps = async (
 };
 
 // Add helper function to update sold steps
-export const addSoldStep = async (
-    chatId: string,
-    tokenAddress: string,
-    soldStep: SoldStep
-) => {
+export const addSoldStep = async (chatId: string, tokenAddress: string, soldStep: SoldStep) => {
     try {
         const position = await PositionModel.findOne({ chatId, tokenAddress });
         if (!position) {
@@ -249,8 +242,8 @@ export const addSoldStep = async (
                     soldTokenPercentage: newSoldPercentage,
                     // If all tokens are sold, close the position
                     status: newSoldPercentage >= 100 ? PositionStatus.CLOSED : PositionStatus.OPEN,
-                    closeTime: newSoldPercentage >= 100 ? new Date() : undefined
-                }
+                    closeTime: newSoldPercentage >= 100 ? new Date() : undefined,
+                },
             }
         ).exec();
 
