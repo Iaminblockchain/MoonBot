@@ -2,7 +2,6 @@ import { ICall, Call } from "../models/callModel";
 import { IChat, Chat } from "../models/chatModel";
 import { NewMessageEvent } from "telegram/events";
 import { logger } from "../logger";
-import { v4 as uuidv4 } from "uuid";
 import { getTokenPriceUSD } from "../solana/getPrice";
 import { onSignal } from "../controllers/copytradeController";
 import { Api } from "telegram";
@@ -85,7 +84,6 @@ export async function contractFound(contractAddress: string, chat_id_str: string
     if (entry_price) {
         try {
             const callRecord = new Call({
-                id: uuidv4(),
                 chat_id: chat_id_str,
                 contract_address: contractAddress,
                 entry_price: entry_price,
