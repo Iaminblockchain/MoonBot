@@ -2,7 +2,7 @@
     "$schema": "https://raw.githubusercontent.com/webpro/knip/main/schemas/v1.json",
     "entry": ["src/index.ts", "src/**/*.ts"],
     "project": ["**/*.ts"],
-    "ignoreDependencies": [],
+    "ignoreDependencies": ["ts-node"],
     "ignore": ["utilscripts/*.ts", "tests/*.ts"],
     "rules": {
         "exports": "error",
