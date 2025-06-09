@@ -1,4 +1,4 @@
-import { getTokenPriceUSD, getTokenPriceBatch } from "../src/solana/getPrice";
+import { getTokenPriceUSD, getTokenPriceBatchSOL, getTokenPriceBatchUSD } from "../src/solana/getPrice";
 
 describe("getTokenPriceUSD", () => {
     it("should fetch and return token price", async () => {
@@ -24,7 +24,7 @@ describe("getTokenPriceBatch", () => {
             "Ey59PH7Z4BFU4HjyKnyMdWt5GGN76KazTAwQihoUXRnk", // BONK
         ];
 
-        const prices = await getTokenPriceBatch(tokenAddresses);
+        const prices = await getTokenPriceBatchSOL(tokenAddresses);
 
         // Check if we got prices for all tokens
         expect(prices.size).toBe(2);
@@ -37,7 +37,7 @@ describe("getTokenPriceBatch", () => {
     });
 
     it("should handle empty array input", async () => {
-        const prices = await getTokenPriceBatch([]);
+        const prices = await getTokenPriceBatchSOL([]);
         expect(prices.size).toBe(0);
     });
 
@@ -47,11 +47,46 @@ describe("getTokenPriceBatch", () => {
             "invalid_token_address", // Invalid address
         ];
 
-        const prices = await getTokenPriceBatch(tokenAddresses);
+        const prices = await getTokenPriceBatchSOL(tokenAddresses);
 
         //console.log(prices);
 
         // Should still get price for valid token
+        expect(prices.size).toBe(1);
+        expect(prices.get("So11111111111111111111111111111111111111112")).toBeGreaterThan(0);
+    });
+});
+
+describe("getTokenPriceBatchUSD", () => {
+    it("should fetch USD prices for multiple tokens", async () => {
+        const tokenAddresses = [
+            "So11111111111111111111111111111111111111112", // WSOL
+            "Ey59PH7Z4BFU4HjyKnyMdWt5GGN76KazTAwQihoUXRnk", // BONK
+        ];
+
+        const prices = await getTokenPriceBatchUSD(tokenAddresses);
+
+        expect(prices.size).toBe(2);
+
+        for (const [token, price] of prices) {
+            expect(price).toBeGreaterThan(0.0001);
+            expect(typeof price).toBe("number");
+        }
+    });
+
+    it("should handle empty array input", async () => {
+        const prices = await getTokenPriceBatchUSD([]);
+        expect(prices.size).toBe(0);
+    });
+
+    it("should handle invalid token addresses gracefully", async () => {
+        const tokenAddresses = [
+            "So11111111111111111111111111111111111111112", // Valid WSOL
+            "invalid_token_address", // Invalid address
+        ];
+
+        const prices = await getTokenPriceBatchUSD(tokenAddresses);
+
         expect(prices.size).toBe(1);
         expect(prices.get("So11111111111111111111111111111111111111112")).toBeGreaterThan(0);
     });

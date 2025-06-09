@@ -98,11 +98,12 @@ export async function getTokenPriceSOL(ids: string): Promise<number> {
 }
 
 /**
- * Fetches prices for multiple tokens in a single API call
+ * Fetches prices for multiple tokens in a single API call (generic version)
  * @param ids Array of token addresses to fetch prices for
- * @returns Map of token addresses to their prices in WSOL
+ * @param vsToken The quote token address (e.g., WSOL for SOL, or 'usd' for USD)
+ * @returns Map of token addresses to their prices in the specified quote token
  */
-export async function getTokenPriceBatch(ids: string[]): Promise<Map<string, number>> {
+async function getTokenPriceBatchGeneric(ids: string[], vsToken: string): Promise<Map<string, number>> {
     try {
         if (ids.length === 0) {
             return new Map();
@@ -110,23 +111,12 @@ export async function getTokenPriceBatch(ids: string[]): Promise<Map<string, num
 
         const priceMap = new Map<string, number>();
 
-        // Filter out WSOL from the tokens to fetch
-        const tokensToFetch = ids.filter((id) => id !== WSOL_ADDRESS);
-
-        // Add WSOL to the result map with price 1
-        if (ids.includes(WSOL_ADDRESS)) {
-            priceMap.set(WSOL_ADDRESS, 1);
-            logger.debug("Added WSOL to batch results with price 1");
-        }
-
-        // If no other tokens to fetch, return early
-        if (tokensToFetch.length === 0) {
-            return priceMap;
-        }
-
         // Join all token IDs with commas
-        const idsString = tokensToFetch.join(",");
-        const url = `${JUPYTER_BASE_URL}/price/v2?ids=${encodeURIComponent(idsString)}&vsToken=${WSOL_ADDRESS}`;
+        const idsString = ids.join(",");
+        let url = `${JUPYTER_BASE_URL}/price/v2?ids=${encodeURIComponent(idsString)}`;
+        if (vsToken && vsToken.toLowerCase() !== "usd") {
+            url += `&vsToken=${encodeURIComponent(vsToken)}`;
+        }
 
         const response = await axios.get(url);
         const priceData = response.data.data;
@@ -150,18 +140,86 @@ export async function getTokenPriceBatch(ids: string[]): Promise<Map<string, num
                 }
 
                 priceMap.set(tokenId, price);
-                logger.debug("Batch price fetched", { token: tokenId, price });
+                logger.debug(`Batch price fetched (${vsToken})`, { token: tokenId, price });
             }
         }
 
         // Log summary of fetched prices
-        logger.info(`Successfully fetched prices for ${priceMap.size} out of ${ids.length} tokens`);
+        logger.info(`Successfully fetched ${vsToken} prices for ${priceMap.size} out of ${ids.length} tokens`);
 
         return priceMap;
     } catch (error) {
-        logger.error("Error fetching batch prices:", error);
+        logger.error(`Error fetching batch ${vsToken} prices:`, error);
         throw error;
     }
+}
+
+/**
+ * Fetches prices for multiple tokens in batches with parallel processing (generic version)
+ * @param ids Array of token addresses to fetch prices for
+ * @param vsToken The quote token address (e.g., WSOL for SOL, or 'usd' for USD)
+ * @param batchSize Optional batch size for processing (default: 100)
+ * @returns Map of token addresses to their prices in the specified quote token
+ */
+async function getTokenPriceBatchAllGeneric(ids: string[], vsToken: string): Promise<Map<string, number>> {
+    const batchSize = 100;
+    try {
+        if (ids.length === 0) {
+            return new Map();
+        }
+
+        // Split tokens into batches
+        const batches: string[][] = [];
+        for (let i = 0; i < ids.length; i += batchSize) {
+            batches.push(ids.slice(i, i + batchSize));
+        }
+
+        logger.info(`Split tokens into ${batches.length} batches for ${vsToken} price checking`);
+
+        // Execute all batch requests in parallel with error handling
+        const batchResults = await Promise.allSettled(batches.map((batch) => getTokenPriceBatchGeneric(batch, vsToken)));
+
+        // Combine all results into a single Map, handling failed batches
+        const prices = new Map<string, number>();
+        let successfulBatches = 0;
+        let failedBatches = 0;
+        let totalPricesFetched = 0;
+
+        for (const result of batchResults) {
+            if (result.status === "fulfilled") {
+                successfulBatches++;
+                for (const [token, price] of result.value) {
+                    totalPricesFetched++;
+                    prices.set(token, price);
+                }
+            } else {
+                failedBatches++;
+                logger.error(`Batch ${vsToken} price fetch failed:`, result.reason);
+            }
+        }
+
+        // Log summary of fetched prices
+        logger.info(`${vsToken.toUpperCase()} Price Check Summary:`, {
+            totalTokens: ids.length,
+            successfulBatches,
+            failedBatches,
+            totalPricesFetched,
+            successRate: `${((successfulBatches / batches.length) * 100).toFixed(2)}%`,
+        });
+
+        return prices;
+    } catch (error) {
+        logger.error(`Error in getTokenPriceBatchAllGeneric (${vsToken}):`, error);
+        throw error;
+    }
+}
+
+export async function getTokenPriceBatchSOL(ids: string[]): Promise<Map<string, number>> {
+    return getTokenPriceBatchAllGeneric(ids, WSOL_ADDRESS);
+}
+
+export async function getTokenPriceBatchUSD(ids: string[]): Promise<Map<string, number>> {
+    return getTokenPriceBatchAllGeneric(ids, "usd");
 }
 
 export async function getTokenPriceInSOL(tokenMintAddress: string) {
