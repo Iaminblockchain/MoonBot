@@ -238,7 +238,6 @@ export async function getTokenPriceInSOL(tokenMintAddress: string) {
 
         return priceInSOL;
     } catch (error: any) {
-        console.error("Error fetching price:", error.message);
         return null;
     }
 }
