@@ -361,7 +361,16 @@ export async function parseTransaction(
         if (transaction.meta?.preTokenBalances && transaction.meta?.postTokenBalances) {
             const solBalanceChange = transaction.meta.preBalances[0] - transaction.meta.postBalances[0];
             transactionFee = transaction.meta.fee || 0;
-            const netSolBalanceChange = solBalanceChange - transactionFee;
+
+            // Calculate ATA creation cost
+            let tokenCreationCost = 0;
+            for (let i = 0; i < transaction.meta.postBalances.length; i++) {
+                if (transaction.meta.preBalances[i] === 0 && transaction.meta.postBalances[i] > 0) {
+                    tokenCreationCost += transaction.meta.postBalances[i] - transaction.meta.preBalances[i];
+                }
+            }
+
+            const netSolBalanceChange = solBalanceChange - transactionFee - tokenCreationCost;
             netBuySolAmount = netSolBalanceChange / 1_000_000_000;
             const solAmount = netSolBalanceChange / 1_000_000_000;
 
