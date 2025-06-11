@@ -6,13 +6,13 @@ export enum PositionStatus {
     CLOSED = "CLOSED",
 }
 
-export interface SellStep {
-    priceIncreasement: number; // Percentage increase/decrease from buy price
+export interface SellStepDB {
+    priceIncrement: number; // Percentage increase/decrease from buy price
     sellPercentage: number; // Cumulative percentage to sell
 }
 
-export interface SoldStep {
-    priceIncreasement: number; // Actual price increase/decrease when sold
+export interface SoldStepDB {
+    priceIncrement: number; // Actual price increase/decrease when sold
     sellPercentage: number; // Percentage sold in this step
     soldAmount: number; // Amount of tokens sold
     soldTime: Date; // When the tokens were sold
@@ -31,8 +31,8 @@ export interface Position {
     tokenAmount: number; // Amount of tokens purchased
     soldTokenAmount: number; // Amount of tokens sold so far
     soldTokenPercentage: number; // Percentage of tokens sold so far
-    sellSteps: SellStep[]; // Array of sell steps with price targets
-    soldSteps: SoldStep[]; // Array of completed sell steps
+    sellSteps: SellStepDB[]; // Array of sell steps with price targets
+    soldSteps: SoldStepDB[]; // Array of completed sell steps
     buyTime: Date;
     status: PositionStatus;
     closeTime?: Date;
@@ -41,12 +41,12 @@ export interface Position {
 }
 
 const sellStepSchema = new mongoose.Schema({
-    priceIncreasement: { type: Number, required: true },
+    priceIncrement: { type: Number, required: true },
     sellPercentage: { type: Number, required: true },
 });
 
 const soldStepSchema = new mongoose.Schema({
-    priceIncreasement: { type: Number, required: true },
+    priceIncrement: { type: Number, required: true },
     sellPercentage: { type: Number, required: true },
     soldAmount: { type: Number, required: true },
     soldTime: { type: Date, required: true },
@@ -170,18 +170,18 @@ export const deletePosition = async (chatId: string, tokenAddress: string) => {
 export const setSellSteps = async (
     chatId: string,
     tokenAddress: string,
-    limitOrders?: { priceIncreasement: number; sellPercentage: number }[],
+    limitOrders?: { priceIncrement: number; sellPercentage: number }[],
     stopLossPercentage?: number,
     takeProfitPercentage?: number
 ) => {
     try {
-        let sellSteps: SellStep[] = [];
+        let sellSteps: SellStepDB[] = [];
 
         if (limitOrders && limitOrders.length > 0) {
             // Add stop loss as first step if provided
             if (stopLossPercentage) {
                 sellSteps.push({
-                    priceIncreasement: -stopLossPercentage,
+                    priceIncrement: -stopLossPercentage,
                     sellPercentage: 100,
                 });
             }
@@ -191,7 +191,7 @@ export const setSellSteps = async (
             for (const order of limitOrders) {
                 cumulativePercentage += order.sellPercentage;
                 sellSteps.push({
-                    priceIncreasement: order.priceIncreasement,
+                    priceIncrement: order.priceIncrement,
                     sellPercentage: cumulativePercentage,
                 });
             }
@@ -199,13 +199,13 @@ export const setSellSteps = async (
             // If no limit orders, use stop loss and take profit
             if (stopLossPercentage) {
                 sellSteps.push({
-                    priceIncreasement: -stopLossPercentage,
+                    priceIncrement: -stopLossPercentage,
                     sellPercentage: 100,
                 });
             }
             if (takeProfitPercentage) {
                 sellSteps.push({
-                    priceIncreasement: takeProfitPercentage,
+                    priceIncrement: takeProfitPercentage,
                     sellPercentage: 100,
                 });
             }
@@ -222,7 +222,7 @@ export const setSellSteps = async (
 };
 
 // Add helper function to update sold steps
-export const addSoldStep = async (chatId: string, tokenAddress: string, soldStep: SoldStep) => {
+export const addSoldStep = async (chatId: string, tokenAddress: string, soldStep: SoldStepDB) => {
     try {
         const position = await PositionModel.findOne({ chatId, tokenAddress });
         if (!position) {

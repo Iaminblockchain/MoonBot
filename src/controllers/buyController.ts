@@ -27,7 +27,7 @@ interface TradeSettings {
     takeProfit: number | null;
     repetitiveBuy: number;
     stopLoss: number | null;
-    limitOrders?: { priceIncreasement: number; sellPercentage: number }[];
+    limitOrders?: { priceIncrement: number; sellPercentage: number }[];
 }
 
 const getBuySuccessMessage = async (
@@ -458,8 +458,8 @@ export const autoBuyContract = async (chatId: string, settings: AutoBuySettings,
                     let cumulativePercentage = 0;
                     for (const order of settings.limitOrders) {
                         cumulativePercentage += order.sellPercentage;
-                        const targetPrice = price * (1 + order.priceIncreasement / 100);
-                        message += `• Sell ${order.sellPercentage}% at ${targetPrice.toFixed(9)} SOL (${order.priceIncreasement}%)\n`;
+                        const targetPrice = price * (1 + order.priceIncrement / 100);
+                        message += `• Sell ${order.sellPercentage}% at ${targetPrice.toFixed(9)} SOL (${order.priceIncrement}%)\n`;
                     }
                     if (settings.stopLoss) {
                         message += `\nStop Loss: ${stopLossPrice.toFixed(9)} SOL (${settings.stopLoss}%)`;
@@ -483,7 +483,7 @@ export const autoBuyContract = async (chatId: string, settings: AutoBuySettings,
                     soldTokenPercentage: 0,
                     sellSteps:
                         position?.sellSteps.map((step) => ({
-                            targetPrice: price * (1 + step.priceIncreasement / 100),
+                            targetPrice: price * (1 + step.priceIncrement / 100),
                             sellPercentage: step.sellPercentage,
                         })) || [],
                     soldSteps: [],

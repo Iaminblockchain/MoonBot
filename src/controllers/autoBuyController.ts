@@ -18,7 +18,7 @@ export interface AutoBuySettings {
     takeProfit: number | null;
     stopLoss: number | null;
     repetitiveBuy: number;
-    limitOrders?: { priceIncreasement: number; sellPercentage: number }[];
+    limitOrders?: { priceIncrement: number; sellPercentage: number }[];
     limitOrderActive: boolean;
 }
 export const autoBuySettings = new Map<string, AutoBuySettings>();
@@ -305,7 +305,7 @@ export const setAutotradeSignal = async (chatId: string, contractAddress: string
         stopLoss: trade.sl,
         repetitiveBuy: trade.repetitiveBuy,
         limitOrders: trade.limitOrderSteps?.map((step) => ({
-            priceIncreasement: step.priceIncrement,
+            priceIncrement: step.priceIncrement,
             sellPercentage: step.sellPercentage,
         })),
         limitOrderActive: trade.limitOrderActive,

@@ -213,7 +213,7 @@ async function handleSellResult(
         if (result.success) {
             const metadata = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
             const profitLoss = ((price / info.startPrice - 1) * 100).toFixed(1);
-            const priceIncreasement = (price / info.startPrice - 1) * 100;
+            const priceIncrement = (price / info.startPrice - 1) * 100;
             const remainingPercentage = 100 - (info.soldTokenPercentage + sellPercentage);
 
             const msg = await getSellSuccessMessage(
@@ -227,7 +227,7 @@ async function handleSellResult(
                 result.timingMetrics,
                 metadata,
                 {
-                    priceIncreasement,
+                    priceIncrement,
                     soldPercentage: sellPercentage,
                     remainingPercentage,
                 }
@@ -340,7 +340,7 @@ const getSellSuccessMessage = async (
     timingMetrics?: TimingMetrics,
     metadata?: { name: string; symbol: string } | null,
     sellInfo?: {
-        priceIncreasement: number;
+        priceIncrement: number;
         soldPercentage: number;
         remainingPercentage: number;
     }
@@ -353,7 +353,7 @@ const getSellSuccessMessage = async (
 
     if (sellInfo) {
         message += `\n\nSell Details:`;
-        message += `\nPrice Increase: ${sellInfo.priceIncreasement.toFixed(2)}%`;
+        message += `\nPrice Increase: ${sellInfo.priceIncrement.toFixed(2)}%`;
         message += `\nSold Percentage: ${sellInfo.soldPercentage.toFixed(2)}%`;
         message += `\nRemaining Percentage: ${sellInfo.remainingPercentage.toFixed(2)}%`;
     }
