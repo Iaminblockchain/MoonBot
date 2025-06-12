@@ -1,17 +1,17 @@
 import TelegramBot from "node-telegram-bot-api";
 import { botInstance } from "../bot";
 import { getWalletByChatId } from "../models/walletModel";
-import { getPublicKeyinFormat } from "./sellController";
-import { getAllTokensWithBalance, WSOL_ADDRESS } from "../solana/trade";
-import { getTokenInfofromMint, getTokenMetaData } from "../solana/token";
+import { WSOL_ADDRESS } from "../solana/trade";
+import { getTokenMetaData } from "../solana/token";
 import { logger } from "../logger";
 import { SOLANA_CONNECTION } from "..";
-import { PublicKey, Keypair } from "@solana/web3.js";
+import { Keypair } from "@solana/web3.js";
 import { getPositionsByChatId, getPositionByTokenAddress, closePosition } from "../models/positionModel";
 import * as solana from "../solana/trade";
 import { getTokenPriceUSD } from "../solana/getPrice";
 import { parseTransaction } from "../solana/txhelpers";
 import bs58 from "bs58";
+import { sendMessageToUser } from "../botUtils";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     if (!botInstance) {
@@ -62,7 +62,7 @@ const showPositionMenu = async (chatId: string) => {
         [{ text: "Close", callback_data: "close" }],
     ];
 
-    await botInstance.sendMessage(chatId, title, {
+    await sendMessageToUser(chatId, title, {
         reply_markup: { inline_keyboard: buttons },
         parse_mode: "HTML",
     });
@@ -76,12 +76,11 @@ const showOpenPositions = async (chatId: string) => {
 
     try {
         const positions = await getPositionsByChatId(chatId);
-        logger.info("------------------>>positions<<----------------");
-        logger.info(`positions`, { positions });
+        logger.info(`positions`, { chatId, positions });
         const openPositions = positions.filter((p) => p.status === "OPEN");
 
         if (openPositions.length === 0) {
-            await botInstance.sendMessage(chatId, "No open positions found.", {
+            await sendMessageToUser(chatId, "No open positions found.", {
                 reply_markup: {
                     inline_keyboard: [[{ text: "Back", callback_data: "close" }]],
                 },
@@ -112,8 +111,7 @@ const showOpenPositions = async (chatId: string) => {
             })
         );
 
-        logger.info("------------------>>positionsWithMetadata<<----------------");
-        logger.info(`positionsWithMetadata: `, { positionsWithMetadata });
+        logger.info(`positionsWithMetadata: `, { chatId, positionsWithMetadata });
 
         const buttons = positionsWithMetadata.map((position) => [
             {
@@ -121,16 +119,16 @@ const showOpenPositions = async (chatId: string) => {
                 callback_data: `pos_token_${position.tokenAddress}`,
             },
         ]);
-        logger.info(`buttons`, { buttons });
+        logger.info(`buttons`, { chatId, buttons });
         buttons.push([{ text: "Back", callback_data: "close" }]);
 
-        await botInstance.sendMessage(chatId, "📊 <b>Open Positions</b>\n\nSelect a position to view details:", {
+        await sendMessageToUser(chatId, "📊 <b>Open Positions</b>\n\nSelect a position to view details:", {
             reply_markup: { inline_keyboard: buttons },
             parse_mode: "HTML",
         });
     } catch (error) {
         logger.error("Error in showOpenPositions", { error });
-        await botInstance.sendMessage(chatId, "❌ Error fetching positions");
+        await sendMessageToUser(chatId, "❌ Error fetching positions");
     }
 };
 
@@ -145,7 +143,7 @@ const showClosedPositions = async (chatId: string) => {
         const closedPositions = positions.filter((p) => p.status === "CLOSED");
 
         if (closedPositions.length === 0) {
-            await botInstance.sendMessage(chatId, "No closed positions found.", {
+            await sendMessageToUser(chatId, "No closed positions found.", {
                 reply_markup: {
                     inline_keyboard: [[{ text: "Back", callback_data: "close" }]],
                 },
@@ -179,13 +177,13 @@ const showClosedPositions = async (chatId: string) => {
         ]);
         buttons.push([{ text: "Back", callback_data: "close" }]);
 
-        await botInstance.sendMessage(chatId, "📊 <b>Closed Positions</b>\n\nSelect a position to view details:", {
+        await sendMessageToUser(chatId, "📊 <b>Closed Positions</b>\n\nSelect a position to view details:", {
             reply_markup: { inline_keyboard: buttons },
             parse_mode: "HTML",
         });
     } catch (error) {
         logger.error("Error in showClosedPositions", { error });
-        await botInstance.sendMessage(chatId, "❌ Error fetching closed positions");
+        await sendMessageToUser(chatId, "❌ Error fetching closed positions");
     }
 };
 
@@ -224,13 +222,13 @@ const showClosedTokenInfo = async (chatId: string, tokenAddress: string) => {
 
         const buttons = [[{ text: "Back", callback_data: "close" }]];
 
-        await botInstance.sendMessage(chatId, message, {
+        await sendMessageToUser(chatId, message, {
             reply_markup: { inline_keyboard: buttons },
             parse_mode: "HTML",
         });
     } catch (error) {
         logger.error("Error in showClosedTokenInfo", { error });
-        await botInstance.sendMessage(chatId, "❌ Error fetching closed position information");
+        await sendMessageToUser(chatId, "❌ Error fetching closed position information");
     }
 };
 
@@ -265,13 +263,13 @@ const showTokenInfo = async (chatId: string, tokenAddress: string) => {
             throw new Error("Position not found");
         }
 
-        logger.info("Position found", { position });
+        logger.info("Position found", { chatId, position });
         const tokenMetaData = await getTokenMetaData(SOLANA_CONNECTION, tokenAddress);
         if (!tokenMetaData) {
             throw new Error("Token metadata not found");
         }
 
-        logger.info("Token metadata found", { tokenMetaData });
+        logger.info("Token metadata found", { chatId, tokenMetaData });
         const currentUSDPrice = await getTokenPriceUSD(tokenAddress);
         const currentSOLPrice = currentUSDPrice * (await getTokenPriceUSD(WSOL_ADDRESS));
         const performance = (((currentSOLPrice - position.buyPriceSol) / position.buyPriceSol) * 100).toFixed(2);
@@ -302,14 +300,14 @@ const showTokenInfo = async (chatId: string, tokenAddress: string) => {
             [{ text: "Back", callback_data: "close" }],
         ];
 
-        logger.info("----------------->>Buttons<<----------------");
-        await botInstance.sendMessage(chatId, message, {
+        logger.info("----------------->>Buttons<<----------------", { chatId });
+        await sendMessageToUser(chatId, message, {
             reply_markup: { inline_keyboard: buttons },
             parse_mode: "HTML",
         });
     } catch (error) {
         logger.error("Error in showTokenInfo", { error: JSON.stringify(error) });
-        await botInstance.sendMessage(chatId, "❌ Error fetching position information");
+        await sendMessageToUser(chatId, "❌ Error fetching position information");
     }
 };
 
@@ -340,11 +338,13 @@ const handleSellPosition = async (chatId: string, tokenAddress: string) => {
         const tokenAmount = position.tokenAmount / Math.pow(10, tokenMetaData.decimals);
 
         // Send processing message
-        await botInstance.sendMessage(chatId, `🔄 Processing sell order for ${tokenAmount} ${tokenMetaData.symbol}...`);
+        await sendMessageToUser(chatId, `🔄 Processing sell order for ${tokenAmount} ${tokenMetaData.symbol}...`);
 
         // Send sell transaction
         const keypair = Keypair.fromSecretKey(bs58.decode(wallet.privateKey));
+        logger.info(`sell_swap ${chatId}`);
         const result = await solana.sell_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, position.tokenAmount);
+        logger.info(`sell_swap ${chatId} result ${result}`);
 
         if (result.success) {
             // Get current price for closing position
@@ -374,7 +374,7 @@ const handleSellPosition = async (chatId: string, tokenAddress: string) => {
                 ],
             ];
 
-            await botInstance.sendMessage(chatId, message, {
+            await sendMessageToUser(chatId, message, {
                 reply_markup: { inline_keyboard: buttons },
                 parse_mode: "HTML",
                 disable_web_page_preview: true,
@@ -384,6 +384,6 @@ const handleSellPosition = async (chatId: string, tokenAddress: string) => {
         }
     } catch (error) {
         logger.error("Error in handleSellPosition", { error });
-        await botInstance.sendMessage(chatId, "❌ Error selling position: " + (error as Error).message);
+        await sendMessageToUser(chatId, "❌ Error selling position: " + (error as Error).message);
     }
 };

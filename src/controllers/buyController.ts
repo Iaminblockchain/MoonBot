@@ -12,7 +12,7 @@ import { PositionStatus } from "../models/positionModel";
 import { parseTransaction } from "../solana/txhelpers";
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
-import { sendMessageToUser } from "../bot";
+import { sendMessageToUser } from "../botUtils";
 
 // Add minimum balance check
 const MIN_SOL_BALANCE = 0.01;
@@ -113,12 +113,12 @@ export const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: nu
         await sendMessageToUser(chatId!, "Sending buy transaction");
 
         const amountlamports = amountSol * 10 ** 9;
-        logger.info("call jupyter swap");
+        logger.info(`call jupyter swap chatId ${chatId}`);
         const result = await solana.buy_swap(SOLANA_CONNECTION, wallet.privateKey, trade.tokenAddress, amountlamports);
 
         if (result.success) {
             const trxLink = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "N/A";
-            logger.info("result", { executionInfo: result });
+            logger.info("result", { chatId, executionInfo: result });
 
             let tokenBalanceChange = result.token_balance_change;
             let sol_balance_change = result.sol_balance_change;
@@ -138,7 +138,7 @@ export const onClickBuy = async (query: TelegramBot.CallbackQuery, amountSol: nu
             await sendMessageToUser(chatId!, msg);
         } else {
             logger.error("onClickBuy failed: not confirmed", { chatId, result });
-            await botInstance.sendMessage(chatId!, "Buy failed");
+            await sendMessageToUser(chatId!, "Buy failed");
         }
     } catch (error: unknown) {
         logger.error("onClickBuy error", { error, chatId });
@@ -161,7 +161,7 @@ const onClickXBuy = (query: TelegramBot.CallbackQuery) => {
 
     const { chatId } = getChatIdandMessageId(query);
     setState(chatId!, STATE.INPUT_BUY_AMOUNT);
-    sendMessageToUser(chatId!, "Input buy amount").catch((err) => logger.error("Failed to send message", err));
+    sendMessageToUser(chatId!, "Input buy amount").catch((err: Error) => logger.error("Failed to send message", err));
 };
 
 export const buyXAmount = async (message: TelegramBot.Message) => {
@@ -178,8 +178,7 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
         const trade = await tradedb.getTradeByChatId(chatId);
         if (wallet && trade) {
             await sendMessageToUser(chatId, "Sending buy transaction");
-            logger.info("Sending buy transaction:", { tokenAddress: trade.tokenAddress });
-
+            logger.info(`Sending buy transaction: chatid {chatId}`, { tokenAddress: trade.tokenAddress });
             let result = await solana.buy_swap(
                 SOLANA_CONNECTION,
                 wallet.privateKey,
@@ -187,7 +186,7 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
                 parseInt((amount * 10 ** 9).toString())
             );
             if (result.success) {
-                logger.info(`confirmed ${result}`);
+                logger.info(`confirmed ${result}`, { chatId });
                 let trx = "";
                 if (result.txSignature) {
                     trx = `http://solscan.io/tx/${result.txSignature}`;
@@ -211,10 +210,10 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
                     trxInfo.transactionFee || 0,
                     result.timingMetrics
                 );
-                botInstance.sendMessage(chatId, msg);
+                await sendMessageToUser(chatId, msg);
             } else {
                 logger.error(`buy failed ${result}`);
-                botInstance.sendMessage(chatId, "Buy failed");
+                await sendMessageToUser(chatId, "Buy failed");
             }
         }
     } catch (error: unknown) {
@@ -222,9 +221,9 @@ export const buyXAmount = async (message: TelegramBot.Message) => {
         const chatId = message.chat.id;
         const msg = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
         if (msg.includes("insufficient") || msg.includes("balance")) {
-            botInstance.sendMessage(chatId, "Buy failed: insufficient balance");
+            await sendMessageToUser(chatId, "Buy failed: insufficient balance");
         } else {
-            botInstance.sendMessage(chatId, "Buy failed due to error");
+            await sendMessageToUser(chatId, "Buy failed due to error");
         }
     }
 };
@@ -250,14 +249,14 @@ export const showBuyPad = async (message: TelegramBot.Message) => {
             ],
             [{ text: "Refresh", callback_data: "buyController_refresh" }],
         ];
-        botInstance.sendMessage(chatId, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: "HTML" });
+        await sendMessageToUser(chatId, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: "HTML" });
         logger.info("buy info: ", { chatId, tokenAddress });
         await tradedb.createTrade(chatId, tokenAddress!);
-        botInstance.deleteMessage(chatId, getDeleteMessageId(chatId));
+        await sendMessageToUser(chatId, "Failed to display buy options");
     } catch (error) {
         logger.error("showBuyPad error", { error });
         const chatId = message.chat.id;
-        botInstance.sendMessage(chatId, "Failed to display buy options");
+        await sendMessageToUser(chatId, "Failed to display buy options");
     }
 };
 
@@ -270,7 +269,7 @@ const onBuyControlStart = async (query: TelegramBot.CallbackQuery) => {
     try {
         const { chatId, messageId } = getChatIdandMessageId(query);
         setState(chatId!, STATE.INPUT_TOKEN);
-        botInstance.sendMessage(chatId!, "Enter token address to buy.", { parse_mode: "HTML" }).then((message: TelegramBot.Message) => {
+        await sendMessageToUser(chatId!, "Enter token address to buy.", { parse_mode: "HTML" }).then((message: TelegramBot.Message) => {
             const messageId = message.message_id;
             setDeleteMessageId(chatId!, messageId);
         });
@@ -329,7 +328,7 @@ export const autoBuyContract = async (
     try {
         const wallet = await walletdb.getWalletByChatId(chatId);
         if (!wallet) {
-            botInstance.sendMessage(chatId, "Wallet not found. Please create or import a wallet first.");
+            await sendMessageToUser(chatId, "Wallet not found. Please create or import a wallet first.");
             return;
         }
         logger.info("run auto buy", { settings: settings, contractAddress: contractAddress, chatId: chatId });
@@ -341,7 +340,7 @@ export const autoBuyContract = async (
 
         if (balance < MIN_SOL_BALANCE) {
             logger.error("Balance too low", { chatId, balance, minimum: MIN_SOL_BALANCE });
-            botInstance.sendMessage(
+            await sendMessageToUser(
                 chatId,
                 `❌ Balance too low: you have ${balance.toFixed(6)} SOL but need at least ${MIN_SOL_BALANCE} SOL to trade.`
             );
@@ -350,7 +349,7 @@ export const autoBuyContract = async (
 
         if (solAmount > balance) {
             logger.error("Insufficient SOL balance", { chatId, balance, required: solAmount });
-            botInstance.sendMessage(
+            await sendMessageToUser(
                 chatId,
                 `❌ Insufficient SOL balance: you have ${balance.toFixed(6)} SOL but need ${solAmount.toFixed(6)} SOL.`
             );
@@ -359,7 +358,7 @@ export const autoBuyContract = async (
 
         const buyNumber = getBuynumber(chatId.toString(), contractAddress);
         if (buyNumber >= settings.repetitiveBuy) {
-            logger.info("max repeat reached");
+            logger.info("max repeat reached", { chatId });
             return;
         }
 
@@ -368,11 +367,11 @@ export const autoBuyContract = async (
         logger.info(
             `${trade_type}: Sending buy transaction for Token  ${metaData?.name}(${metaData?.symbol}) : ${contractAddress} with amount ${solAmount} SOL ${tradeSignal ? `from signal @${tradeSignal} ` : ""}(Max Slippage: ${settings.maxSlippage}%)`
         );
-        botInstance.sendMessage(
+        await sendMessageToUser(
             chatId,
             `${trade_type}: Sending buy transaction for Token  ${metaData?.name}(${metaData?.symbol}) : ${contractAddress} with amount ${solAmount} SOL ${tradeSignal ? `from signal @${tradeSignal} ` : ""}(Max Slippage: ${settings.maxSlippage}%)`
         );
-
+        logger.info(`call jupyter swap chatId ${chatId}`);
         let result = await solana.buy_swap(
             SOLANA_CONNECTION,
             wallet.privateKey,
@@ -380,6 +379,7 @@ export const autoBuyContract = async (
             solAmount * 10 ** 9,
             settings.maxSlippage * 100
         );
+        logger.info(`result swap chatId ${chatId} result ${result}`);
 
         if (result.success) {
             let trx = result.txSignature ? `http://solscan.io/tx/${result.txSignature}` : "";
@@ -397,7 +397,7 @@ export const autoBuyContract = async (
                 settings,
                 tradeSignal
             );
-            botInstance.sendMessage(chatId, msg);
+            await sendMessageToUser(chatId, msg);
 
             // Save position information
             logger.info("save position", { chatId, contractAddress, tradeSignal, settings });
@@ -417,14 +417,14 @@ export const autoBuyContract = async (
             await positiondb.createPosition(position);
 
             if (settings.takeProfit != null && settings.stopLoss != null) {
-                logger.info("set take profit");
+                logger.info("set take profit", { chatId });
                 const price = result.execution_price;
                 // Calculate take profit and stop loss prices
                 const takeProfitPrice = price * (1 + settings.takeProfit / 100);
                 const stopLossPrice = price * (1 - settings.stopLoss / 100);
-                logger.info(`TRIGGER SET price ${price} set TP ${takeProfitPrice}  SL ${stopLossPrice}`);
+                logger.info(`TRIGGER SET price ${price} set TP ${takeProfitPrice}  SL ${stopLossPrice}`, { chatId });
 
-                botInstance.sendMessage(
+                await sendMessageToUser(
                     chatId,
                     `Auto-sell Registered!\n\n` +
                         `Token: <code>${contractAddress}</code>\n` +
@@ -439,7 +439,7 @@ export const autoBuyContract = async (
             }
         } else {
             logger.error(`${trade_type} failed. result ${result}`);
-            botInstance.sendMessage(chatId, `${trade_type} failed.`);
+            await sendMessageToUser(chatId, `${trade_type} failed.`);
         }
     } catch (error) {
         logger.error(`autobuy error ${error}`, { chatId, settings, contractAddress, tradeSignal });

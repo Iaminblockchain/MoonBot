@@ -1,3 +1,4 @@
+import { sendMessageToUser } from "./botUtils";
 import { botInstance } from "./bot";
 import { logger } from "./logger";
 
@@ -7,7 +8,7 @@ export const notifySuccess = async (chatId: string, message: string) => {
         return;
     }
 
-    const sent = await botInstance.sendMessage(chatId, `✅ ${message}`);
+    const sent = await sendMessageToUser(chatId, `✅ ${message}`);
     setTimeout(() => {
         if (!botInstance) {
             logger.error("Bot instance not initialized in notifySuccess timeout");
@@ -23,7 +24,7 @@ export const notifyError = async (chatId: string, message: string) => {
         return;
     }
 
-    const sent = await botInstance.sendMessage(chatId, `❌ ${message}`);
+    const sent = await sendMessageToUser(chatId, `❌ ${message}`);
     setTimeout(() => {
         if (!botInstance) {
             logger.error("Bot instance not initialized in notifyError timeout");

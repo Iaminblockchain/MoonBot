@@ -4,6 +4,7 @@ import * as solana from "../solana/trade";
 import { botInstance, getChatIdandMessageId, setState, getState, switchMenu, STATE } from "../bot";
 import { logger } from "../logger";
 import { getPublicKey, createWallet, getSolBalance } from "../solana/util";
+import { sendMessageToUser } from "../botUtils";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     try {
@@ -32,7 +33,7 @@ const showPrivateKey = async (query: TelegramBot.CallbackQuery) => {
 
     const { chatId, messageId } = getChatIdandMessageId(query);
     const wallet = await walletdb.getWalletByChatId(chatId!);
-    botInstance.sendMessage(chatId!, `🚨 <b>WARNING: Never share your private key!</b> 🚨\n\n<code>${wallet!.privateKey}</code>`, {
+    await sendMessageToUser(chatId!, `🚨 <b>WARNING: Never share your private key!</b> 🚨\n\n<code>${wallet!.privateKey}</code>`, {
         reply_markup: { inline_keyboard: [[{ text: "Close", callback_data: "close" }]] },
         parse_mode: "HTML",
     });
@@ -102,7 +103,7 @@ const importWallet = async (query: TelegramBot.CallbackQuery) => {
 
     try {
         const { chatId, messageId } = getChatIdandMessageId(query);
-        botInstance.sendMessage(chatId!, "Input private key:");
+        await sendMessageToUser(chatId!, "Input private key:");
         setState(chatId!, STATE.INPUT_PRIVATE_KEY, { messageId });
     } catch (error) {
         logger.error("importWallet error:", error);
@@ -141,6 +142,6 @@ const walletManageStart = async (query: TelegramBot.CallbackQuery) => {
     const chatId = query.message?.chat.id;
     const walletInfo = await getWalletInfoAndButtons(chatId!);
     if (walletInfo) {
-        botInstance.sendMessage(chatId!, walletInfo.title, { reply_markup: { inline_keyboard: walletInfo.buttons! }, parse_mode: "HTML" });
+        await sendMessageToUser(chatId!, walletInfo.title, { reply_markup: { inline_keyboard: walletInfo.buttons! }, parse_mode: "HTML" });
     }
 };

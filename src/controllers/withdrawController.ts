@@ -7,6 +7,7 @@ import { SOLANA_CONNECTION } from "..";
 import { logger } from "../logger";
 import { sendSPLtokens, getTokenInfofromMint, getTokenMetaData } from "../solana/token";
 import { getSolBalance, isValidAddress } from "../solana/util";
+import { sendMessageToUser } from "../botUtils";
 
 type WithdrawSettingType = {
     amount?: number;
@@ -84,7 +85,7 @@ const withdrawStart = async (chatId: string, replaceId?: number) => {
     try {
         const wallet = await walletdb.getWalletByChatId(chatId);
         if (!wallet) {
-            botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
+            sendMessageToUser(chatId, "❌ No wallet found. Please connect a wallet first.");
             return;
         }
         const publicKey = getPublicKeyinFormat(wallet.privateKey);
@@ -93,7 +94,7 @@ const withdrawStart = async (chatId: string, replaceId?: number) => {
         const tokenAccounts = await solana.getAllTokensWithBalance(SOLANA_CONNECTION, publicKey);
 
         if (!tokenAccounts || tokenAccounts.length === 0) {
-            botInstance.sendMessage(chatId, "⚠️ No tokens found in your wallet.");
+            sendMessageToUser(chatId, "⚠️ No tokens found in your wallet.");
             return;
         }
         let tokenList = "";
@@ -164,7 +165,7 @@ const withdrawPad = async (chatId: string, replaceId: number, tokenAddress: stri
     try {
         const wallet = await walletdb.getWalletByChatId(chatId);
         if (!wallet) {
-            botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
+            sendMessageToUser(chatId, "❌ No wallet found. Please connect a wallet first.");
             return;
         }
         const isNativeSol = tokenAddress == "sol" ? true : false;

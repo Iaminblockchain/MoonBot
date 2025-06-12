@@ -129,11 +129,13 @@ const startServices = async () => {
         initJoinQueue(client, MONGO_URI);
         await startJoinQueue();
 
+        logger.info(`Scrape ${SETUP_SCRAPE}`);
+
         if (SETUP_SCRAPE) {
-            logger.info("Initializing scrape script...");
+            logger.info("Scrape Initializing...");
             await scrape(client);
         } else {
-            logger.info("Skip setting up scrape");
+            logger.info("Scrape skipping");
         }
 
         if (SETUP_BOT) {

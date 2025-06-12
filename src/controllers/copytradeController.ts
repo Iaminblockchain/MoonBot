@@ -10,9 +10,9 @@ import { Trade } from "../models/copyTradeModel";
 import { Chat } from "../models/chatModel";
 import { getQueue } from "../scraper/queue";
 import { notifySuccess, notifyError } from "../notify";
-import { sendMessageToUser } from "../bot";
+import { sendMessageToUser } from "../botUtils";
 
-let tgClient: TelegramClient | null = null;
+let tgClient: TelegramClient;
 
 export const setClient = (client: TelegramClient) => {
     tgClient = client;
@@ -186,7 +186,7 @@ export const editText = async (chatId: string, text: string, opts: TelegramBot.E
         }
         throw new Error();
     } catch (_) {
-        const { message_id } = await botInstance.sendMessage(chatId, text, opts);
+        const { message_id } = await sendMessageToUser(chatId, text, opts);
         lastMessageId.set(chatId, message_id);
         return message_id;
     }
@@ -198,10 +198,10 @@ export const handleCallBackQuery = async (query: TelegramBot.CallbackQuery) => {
         return;
     }
 
-    logger.info("copytrade: handleCallBackQuery", { query });
+    logger.info("copytrade: handleCallBackQuery", { chatId: query.message?.chat.id, query });
 
     const { data: callbackData, message: callbackMessage } = query;
-    logger.info("copytrade: callbackData", { callbackData });
+    logger.info("copytrade: callbackData", { chatId: callbackMessage?.chat.id, callbackData });
 
     if (!callbackData || !callbackMessage) return;
     const chatid = String(callbackMessage.chat.id);
@@ -276,7 +276,7 @@ export const handleCallBackQuery = async (query: TelegramBot.CallbackQuery) => {
                 force_reply: true,
             };
 
-            const new_msg = await botInstance.sendMessage(chatid, messageText, {
+            const new_msg = await sendMessageToUser(chatid, messageText, {
                 parse_mode: "HTML",
                 reply_markup,
             });
@@ -489,7 +489,7 @@ const editcopytradesignal = async (chatId: string, replaceId: number, dbId?: str
 To manage your Copy Trade:
 - Click the "Active" button to pause the Copy Trade.
 - Delete a Copy Trade by clicking the "Delete" button`;
-    logger.info("editing copytradesignal");
+    logger.info("editing copytradesignal", { chatId });
     let trade;
     if (!dbId) {
         logger.error("editcopytradesignal called without dbId", { chatId });
@@ -497,7 +497,7 @@ To manage your Copy Trade:
     }
 
     trade = await copytradedb.findTrade({ _id: new mongoose.Types.ObjectId(dbId) });
-    logger.info(`Trade found: ${JSON.stringify(trade)}`);
+    logger.info(`Trade found: ${JSON.stringify(trade)}`, { chatId });
 
     if (!trade) {
         logger.error("No Copy Trade signal Error", { dbId: dbId, chatId: chatId });
@@ -549,7 +549,7 @@ const editTagcopytradesignal = async (chatId: string, replaceId: number, dbId: s
     const reply_markup = {
         force_reply: true,
     };
-    const new_msg = await botInstance.sendMessage(chatId, caption, {
+    const new_msg = await sendMessageToUser(chatId, caption, {
         parse_mode: "HTML",
         reply_markup,
     });
@@ -584,7 +584,7 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
         force_reply: true,
     };
     setState(chatId, STATE.INPUT_COPYTRADE);
-    const new_msg = await botInstance.sendMessage(chatId, caption, {
+    const new_msg = await sendMessageToUser(chatId, caption, {
         parse_mode: "HTML",
         reply_markup,
     });
@@ -594,7 +594,7 @@ const editSignalcopytradesignal = async (chatId: string, replaceId: number, dbId
             return;
         }
 
-        logger.info("copytrade: onReplyToMessage");
+        logger.info("copytrade: onReplyToMessage", { chatId: new_msg.chat.id });
         botInstance.deleteMessage(new_msg.chat.id, new_msg.message_id);
         botInstance.deleteMessage(n_msg.chat.id, n_msg.message_id);
 
@@ -640,7 +640,7 @@ const makeEditor =
             return;
         }
 
-        const ask = await botInstance.sendMessage(chatId, `<b>Please type ${spec.label}</b>\n\n`, {
+        const ask = await sendMessageToUser(chatId, `<b>Please type ${spec.label}</b>\n\n`, {
             parse_mode: "HTML",
             reply_markup: { force_reply: true },
         });
@@ -686,7 +686,7 @@ const makeEditor =
                     chatId,
                     dbId,
                 });
-                botInstance.sendMessage(chatId, `Error updating ${spec.label}: ${errorMessage}`);
+                sendMessageToUser(chatId, `Error updating ${spec.label}: ${errorMessage}`);
             }
         });
     };

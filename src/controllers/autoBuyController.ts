@@ -8,6 +8,7 @@ import { SOLANA_CONNECTION } from "..";
 import { ITrade } from "../models/copyTradeModel";
 import { notifySuccess, notifyError } from "../notify";
 import { logger } from "../logger";
+import { sendMessageToUser } from "../botUtils";
 
 // In-memory storage for auto-buy settings per chat.
 export interface AutoBuySettings {

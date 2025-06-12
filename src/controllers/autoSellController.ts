@@ -65,6 +65,21 @@ async function processTrade(tokenAddress: string, price: number, chatId: string,
         return;
     }
 
+    // Calculate price change percentage
+    const priceChangePercent = (price / info.startPrice - 1) * 100;
+
+    // Skip if price change is too extreme (more than 80% drop)
+    if (priceChangePercent < -80) {
+        logger.error(
+            `AUTOSELL extreme price movement for ${tokenAddress}\n` +
+                `Current Price: ${formatPrice(price)} (${priceChangePercent.toFixed(2)}% from start)\n` +
+                `Start Price: ${formatPrice(info.startPrice)}\n` +
+                `Target Price: ${formatPrice(info.targetPrice)}\n` +
+                `Stop Price: ${formatPrice(info.stopPrice)}\n` +
+                `ChatId: ${chatId}`
+        );
+    }
+
     // Check if price is outside the target range (either above target or below low)
     let hitTP = price > info.targetPrice;
     let hitSL = price < info.stopPrice;
@@ -123,14 +138,16 @@ async function executeSell(tokenAddress: string, price: number, chatId: string, 
     const splAmount = await getSPLBalance(tokenAddress, walletData.publicKey.toBase58());
 
     if (splAmount <= 0) {
-        logger.warn(`No balance found for token ${tokenAddress} in wallet ${chatId}`);
+        logger.error(`No balance found for token ${tokenAddress} in wallet ${chatId}`);
+        // Remove trade state to prevent repeated attempts
+        removeTradeState(chatId, tokenAddress);
         return;
     }
 
     //tried once only, on retry policy
+    logger.info(`execute autosell: splAmount ${splAmount} chatId ${chatId} tokenAddress ${tokenAddress}`);
     let result = await solana.sell_swap(SOLANA_CONNECTION, wallet.privateKey, info.contractAddress, splAmount);
-
-    //const ongoingSellKey = getOngoingSellKey(tokenAddress, chatId);
+    logger.info(`autosell sell_swap result chatId ${chatId} result ${result}`);
 
     await handleSellResult(result, tokenAddress, price, chatId, info);
 }
@@ -306,10 +323,12 @@ export const runAutoSellSchedule = () => {
         }
     };
 
-    // Start the loop in the background
-    runLoop().catch((error) => {
-        logger.error("Fatal error in auto sell loop:", error);
-        running = false;
+    // Start the loop in the background without waiting for it
+    setImmediate(() => {
+        runLoop().catch((error) => {
+            logger.error("Fatal error in auto sell loop:", error);
+            running = false;
+        });
     });
 
     // Return a function to stop the loop if needed

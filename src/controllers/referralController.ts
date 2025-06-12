@@ -20,6 +20,7 @@ import { transcode } from "buffer";
 import { logger } from "../logger";
 import { getRewards } from "../models/referralModel";
 import { getPublicKey } from "../solana/util";
+import { sendMessageToUser } from "../botUtils";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     try {
@@ -75,7 +76,7 @@ const onReferralSystemStart = async (query: TelegramBot.CallbackQuery) => {
             `Referral wallet: <code>${referralWalletPublicKey || mainWalletPublicKey || "Not set"}</code>\n\n` +
             `Your referral link is here: \n<code><b>${referral_link}</b></code>\n\n`;
 
-        await botInstance.sendMessage(chatId, caption, {
+        await sendMessageToUser(chatId, caption, {
             parse_mode: "HTML",
             disable_web_page_preview: false,
             reply_markup,
@@ -98,7 +99,7 @@ const onSetReferralWallet = async (query: TelegramBot.CallbackQuery) => {
             return;
         }
 
-        const promptMessage = await botInstance.sendMessage(chatId, "Input private key for your referral wallet:");
+        const promptMessage = await sendMessageToUser(chatId, "Input private key for your referral wallet:");
         setState(chatId, STATE.SETTING_REFERRAL_WALLET, {
             messageId,
             promptMessageId: promptMessage.message_id,
@@ -122,7 +123,7 @@ export const handleReferralWalletMessage = async (msg: TelegramBot.Message) => {
         const promptMessageId = stateData?.data?.promptMessageId;
 
         if (!privateKey) {
-            await botInstance.sendMessage(chatId, "Please provide a valid private key.");
+            await sendMessageToUser(chatId, "Please provide a valid private key.");
             return;
         }
 
@@ -132,14 +133,14 @@ export const handleReferralWalletMessage = async (msg: TelegramBot.Message) => {
 
             const success = await walletdb.updateReferralWallet(chatId, privateKey);
             if (success) {
-                await botInstance.sendMessage(chatId, `Referral wallet set successfully to: <code>${publicKey}</code>`, {
+                await sendMessageToUser(chatId, `Referral wallet set successfully to: <code>${publicKey}</code>`, {
                     parse_mode: "HTML",
                 });
             } else {
-                await botInstance.sendMessage(chatId, "Failed to set referral wallet. Please try again.");
+                await sendMessageToUser(chatId, "Failed to set referral wallet. Please try again.");
             }
         } catch (error) {
-            await botInstance.sendMessage(chatId, "Invalid private key. Please provide a valid Solana private key.");
+            await sendMessageToUser(chatId, "Invalid private key. Please provide a valid Solana private key.");
         }
 
         // Delete the input message and the prompt message
