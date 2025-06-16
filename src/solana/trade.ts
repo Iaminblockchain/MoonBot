@@ -260,7 +260,7 @@ export const buy_swap = async (
         // jupyter
         try {
             execution_price = await getTokenPriceSOL(tokenAddress);
-            logger.info("Token to SOL price from Jupiter:", { execution_price });
+            logger.info("buy execution price Token-SOL (Jupiter):", { execution_price });
         } catch (error) {
             logger.error("Error fetching token price in SOL:", error);
         }
@@ -273,6 +273,7 @@ export const buy_swap = async (
         }
 
         let execution_price_usd = execution_price * solPriceUSD;
+        logger.info("buy execution price Token-USD (Jupiter):", { execution_price_usd });
 
         timingMetrics.endTime = Date.now();
         const finalMetrics = {
@@ -336,7 +337,7 @@ export const sell_swap = async (
     const startTime = Date.now();
     const timingMetrics = createTimingMetrics();
     timingMetrics.startTime = startTime;
-
+    logger.info(`sell_swap: ${tokenAddress} ${amount} ${slippage}`);
     const result = await jupiter_swap(CONNECTION, PRIVATE_KEY, tokenAddress, WSOL_ADDRESS, amount, "ExactIn");
     const swapEndTime = Date.now();
     timingMetrics.swapEndTime = swapEndTime;
@@ -361,7 +362,7 @@ export const sell_swap = async (
         // Get token price in SOL
         try {
             execution_price = await getTokenPriceSOL(tokenAddress);
-            logger.info("Token to SOL price from Jupiter:", { execution_price });
+            logger.info("Sell exe price: Token/SOL price from Jupiter:", { execution_price });
         } catch (error) {
             logger.error("Error fetching token price in SOL:", error);
         }
@@ -370,7 +371,7 @@ export const sell_swap = async (
         let solPriceUSD = 0;
         try {
             solPriceUSD = await getSOLpriceUSD();
-            logger.info("SOL price in USD:", { solPriceUSD });
+            logger.info("Sell exe price Token/USD:", { solPriceUSD });
         } catch (error) {
             logger.error("Error fetching SOL price:", error);
             // Continue execution even if price fetch fails

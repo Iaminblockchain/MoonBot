@@ -8,7 +8,9 @@ import { TELEGRAM_PROXY } from "../index";
 import { TelegramClientParams } from "telegram/client/telegramBaseClient";
 
 async function listenChats(client: TelegramClient): Promise<void> {
+    logger.info("Adding message event handler...");
     client.addEventHandler(processMessages, new NewMessage({}));
+    logger.info("Message event handler added successfully");
 }
 
 export async function getTgClient(): Promise<TelegramClient> {
@@ -56,10 +58,13 @@ export async function getTgClient(): Promise<TelegramClient> {
 }
 
 export async function scrape(client: TelegramClient): Promise<void> {
-    logger.info("Start monitor and scrape chats");
+    logger.info("Starting scraper initialization...");
     try {
+        logger.info("Setting up chat event handlers...");
         await listenChats(client);
+        logger.info("✅ Scraper successfully initialized and monitoring chats");
     } catch (e) {
-        logger.error(`Error starting client: ${e}`);
+        logger.error(`❌ Error starting scraper: ${e}`);
+        throw e; // Re-throw to be handled by caller
     }
 }

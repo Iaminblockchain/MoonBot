@@ -9,6 +9,7 @@ import { getTokenPriceBatchSOL } from "../solana/getPrice";
 import { logger } from "../logger";
 import { PublicKey } from "@solana/web3.js";
 import { getMint } from "@solana/spl-token";
+import { sendMessageToUser } from "../botUtils";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     if (!botInstance) {
@@ -45,7 +46,7 @@ const showPortfolioStart = async (chatId: string, replaceId?: number) => {
     try {
         const wallet = await getWalletByChatId(chatId);
         if (!wallet) {
-            botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
+            await sendMessageToUser(chatId, "❌ No wallet found. Please connect a wallet first.");
             return;
         }
         const publicKey = getPublicKeyinFormat(wallet.privateKey);
@@ -54,7 +55,7 @@ const showPortfolioStart = async (chatId: string, replaceId?: number) => {
         const tokenAccounts = await getAllTokensWithBalance(SOLANA_CONNECTION, publicKey);
 
         if (!tokenAccounts || tokenAccounts.length === 0) {
-            botInstance.sendMessage(chatId, "⚠️ No tokens found in your wallet.");
+            await sendMessageToUser(chatId, "⚠️ No tokens found in your wallet.");
             return;
         }
 
@@ -106,7 +107,7 @@ const showPortfolioStart = async (chatId: string, replaceId?: number) => {
                 reply_markup,
             });
         } else {
-            await botInstance.sendMessage(chatId, caption, {
+            await sendMessageToUser(chatId, caption, {
                 parse_mode: "HTML",
                 disable_web_page_preview: false,
                 reply_markup,
@@ -126,7 +127,7 @@ const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: str
     try {
         const wallet = await getWalletByChatId(chatId);
         if (!wallet) {
-            botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
+            await sendMessageToUser(chatId, "❌ No wallet found. Please connect a wallet first.");
             return;
         }
         const publicKey = getPublicKeyinFormat(wallet.privateKey);
@@ -174,7 +175,7 @@ const portfolioPad = async (chatId: string, replaceId: number, tokenAddress: str
             ),
         };
 
-        botInstance.editMessageText(caption, {
+        await botInstance.editMessageText(caption, {
             message_id: replaceId,
             chat_id: chatId,
             parse_mode: "HTML",
@@ -195,7 +196,7 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
     try {
         const wallet = await getWalletByChatId(chatId);
         if (!wallet) {
-            botInstance.sendMessage(chatId, "❌ No wallet found. Please connect a wallet first.");
+            await sendMessageToUser(chatId, "❌ No wallet found. Please connect a wallet first.");
             return;
         }
         const publicKey = getPublicKeyinFormat(wallet.privateKey);
@@ -212,7 +213,7 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
             const reply_markup = {
                 force_reply: true,
             };
-            const new_msg = await botInstance.sendMessage(chatId, caption, {
+            const new_msg = await sendMessageToUser(chatId, caption, {
                 parse_mode: "HTML",
                 reply_markup,
             });
@@ -227,26 +228,27 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
 
                 if (n_msg.text) {
                     const sellAmount = (parseInt(tokenInfo.amount) * parseFloat(n_msg.text)) / 100;
-                    await botInstance.sendMessage(
+                    await sendMessageToUser(
                         chatId,
                         `Selling ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) `,
                         {
                             parse_mode: "HTML",
                         }
                     );
-
+                    logger.info(`sell_swap ${chatId}`);
                     const result = await sell_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, sellAmount);
+                    logger.info(`sell_swap  ${chatId} result ${result}`);
                     if (result.success) {
-                        await botInstance.sendMessage(
+                        await sendMessageToUser(
                             chatId,
                             `Successfully sold ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
-            https://solscan.io/tx/${result.txSignature}`,
+https://solscan.io/tx/${result.txSignature}`,
                             {
                                 parse_mode: "HTML",
                             }
                         );
                     } else {
-                        await botInstance.sendMessage(chatId, `Failed to sell ${metaData?.name}(${metaData?.symbol}). Please try again.`, {
+                        await sendMessageToUser(chatId, `Failed to sell ${metaData?.name}(${metaData?.symbol}). Please try again.`, {
                             parse_mode: "HTML",
                         });
                     }
@@ -254,17 +256,18 @@ const sellPortfolio = async (chatId: string, replaceId: number, amount: string, 
             });
         } else {
             const sellAmount = (parseInt(tokenInfo.amount) * parseInt(amount)) / 100;
-            await botInstance.sendMessage(
+            await sendMessageToUser(
                 chatId,
                 `Selling ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) `,
                 {
                     parse_mode: "HTML",
                 }
             );
-            //TODO! make a function for the message
+            logger.info(`sell_swap ${chatId}`);
             const result = await sell_swap(SOLANA_CONNECTION, wallet.privateKey, tokenAddress, sellAmount);
+            logger.info(`sell_swap result ${chatId} result ${result}`);
             if (result.success) {
-                await botInstance.sendMessage(
+                await sendMessageToUser(
                     chatId,
                     `Successfully sold ${sellAmount / Math.pow(10, tokenInfo.decimals)} ${metaData?.symbol} of ${metaData?.name}(${metaData?.symbol}) 
 https://solscan.io/tx/${result.txSignature}`,
@@ -273,7 +276,7 @@ https://solscan.io/tx/${result.txSignature}`,
                     }
                 );
             } else {
-                await botInstance.sendMessage(chatId, `Failed to sell ${metaData?.name}(${metaData?.symbol}). Please try again.`, {
+                await sendMessageToUser(chatId, `Failed to sell ${metaData?.name}(${metaData?.symbol}). Please try again.`, {
                     parse_mode: "HTML",
                 });
             }

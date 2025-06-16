@@ -55,15 +55,15 @@ export async function getTokenPriceUSD(ids: string, vsToken: string | null = nul
     }
 }
 
-export async function getTokenPriceSOL(ids: string): Promise<number> {
+export async function getTokenPriceSOL(id: string): Promise<number> {
     try {
         // For WSOL, return 1 as it's the base token
-        if (ids === WSOL_ADDRESS) {
+        if (id === WSOL_ADDRESS) {
             return 1;
         }
 
         // Construct URL with ids as a query parameter
-        let url = `${JUPYTER_BASE_URL}/price/v2?ids=${encodeURIComponent(ids)}`;
+        let url = `${JUPYTER_BASE_URL}/price/v2?ids=${encodeURIComponent(id)}`;
         url += `&vsToken=${encodeURIComponent(WSOL_ADDRESS)}`;
 
         const response = await axios.get(url);
@@ -76,11 +76,12 @@ export async function getTokenPriceSOL(ids: string): Promise<number> {
                 const price = Number(tokenInfo.price);
 
                 if (isNaN(price)) {
+                    logger.error(`Invalid price for token ${tokenId}`, { rawData: tokenInfo });
                     throw new Error(`Invalid price for token ${tokenId}`);
                 }
 
                 // Add debug logging to help diagnose issues
-                logger.debug("Price in SOL", {
+                logger.info("Price in SOL", {
                     token: tokenInfo.id,
                     price,
                     rawData: tokenInfo,
@@ -90,9 +91,9 @@ export async function getTokenPriceSOL(ids: string): Promise<number> {
         }
 
         // If no price is found, throw an error
-        throw new Error(`No price found for token(s): ${ids}`);
+        throw new Error(`No price found for token: ${id}`);
     } catch (error) {
-        logger.error(`Error fetching SOL price for ${ids}:`, error);
+        logger.error(`Error fetching SOL price for ${id}:`, error);
         throw error;
     }
 }
@@ -111,12 +112,20 @@ async function getTokenPriceBatchGeneric(ids: string[], vsToken: string): Promis
 
         const priceMap = new Map<string, number>();
 
+        // Filter out WSOL from the list if it exists
+        const filteredIds = ids.filter((id) => id !== WSOL_ADDRESS);
+        if (filteredIds.length === 0) {
+            return new Map();
+        }
+
         // Join all token IDs with commas
-        const idsString = ids.join(",");
+        const idsString = filteredIds.join(",");
         let url = `${JUPYTER_BASE_URL}/price/v2?ids=${encodeURIComponent(idsString)}`;
         if (vsToken && vsToken.toLowerCase() !== "usd") {
             url += `&vsToken=${encodeURIComponent(vsToken)}`;
         }
+
+        logger.debug(`Fetching prices from URL: ${url}`);
 
         const response = await axios.get(url);
         const priceData = response.data.data;
@@ -128,24 +137,27 @@ async function getTokenPriceBatchGeneric(ids: string[], vsToken: string): Promis
 
                 // Skip if tokenInfo is null or doesn't have price
                 if (!tokenInfo || typeof tokenInfo.price === "undefined") {
-                    logger.warn(`No price data for token ${tokenId}`);
+                    logger.warn(`No price data for token ${tokenId}`, { rawData: tokenInfo });
                     continue;
                 }
 
                 const price = Number(tokenInfo.price);
 
                 if (isNaN(price)) {
-                    logger.warn(`Invalid price for token ${tokenId}`);
+                    logger.warn(`Invalid price for token ${tokenId}`, { rawData: tokenInfo });
                     continue;
                 }
 
                 priceMap.set(tokenId, price);
-                logger.debug(`Batch price fetched (${vsToken})`, { token: tokenId, price });
+                logger.debug(`Batch price fetched (${vsToken})`, { token: tokenId, price, rawData: tokenInfo });
             }
         }
 
         // Log summary of fetched prices
-        logger.info(`Successfully fetched ${vsToken} prices for ${priceMap.size} out of ${ids.length} tokens`);
+        logger.info(`Successfully fetched ${vsToken} prices for ${priceMap.size} out of ${filteredIds.length} tokens`, {
+            tokens: Array.from(priceMap.keys()),
+            prices: Array.from(priceMap.values()),
+        });
 
         return priceMap;
     } catch (error) {

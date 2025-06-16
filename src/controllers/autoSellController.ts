@@ -168,7 +168,9 @@ async function executeSell(tokenAddress: string, price: number, chatId: string, 
     const splAmount = info.totalTokenAmount * Math.pow(10, decimal);
 
     if (splAmount <= 0) {
-        logger.warn(`No balance found for token ${tokenAddress} in wallet ${chatId}`);
+        logger.error(`No balance found for token ${tokenAddress} in wallet ${chatId}`);
+        // Remove trade state to prevent repeated attempts
+        removeTradeState(chatId, tokenAddress);
         return;
     }
 
@@ -414,10 +416,12 @@ export const runAutoSellSchedule = () => {
         }
     };
 
-    // Start the loop in the background
-    runLoop().catch((error) => {
-        logger.error("Fatal error in auto sell loop:", error);
-        running = false;
+    // Start the loop in the background without waiting for it
+    setImmediate(() => {
+        runLoop().catch((error) => {
+            logger.error("Fatal error in auto sell loop:", error);
+            running = false;
+        });
     });
 
     // Return a function to stop the loop if needed

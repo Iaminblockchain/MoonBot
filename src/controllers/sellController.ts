@@ -13,6 +13,7 @@ import { getTokenMetaData } from "../solana/token";
 import { parseTransaction } from "../solana/txhelpers";
 import { closePosition } from "../models/positionModel";
 import { formatPrice } from "../solana/util";
+import { sendMessageToUser as botUtilsSendMessageToUser } from "../botUtils";
 
 export const handleCallBackQuery = (query: TelegramBot.CallbackQuery) => {
     if (!botInstance) {
@@ -122,7 +123,7 @@ const onClickSell = async (query: TelegramBot.CallbackQuery, fraction: number, w
                 `${profitLossText}: ${Math.abs(profitLoss).toFixed(6)} SOL (${profitLossPercentage}%)\n` +
                 `Transaction: http://solscan.io/tx/${result.txSignature}`;
 
-            await botInstance.sendMessage(chatId!, message, { parse_mode: "HTML" });
+            await sendMessageToUser(chatId!, message, { parse_mode: "HTML" });
         } else {
             logger.error("Sell transaction failed", { result });
             await sendMessageToUser(chatId!, "Sell failed");
@@ -213,7 +214,7 @@ export const showSellPad = async (query: TelegramBot.CallbackQuery) => {
 
         const title = `<b>Your Tokens</b>\nSelect a token to sell:`;
 
-        botInstance.sendMessage(chatId!, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: "HTML" });
+        await sendMessageToUser(chatId!, title, { reply_markup: { inline_keyboard: buttons }, parse_mode: "HTML" });
     } catch (error) {
         logger.error("Error in showSellPad:", error);
         if (botInstance && query.message) {
@@ -244,7 +245,7 @@ export const onClickSellWithToken = async (query: TelegramBot.CallbackQuery) => 
                 ],
                 [{ text: "Refresh", callback_data: "sc_refresh" }],
             ];
-            botInstance.sendMessage(chatId!, `Selling ${token}. Select percentage`, {
+            await sendMessageToUser(chatId!, `Selling ${token}. Select percentage`, {
                 reply_markup: { inline_keyboard: buttons },
                 parse_mode: "HTML",
             });
